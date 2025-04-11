@@ -2,39 +2,55 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"log/slog"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 	persesClient "github.com/perses/perses/pkg/client/api/v1"
 	"github.com/perses/perses/pkg/client/config"
+	"github.com/perses/perses/pkg/model/api"
 	"github.com/perses/perses/pkg/model/api/v1/common"
 )
 
-// steps
-// 1. initialize Perses client
-// 2. get the list of projects
 func main() {
-	s := server.NewMCPServer(
+
+	persesClient := initializePersesClient("http://localhost:8080")
+	if persesClient == nil {
+		slog.Error("Failed to initialize Perses client")
+		return
+	}
+
+	mcpServer := server.NewMCPServer(
 		"perses-mcp",
 		"0.0.1",
 		server.WithResourceCapabilities(true, true),
 		server.WithLogging(),
 	)
 
-	s.AddTool(getDashboards())
+	slog.Info("Starting Grafana MCP server using stdio transport")
 
-	if err := server.ServeStdio(s); err != nil {
-		fmt.Println("Error starting server:", err)
+	mcpServer.AddTool(getDashboards(persesClient))
+
+	if err := server.ServeStdio(mcpServer); err != nil {
+		slog.Error("Error starting server", "error", err)
 	}
 }
 
-func getDashboards() (tool mcp.Tool, handler server.ToolHandlerFunc) {
-	return mcp.NewTool("perses_get_projects", mcp.WithDescription("Get projects")), func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		// simulate fetching projects
-		projects := "project1, project2, project3, project4, project5"
-		// convert to comma separated string
-		return mcp.NewToolResultText(string(projects)), nil
+func getDashboards(persesClient persesClient.ClientInterface) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+	return mcp.NewTool("perses_get_projects", mcp.WithDescription("Get all Perses Projects")), func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+
+		projects, err := persesClient.Project().List("")
+		if err != nil {
+			return nil, fmt.Errorf("error retrieving projects: %w", err)
+		}
+
+		projectsJSON, err := json.Marshal(projects)
+		if err != nil {
+			return nil, fmt.Errorf("error marshalling projects: %w", err)
+		}
+		return mcp.NewToolResultText(string(projectsJSON)), nil
 	}
 }
 
@@ -42,25 +58,16 @@ func initializePersesClient(baseURL string) persesClient.ClientInterface {
 
 	restClient, err := config.NewRESTClient(config.RestConfigClient{
 		URL: common.MustParseURL(baseURL),
+		NativeAuth: &api.Auth{
+			Login:    "admin",
+			Password: "password",
+		},
 	})
 	if err != nil {
-		fmt.Println("Error creating REST client:", err)
+		fmt.Println("Error creating Perses Client:", err)
 		return nil
 	}
 
 	client := persesClient.NewWithClient(restClient)
 	return client
 }
-
-// func main() {
-// 	scanner := bufio.NewScanner(os.Stdin)
-// 	fmt.Println("Enter text (type 'exit' to quit):")
-
-// 	for scanner.Scan() {
-// 		text := scanner.Text()
-// 		fmt.Println("You entered:", text)
-// 		if text == "exit" {
-// 			break
-// 		}
-// 	}
-// }
