@@ -1,40 +1,42 @@
 package main
 
 import (
-	"context"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"log/slog"
 	"os"
 
-	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/ibakshay/perses-mcp/internal/tools"
 	"github.com/mark3labs/mcp-go/server"
 
-	persesClient "github.com/perses/perses/pkg/client/api/v1"
+	apiClient "github.com/perses/perses/pkg/client/api/v1"
 	"github.com/perses/perses/pkg/client/config"
 	"github.com/perses/perses/pkg/model/api/v1/common"
 )
 
-func main() {
-	var persesServerURL string
-	var logLevel string
+var (
+	persesServerURL string
+	logLevel        string
+)
 
+func init() {
 	flag.StringVar(&persesServerURL, "perses-server-url", "http://localhost:8080", "The Perses backend server URL")
 	flag.StringVar(&logLevel, "log-level", "info", "Log level (debug, info, warn, error)")
 	flag.Parse()
 
-	slog.Info("The Perses Server URL is", "url", persesServerURL)
-	slog.Info("Log level set to", "level", logLevel)
-	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo})))
-	if logLevel == "debug" {
-		slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug})))
-	}
+	// configure logging
+	logHandler := slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
+		Level: getLogLevel(logLevel),
+	})
+	slog.SetDefault(slog.New(logHandler))
+}
 
-	slog.Warn("Perses MCP is in alpha, use at your own risk! ")
+func main() {
+
 	// Initialize the Perses client
 	persesClient := initializePersesClient(persesServerURL)
 	if persesClient == nil {
+		slog.Debug("I am testing")
 		slog.Error("Failed to initialize Perses client")
 		return
 	}
@@ -48,30 +50,14 @@ func main() {
 
 	slog.Info("Starting Perses MCP server using stdio transport")
 
-	mcpServer.AddTool(getProjects(persesClient))
+	mcpServer.AddTool(tools.GetProjects(persesClient))
 
 	if err := server.ServeStdio(mcpServer); err != nil {
 		slog.Error("Error starting server", "error", err)
 	}
 }
 
-func getProjects(persesClient persesClient.ClientInterface) (tool mcp.Tool, handler server.ToolHandlerFunc) {
-	return mcp.NewTool("perses_get_projects", mcp.WithDescription("Get all Perses Projects")), func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-
-		projects, err := persesClient.Project().List("")
-		if err != nil {
-			return nil, fmt.Errorf("error retrieving projects: %w", err)
-		}
-
-		projectsJSON, err := json.Marshal(projects)
-		if err != nil {
-			return nil, fmt.Errorf("error marshalling projects: %w", err)
-		}
-		return mcp.NewToolResultText(string(projectsJSON)), nil
-	}
-}
-
-func initializePersesClient(baseURL string) persesClient.ClientInterface {
+func initializePersesClient(baseURL string) apiClient.ClientInterface {
 
 	bearerToken := os.Getenv("PERSES_TOKEN")
 	if bearerToken == "" {
@@ -90,6 +76,21 @@ func initializePersesClient(baseURL string) persesClient.ClientInterface {
 		return nil
 	}
 
-	client := persesClient.NewWithClient(restClient)
+	client := apiClient.NewWithClient(restClient)
 	return client
+}
+
+func getLogLevel(level string) slog.Level {
+	switch level {
+	case "debug":
+		return slog.LevelDebug
+	case "info":
+		return slog.LevelInfo
+	case "warn":
+		return slog.LevelWarn
+	case "error":
+		return slog.LevelError
+	default:
+		return slog.LevelInfo
+	}
 }
