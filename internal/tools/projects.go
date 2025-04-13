@@ -15,7 +15,7 @@ func GetProjects(client apiClient.ClientInterface) (tool mcp.Tool, handler serve
 
 		projects, err := client.Project().List("")
 		if err != nil {
-			return nil, fmt.Errorf("error retrieving projects akshay: %w", err)
+			return nil, fmt.Errorf("error retrieving projects: %w", err)
 		}
 
 		projectsJSON, err := json.Marshal(projects)

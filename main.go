@@ -33,12 +33,13 @@ func init() {
 
 func main() {
 
+	slog.Info("The Perses Server URL is", "url", persesServerURL)
+	slog.Info("Log level set to", "level", logLevel)
+
 	// Initialize the Perses client
-	persesClient := initializePersesClient(persesServerURL)
-	if persesClient == nil {
-		slog.Debug("I am testing")
-		slog.Error("Failed to initialize Perses client")
-		return
+	persesClient, err := initializePersesClient(persesServerURL)
+	if err != nil {
+		os.Exit(1)
 	}
 
 	mcpServer := server.NewMCPServer(
@@ -57,12 +58,12 @@ func main() {
 	}
 }
 
-func initializePersesClient(baseURL string) apiClient.ClientInterface {
+func initializePersesClient(baseURL string) (apiClient.ClientInterface, error) {
 
 	bearerToken := os.Getenv("PERSES_TOKEN")
 	if bearerToken == "" {
 		slog.Error("PERSES_TOKEN environment variable is not set")
-		return nil
+		return nil, fmt.Errorf("PERSES_TOKEN environment variable is not set")
 	}
 
 	restClient, err := config.NewRESTClient(config.RestConfigClient{
@@ -72,12 +73,11 @@ func initializePersesClient(baseURL string) apiClient.ClientInterface {
 		},
 	})
 	if err != nil {
-		fmt.Println("Error creating Perses Client:", err)
-		return nil
+		return nil, fmt.Errorf("error creating Perses Client: %v", err)
 	}
 
 	client := apiClient.NewWithClient(restClient)
-	return client
+	return client, nil
 }
 
 func getLogLevel(level string) slog.Level {
