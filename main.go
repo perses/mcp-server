@@ -19,6 +19,8 @@ var (
 	logLevel        string
 )
 
+const PERSES_TOKEN = "PERSES_TOKEN"
+
 func init() {
 	flag.StringVar(&persesServerURL, "perses-server-url", "http://localhost:8080", "The Perses backend server URL")
 	flag.StringVar(&logLevel, "log-level", "info", "Log level (debug, info, warn, error)")
@@ -60,10 +62,10 @@ func main() {
 
 func initializePersesClient(baseURL string) (apiClient.ClientInterface, error) {
 
-	bearerToken := os.Getenv("PERSES_TOKEN")
+	bearerToken := os.Getenv(PERSES_TOKEN)
 	if bearerToken == "" {
-		slog.Error("PERSES_TOKEN environment variable is not set")
-		return nil, fmt.Errorf("PERSES_TOKEN environment variable is not set")
+		slog.Error(PERSES_TOKEN + " environment variable is not set")
+		return nil, fmt.Errorf(PERSES_TOKEN + " environment variable is not set")
 	}
 
 	restClient, err := config.NewRESTClient(config.RestConfigClient{
