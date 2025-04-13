@@ -10,8 +10,8 @@ import (
 	apiClient "github.com/perses/perses/pkg/client/api/v1"
 )
 
-func GetProjects(client apiClient.ClientInterface) (tool mcp.Tool, handler server.ToolHandlerFunc) {
-	return mcp.NewTool("perses_get_projects", mcp.WithDescription("Get all Perses Projects")), func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func ListProjects(client apiClient.ClientInterface) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+	return mcp.NewTool("perses_list_projects", mcp.WithDescription("List all Perses Projects")), func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 
 		projects, err := client.Project().List("")
 		if err != nil {

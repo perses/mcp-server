@@ -10,8 +10,8 @@ import (
 	apiClient "github.com/perses/perses/pkg/client/api/v1"
 )
 
-func GetGlobalDatasources(client apiClient.ClientInterface) (tool mcp.Tool, handler server.ToolHandlerFunc) {
-	return mcp.NewTool("perses_get_global_datasources", mcp.WithDescription("Get all Perses Global Datasources")), func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func ListGlobalDatasources(client apiClient.ClientInterface) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+	return mcp.NewTool("perses_list_global_datasources", mcp.WithDescription("List all Perses Global Datasources")), func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		globalDatasources, err := client.GlobalDatasource().List("")
 		if err != nil {
 			return nil, fmt.Errorf("error retrieving global datasources: %w", err)

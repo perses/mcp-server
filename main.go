@@ -53,9 +53,10 @@ func main() {
 
 	slog.Info("Starting Perses MCP server using stdio transport")
 
-	mcpServer.AddTool(tools.GetProjects(persesClient))
-	mcpServer.AddTool(tools.GetGlobalDatasources(persesClient))
+	mcpServer.AddTool(tools.ListProjects(persesClient))
+	mcpServer.AddTool(tools.ListGlobalDatasources(persesClient))
 	mcpServer.AddTool(tools.ListDashboards(persesClient))
+	mcpServer.AddTool(tools.ListUsers(persesClient))
 
 	if err := server.ServeStdio(mcpServer); err != nil {
 		slog.Error("Error starting server", "error", err)
