@@ -55,6 +55,7 @@ func main() {
 
 	mcpServer.AddTool(tools.GetProjects(persesClient))
 	mcpServer.AddTool(tools.GetGlobalDatasources(persesClient))
+	mcpServer.AddTool(tools.ListDashboards(persesClient))
 
 	if err := server.ServeStdio(mcpServer); err != nil {
 		slog.Error("Error starting server", "error", err)
