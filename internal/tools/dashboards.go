@@ -11,7 +11,7 @@ import (
 )
 
 func ListDashboards(client apiClient.ClientInterface) (tool mcp.Tool, handler server.ToolHandlerFunc) {
-	return mcp.NewTool("perses_get_dashboards",
+	return mcp.NewTool("perses_list_dashboards",
 			mcp.WithDescription("List dashboards for a specific project"),
 			mcp.WithString("project", mcp.Required(),
 				mcp.Description("Project name"))),
