@@ -57,11 +57,8 @@ You can easily access this file via the Claude Desktop app by navigating to `Cla
 ```
 3. Restart Claude Desktop for the changes to take effect.
 
-
-
-
-
-
+### Integration with Vs Code GitHub Copilot
+tbd
 
 ## Tools
 
