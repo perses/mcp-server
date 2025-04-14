@@ -24,6 +24,22 @@ https://github.com/user-attachments/assets/b80c354a-8006-4e1f-b7f4-e123002f7dc3
 
 ## Usage
 
+### Prerequisites
+- [percli](https://perses.dev/perses/docs/cli/)
+
+### How do I get `PERSES_TOKEN`? 
+- You can get the `PERSES_TOKEN` by running the following command in your terminal:
+
+```bash
+percli login <PERSES_SERVER_URL>
+```
+- After successful login, execute the following command to get the token:
+
+```bash
+percli whoami --show-token
+```
+- Copy this token and use it in the MCP server configuration.
+
 ### Integration with Claude Desktop
 
 To add this MCP server to Claude Desktop:
