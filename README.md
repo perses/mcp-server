@@ -16,7 +16,40 @@ https://github.com/user-attachments/assets/b80c354a-8006-4e1f-b7f4-e123002f7dc3
 </details>
 
 
+## Usage
 
+### Integration with Claude Desktop
+
+To add this MCP server to Claude Desktop:
+
+1. Create or edit the Claude Desktop configuration file at:
+
+   - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
+   - Windows: `%APPDATA%\Claude\claude_desktop_config.json`
+   - Linux: `~/.config/Claude/claude_desktop_config.json`
+   
+You can easily access this file via the Claude Desktop app by navigating to `Claude > Settings > Developer > Edit Config`.
+
+2. Add the following lines to the configuration file:
+
+```json
+{
+  "mcpServers": {
+    "perses-mcp": {
+      "command": "/Users/I513945/development/contribution/perses-workspace/perses-mcp/bin/perses-mcp",
+      "args": [
+        "--perses-server-url",
+        "<PERSES_SERVER_URL>"
+      ],
+      "env": {
+        "PERSES_TOKEN": "<PERSES_TOKEN>"
+      }
+    },
+  }
+}
+
+```
+3. Restart Claude Desktop for the changes to take effect.
 
 
 

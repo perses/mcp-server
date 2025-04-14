@@ -12,7 +12,7 @@ import (
 
 func ListGlobalDatasources(client apiClient.ClientInterface) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("perses_list_global_datasources",
-			mcp.WithDescription("List all Global Datasources")),
+			mcp.WithDescription("List all Perses Global Datasources")),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			globalDatasources, err := client.GlobalDatasource().List("")
 			if err != nil {
