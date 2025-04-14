@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/ibakshay/perses-mcp/internal/tools"
+	"github.com/ibakshay/perses-mcp/pkg/tools"
 	"github.com/mark3labs/mcp-go/server"
 
 	apiClient "github.com/perses/perses/pkg/client/api/v1"
