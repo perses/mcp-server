@@ -1,5 +1,5 @@
 <div align="center">
-<img width="150px" src="https://raw.githubusercontent.com/perses/perses/main/docs/images/perses_logo_cropped.svg" alt="Perses">
+<img src="https://raw.githubusercontent.com/perses/perses/main/docs/images/perses_logo_cropped.svg" alt="Perses">
     <h1 align="center">MCP Server for Perses</h1>
 </div>
 
