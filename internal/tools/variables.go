@@ -12,7 +12,7 @@ import (
 
 func ListGlobalVariables(client apiClient.ClientInterface) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("perses_list_global_variables",
-			mcp.WithDescription("List all Perses Global Variables")),
+			mcp.WithDescription("List all Global Variables")),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 
 			variables, err := client.GlobalVariable().List("")
