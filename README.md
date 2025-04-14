@@ -3,10 +3,21 @@ The Perses MCP Server is a local [Model Context Protocol (MCP)](https://modelcon
 
 ## Demo
 
-### Claude desktop
+<details>
+<summary> Claude Desktop</summary>
+  
 https://github.com/user-attachments/assets/d0ba1b03-42a1-4d70-9bb3-5a56c4193e93
+</details>
 
-### VS Code with GitHub Copilot
+<details>
+<summary>VS Code with GitHub Copilot</summary>
+
+https://github.com/user-attachments/assets/b80c354a-8006-4e1f-b7f4-e123002f7dc3
+</details>
+
+
+
+
 
 
 
