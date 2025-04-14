@@ -90,3 +90,6 @@ tbd
 | `perses_list_variables`        | List all variables for a specific project | `project`           |
 
 
+## License
+
+The code is licensed under an [Apache 2.0](./LICENSE) license.
