@@ -57,7 +57,7 @@ To add this MCP server to Claude Desktop:
    
 You can easily access this file via the Claude Desktop app by navigating to `Claude > Settings > Developer > Edit Config`.
 
-2. Add the following lines to the configuration file:
+2. Add the following JSON block to the configuration file:
 
 ```json
 {
@@ -74,12 +74,45 @@ You can easily access this file via the Claude Desktop app by navigating to `Cla
     }
   }
 }
-
 ```
 3. Restart Claude Desktop for the changes to take effect.
 
 ### Integration with VS Code GitHub Copilot
-tbd
+
+To integrate the MCP server with VS Code GitHub Copilot, follow these steps:
+
+1. Open User Settings (JSON) in VS Code:
+   - Press `Cmd + Shift + P` (on macOS) or `Ctrl + Shift + P` (on other platforms).
+   - Type `Preferences: Open User Settings (JSON)` and select it.
+
+2. Add the following JSON block to the User Settings (JSON) file:
+
+```json
+{
+  "inputs": [
+    {
+      "type": "promptString",
+      "id": "perses-token",
+      "description": "PERSES_TOKEN to connect with Perses Application",
+      "password": true
+    }
+  ],
+  "servers": {
+    "perses-mcp": {
+      "command": "<ABSOLUTE_PATH_TO_PERSES_MCP_BINARY>",
+      "args": [
+        "--perses-server-url",
+        "http://localhost:8080"
+      ],
+      "env": {
+        "PERSES_TOKEN": "${input:perses-token}"
+      }
+    }
+  }
+}
+```
+
+1. Optionally, create a file named `.vscode/mcp.json` in your workspace and add the same JSON block. This allows you to share the configuration with others.
 
 ## Tools
 
