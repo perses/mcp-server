@@ -43,7 +43,7 @@ percli login <PERSES_SERVER_URL>
 percli whoami --show-token
 ```
 
-3. Copy the displayed token to use in your MCP server configuration.
+1. Copy the token to use in your MCP server configuration.
 
 ### Integration with Claude Desktop
 
