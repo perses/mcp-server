@@ -24,10 +24,11 @@ https://github.com/user-attachments/assets/b80c354a-8006-4e1f-b7f4-e123002f7dc3
 
 ## Usage
 
-### Prerequisites
+### Pre-requisites
 - [percli](https://perses.dev/perses/docs/cli/)
+- `PERSES_TOKEN`
 
-### How do I get `PERSES_TOKEN`? 
+#### Obtaining Your Perses Authentication Token
 
 1. Login to your Perses server using the `percli` command line tool:
 
