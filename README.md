@@ -28,17 +28,19 @@ https://github.com/user-attachments/assets/b80c354a-8006-4e1f-b7f4-e123002f7dc3
 - [percli](https://perses.dev/perses/docs/cli/)
 
 ### How do I get `PERSES_TOKEN`? 
-- You can get the `PERSES_TOKEN` by running the following command in your terminal:
+
+1. Login to your Perses server using the `percli` command line tool:
 
 ```bash
 percli login <PERSES_SERVER_URL>
 ```
-- After successful login, execute the following command to get the token:
 
+2. After successful login, retrieve your token:
 ```bash
 percli whoami --show-token
 ```
-- Copy this token and use it in the MCP server configuration.
+
+3. Copy the displayed token to use in your MCP server configuration.
 
 ### Integration with Claude Desktop
 
@@ -58,7 +60,7 @@ You can easily access this file via the Claude Desktop app by navigating to `Cla
 {
   "mcpServers": {
     "perses-mcp": {
-      "command": "/Users/I513945/development/contribution/perses-workspace/perses-mcp/bin/perses-mcp",
+      "command": "<ABSOLUTE_PATH_TO_PERSES_MCP_BINARY>",
       "args": [
         "--perses-server-url",
         "<PERSES_SERVER_URL>"
@@ -66,14 +68,14 @@ You can easily access this file via the Claude Desktop app by navigating to `Cla
       "env": {
         "PERSES_TOKEN": "<PERSES_TOKEN>"
       }
-    },
+    }
   }
 }
 
 ```
 3. Restart Claude Desktop for the changes to take effect.
 
-### Integration with Vs Code GitHub Copilot
+### Integration with VS Code GitHub Copilot
 tbd
 
 ## Tools
