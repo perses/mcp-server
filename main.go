@@ -55,7 +55,6 @@ func main() {
 
 	mcpServer.AddTool(tools.ListProjects(persesClient))
 	mcpServer.AddTool(tools.ListDashboards(persesClient))
-	mcpServer.AddTool(tools.ListUsers(persesClient))
 	mcpServer.AddTool(tools.ListGlobalVariables(persesClient))
 	mcpServer.AddTool(tools.ListVariables(persesClient))
 	mcpServer.AddTool(tools.ListGlobalDatasources(persesClient))
