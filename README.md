@@ -7,7 +7,11 @@
 
 The Perses MCP Server is a local [Model Context Protocol (MCP)](https://modelcontextprotocol.io/introduction) Server that enables the LLM hosts(Claude Desktop, VS Code, Cursor) to interact with the Perses Application in a standardized way.
 
-![perses-mcp](https://github.com/user-attachments/assets/416409df-9045-41f3-b10b-91df3020af1f)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://github.com/user-attachments/assets/d691a924-c53d-408d-a3f9-a029f3fa6dc2">
+  <source media="(prefers-color-scheme: light)" srcset="https://github.com/user-attachments/assets/416409df-9045-41f3-b10b-91df3020af1f">
+  <img alt="Fallback image description" src="https://github.com/user-attachments/assets/416409df-9045-41f3-b10b-91df3020af1f">
+</picture>
 
 ## Demo
 
