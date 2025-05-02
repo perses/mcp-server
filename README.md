@@ -18,7 +18,7 @@ The Perses MCP Server is a local [Model Context Protocol (MCP)](https://modelcon
 <details open>
 <summary> Claude Desktop</summary>
   
-https://github.com/user-attachments/assets/d0ba1b03-42a1-4d70-9bb3-5a56c4193e93
+https://github.com/user-attachments/assets/87137515-1b45-442d-a4c9-68f460a1ba4c
 </details>
 
 <details>
