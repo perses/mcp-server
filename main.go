@@ -6,8 +6,8 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/ibakshay/perses-mcp/pkg/tools"
 	"github.com/mark3labs/mcp-go/server"
+	"github.com/perses/mcp-server/pkg/tools"
 
 	apiClient "github.com/perses/perses/pkg/client/api/v1"
 	"github.com/perses/perses/pkg/client/config"
@@ -54,6 +54,7 @@ func main() {
 	slog.Info("Starting Perses MCP server using stdio transport")
 
 	mcpServer.AddTool(tools.ListProjects(persesClient))
+	mcpServer.AddTool(tools.CreateProject(persesClient))
 	mcpServer.AddTool(tools.ListDashboards(persesClient))
 	mcpServer.AddTool(tools.ListGlobalVariables(persesClient))
 	mcpServer.AddTool(tools.ListVariables(persesClient))
