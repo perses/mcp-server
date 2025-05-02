@@ -8,6 +8,8 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 	apiClient "github.com/perses/perses/pkg/client/api/v1"
+	v1 "github.com/perses/perses/pkg/model/api/v1"
+	"github.com/perses/perses/pkg/model/api/v1/common"
 )
 
 func ListProjects(client apiClient.ClientInterface) (tool mcp.Tool, handler server.ToolHandlerFunc) {
@@ -25,5 +27,38 @@ func ListProjects(client apiClient.ClientInterface) (tool mcp.Tool, handler serv
 				return nil, fmt.Errorf("error marshalling projects: %w", err)
 			}
 			return mcp.NewToolResultText(string(projectsJSON)), nil
+		}
+}
+
+func CreateProject(client apiClient.ClientInterface) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+	return mcp.NewTool("perses_create_project",
+			mcp.WithDescription("Create a new Perses Project"), mcp.WithString("project", mcp.Required())),
+		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			project, ok := request.Params.Arguments["project"].(string)
+			if !ok {
+				return mcp.NewToolResultError("invalid type for 'project', expected string"), nil
+			}
+
+			newProjectRequest := &v1.Project{
+				Kind: "Project",
+				Metadata: v1.Metadata{
+					Name: project,
+				},
+				Spec: v1.ProjectSpec{
+					Display: &common.Display{
+						Name: project,
+					},
+				},
+			}
+
+			response, err := client.Project().Create(newProjectRequest)
+			if err != nil {
+				return nil, fmt.Errorf("error creating project '%s': %w", project, err)
+			}
+			projectJSON, err := json.Marshal(response)
+			if err != nil {
+				return nil, fmt.Errorf("error marshalling project '%s': %w", project, err)
+			}
+			return mcp.NewToolResultText(string(projectJSON)), nil
 		}
 }
