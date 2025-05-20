@@ -8,6 +8,8 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 	apiClient "github.com/perses/perses/pkg/client/api/v1"
+	v1 "github.com/perses/perses/pkg/model/api/v1"
+	"github.com/perses/perses/pkg/model/api/v1/variable"
 )
 
 func ListGlobalVariables(client apiClient.ClientInterface) (tool mcp.Tool, handler server.ToolHandlerFunc) {
@@ -49,5 +51,55 @@ func ListVariables(client apiClient.ClientInterface) (tool mcp.Tool, handler ser
 				return nil, fmt.Errorf("error marshalling variables: %w", err)
 			}
 			return mcp.NewToolResultText(string(variablesJSON)), nil
+		}
+}
+
+func CreateProjectVariable(client apiClient.ClientInterface) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+	return mcp.NewTool("perses_create_project_variable",
+			mcp.WithDescription("Create a project level variable"),
+			mcp.WithString("name", mcp.Required(),
+				mcp.Description("Variable name")),
+			mcp.WithString("project", mcp.Required(),
+				mcp.Description("Project name"))),
+		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			name, ok := request.Params.Arguments["name"].(string)
+			if !ok {
+				return mcp.NewToolResultError("invalid type for 'name', expected string"), nil
+			}
+
+			project, ok := request.Params.Arguments["project"].(string)
+			if !ok {
+				return mcp.NewToolResultError("invalid type for 'project', expected string"), nil
+			}
+
+			projectVar := &v1.Variable{ //should we just use 'client' instead of 'v1' ?
+				Kind: "Variable",
+				Metadata: v1.ProjectMetadata{
+					Metadata: v1.Metadata{
+						Name: name,
+					},
+					ProjectMetadataWrapper: v1.ProjectMetadataWrapper{
+						Project: project,
+					},
+				},
+				Spec: v1.VariableSpec{
+					Kind: variable.KindText,
+					Spec: &variable.TextSpec{
+						Value: "claude",
+					},
+				},
+			}
+
+			result, err := client.Variable(project).Create(projectVar)
+			if err != nil {
+				return nil, fmt.Errorf("error creating variable '%s' in project '%s': %w", name, project, err)
+			}
+
+			resultJSON, err := json.Marshal(result)
+			if err != nil {
+				return nil, fmt.Errorf("error marshalling variable result: %w", err)
+			}
+
+			return mcp.NewToolResultText(string(resultJSON)), nil
 		}
 }
