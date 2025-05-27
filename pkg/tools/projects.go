@@ -34,9 +34,9 @@ func CreateProject(client apiClient.ClientInterface) (tool mcp.Tool, handler ser
 	return mcp.NewTool("perses_create_project",
 			mcp.WithDescription("Create a new Perses Project"), mcp.WithString("project", mcp.Required())),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			project, ok := request.Params.Arguments["project"].(string)
-			if !ok {
-				return mcp.NewToolResultError("invalid type for 'project', expected string"), nil
+			project, err := request.RequireString("project")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
 			}
 
 			newProjectRequest := &v1.Project{
