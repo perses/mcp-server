@@ -47,7 +47,7 @@ func main() {
 	mcpServer := server.NewMCPServer(
 		"perses-mcp",
 		"0.0.1",
-		server.WithResourceCapabilities(true, true),
+		server.WithToolCapabilities(true),
 		server.WithLogging(),
 	)
 
