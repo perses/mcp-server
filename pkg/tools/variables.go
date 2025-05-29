@@ -54,7 +54,7 @@ func ListVariables(client apiClient.ClientInterface) (tool mcp.Tool, handler ser
 		}
 }
 
-func CreateProjectVariable(client apiClient.ClientInterface) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+func CreateProjectTextVariable(client apiClient.ClientInterface) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("perses_create_project_variable",
 			mcp.WithDescription("Create a project level variable"),
 			mcp.WithString("name", mcp.Required(),
@@ -72,7 +72,7 @@ func CreateProjectVariable(client apiClient.ClientInterface) (tool mcp.Tool, han
 				return mcp.NewToolResultError("invalid type for 'project', expected string"), nil
 			}
 
-			projectVar := &v1.Variable{ //should we just use 'client' instead of 'v1' ?
+			projectVar := &v1.Variable{
 				Kind: "Variable",
 				Metadata: v1.ProjectMetadata{
 					Metadata: v1.Metadata{
@@ -85,7 +85,7 @@ func CreateProjectVariable(client apiClient.ClientInterface) (tool mcp.Tool, han
 				Spec: v1.VariableSpec{
 					Kind: variable.KindText,
 					Spec: &variable.TextSpec{
-						Value: "claude",
+						Value: name,
 					},
 				},
 			}
