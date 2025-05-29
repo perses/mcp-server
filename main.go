@@ -67,7 +67,7 @@ func main() {
 	//Variable
 	mcpServer.AddTool(tools.ListGlobalVariables(persesClient))
 	mcpServer.AddTool(tools.ListVariables(persesClient))
-	mcpServer.AddTool(tools.CreateProjectVariable(persesClient))
+	mcpServer.AddTool(tools.CreateProjectTextVariable(persesClient))
 
 	if err := server.ServeStdio(mcpServer); err != nil {
 		slog.Error("Error starting server", "error", err)
