@@ -142,11 +142,11 @@ To integrate the MCP server with VS Code GitHub Copilot, follow these steps:
 
 ### Variables
 
-| Tool                           | Description                               | Required Parameters |
-| ------------------------------ | ----------------------------------------- | ------------------- |
-| `perses_list_global_variables` | List all global variables                 | -                   |
-| `perses_list_variables`        | List all variables for a specific project | `project`           |
-
+| Tool                             | Description                               | Required Parameters |
+| -------------------------------- | ----------------------------------------- | ------------------- |
+| `perses_list_global_variables`   | List all global variables                 | -                   |
+| `perses_list_variables`          | List all variables for a specific project | `project`           |
+| `perses_create_project_variable` | Create a project-level variable           | `name`, `project`   |
 
 ## License
 
