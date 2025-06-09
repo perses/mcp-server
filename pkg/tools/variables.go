@@ -36,9 +36,9 @@ func ListVariables(client apiClient.ClientInterface) (tool mcp.Tool, handler ser
 			mcp.WithString("project", mcp.Required(),
 				mcp.Description("Project name"))),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			project, ok := request.Params.Arguments["project"].(string)
-			if !ok {
-				return mcp.NewToolResultError("invalid type for 'project', expected string"), nil
+			project, err := request.RequireString("project")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
 			}
 
 			variables, err := client.Variable(project).List("")
@@ -62,14 +62,14 @@ func CreateProjectTextVariable(client apiClient.ClientInterface) (tool mcp.Tool,
 			mcp.WithString("project", mcp.Required(),
 				mcp.Description("Project name"))),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			name, ok := request.Params.Arguments["name"].(string)
-			if !ok {
-				return mcp.NewToolResultError("invalid type for 'name', expected string"), nil
+			name, err := request.RequireString("name")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
 			}
 
-			project, ok := request.Params.Arguments["project"].(string)
-			if !ok {
-				return mcp.NewToolResultError("invalid type for 'project', expected string"), nil
+			project, err := request.RequireString("project")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
 			}
 
 			projectVar := &v1.Variable{
