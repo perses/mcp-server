@@ -122,30 +122,54 @@ To integrate the MCP server with VS Code GitHub Copilot, follow these steps:
 
 ### Projects
 
-| Tool                   | Description       | Required Parameters |
-| ---------------------- | ----------------- | ------------------- |
-| `perses_list_projects` | List all projects | -                   |
+| Tool                         | Description           | Required Parameters |
+| ---------------------------- | --------------------- | ------------------- |
+| `perses_list_projects`       | List all projects     | -                   |
+| `perses_get_project_by_name` | Get a project by name | `project`           |
 
 ### Dashboards
 
-| Tool                     | Description                                | Required Parameters |
-| ------------------------ | ------------------------------------------ | ------------------- |
-| `perses_list_dashboards` | List all dashboards for a specific project | `project`           |
-
+| Tool                           | Description                                | Required Parameters    |
+| ------------------------------ | ------------------------------------------ | ---------------------- |
+| `perses_list_dashboards`       | List all dashboards for a specific project | `project`              |
+| `perses_get_dashboard_by_name` | Get a dashboard by name for a project      | `project`, `dashboard` |
 
 ### Datasources
 
-| Tool                             | Description                                 | Required Parameters |
-| -------------------------------- | ------------------------------------------- | ------------------- |
-| `perses_list_global_datasources` | List all global datasources                 | -                   |
-| `perses_list_datasources`        | List all datasources for a specific project | `project`           |
+| Tool                                    | Description                                 | Required Parameters     |
+| --------------------------------------- | ------------------------------------------- | ----------------------- |
+| `perses_list_global_datasources`        | List all global datasources                 | -                       |
+| `perses_list_datasources`               | List all datasources for a specific project | `project`               |
+| `perses_get_global_datasource_by_name`  | Get a global datasource by name             | `datasource`            |
+| `perses_get_project_datasource_by_name` | Get a project datasource by name            | `project`, `datasource` |
+
+### Roles
+
+| Tool                                      | Description                           | Required Parameters      |
+| ----------------------------------------- | ------------------------------------- | ------------------------ |
+| `perses_list_global_roles`                | List all global roles                 | -                        |
+| `perses_get_global_role_by_name`          | Get a global role by name             | `role`                   |
+| `perses_list_global_role_bindings`        | List all global role bindings         | -                        |
+| `perses_get_global_role_binding_by_name`  | Get a global role binding by name     | `roleBinding`            |
+| `perses_list_project_roles`               | List all roles for a specific project | `project`                |
+| `perses_get_project_role_by_name`         | Get a project role by name            | `project`, `role`        |
+| `perses_list_project_role_bindings`       | List all role bindings for a project  | `project`                |
+| `perses_get_project_role_binding_by_name` | Get a project role binding by name    | `project`, `roleBinding` |
+
+### Plugins
+
+| Tool                  | Description      | Required Parameters |
+| --------------------- | ---------------- | ------------------- |
+| `perses_list_plugins` | List all plugins | -                   |
 
 ### Variables
 
-| Tool                             | Description                               | Required Parameters |
-| -------------------------------- | ----------------------------------------- | ------------------- |
-| `perses_list_global_variables`   | List all global variables                 | -                   |
-| `perses_list_variables`          | List all variables for a specific project | `project`           |
+| Tool                                  | Description                               | Required Parameters   |
+| ------------------------------------- | ----------------------------------------- | --------------------- |
+| `perses_list_global_variables`        | List all global variables                 | -                     |
+| `perses_get_global_variable_by_name`  | Get a global variable by name             | `variable`            |
+| `perses_list_variables`               | List all variables for a specific project | `project`             |
+| `perses_get_project_variable_by_name` | Get a project variable by name            | `project`, `variable` |
 
 ## License
 
