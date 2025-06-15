@@ -30,8 +30,32 @@ func ListGlobalVariables(client apiClient.ClientInterface) (tool mcp.Tool, handl
 		}
 }
 
-func ListVariables(client apiClient.ClientInterface) (tool mcp.Tool, handler server.ToolHandlerFunc) {
-	return mcp.NewTool("perses_list_variables",
+func GetGlobalVariableByName(client apiClient.ClientInterface) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+	return mcp.NewTool("perses_get_global_variable_by_name",
+			mcp.WithDescription("Get a global variable by name"),
+			mcp.WithString("name", mcp.Required(),
+				mcp.Description("Global Variable name"))),
+		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			name, err := request.RequireString("name")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			globalVariable, err := client.GlobalVariable().Get(name)
+			if err != nil {
+				return nil, fmt.Errorf("error retrieving global variable '%s': %w", name, err)
+			}
+
+			globalVariableJSON, err := json.Marshal(globalVariable)
+			if err != nil {
+				return nil, fmt.Errorf("error marshalling global variable '%s': %w", name, err)
+			}
+			return mcp.NewToolResultText(string(globalVariableJSON)), nil
+		}
+}
+
+func ListProjectVariables(client apiClient.ClientInterface) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+	return mcp.NewTool("perses_list_project_variables",
 			mcp.WithDescription("List variables for a specific project"),
 			mcp.WithString("project", mcp.Required(),
 				mcp.Description("Project name"))),
@@ -51,6 +75,36 @@ func ListVariables(client apiClient.ClientInterface) (tool mcp.Tool, handler ser
 				return nil, fmt.Errorf("error marshalling variables: %w", err)
 			}
 			return mcp.NewToolResultText(string(variablesJSON)), nil
+		}
+}
+
+func GetProjectVariableByName(client apiClient.ClientInterface) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+	return mcp.NewTool("perses_get_project_variable_by_name",
+			mcp.WithDescription("Get a variable by name in a specific project"),
+			mcp.WithString("project", mcp.Required(),
+				mcp.Description("Project name")),
+			mcp.WithString("name", mcp.Required(),
+				mcp.Description("Variable name"))),
+		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			project, err := request.RequireString("project")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			name, err := request.RequireString("name")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			variable, err := client.Variable(project).Get(name)
+			if err != nil {
+				return nil, fmt.Errorf("error retrieving variable '%s' in project '%s': %w", name, project, err)
+			}
+
+			variableJSON, err := json.Marshal(variable)
+			if err != nil {
+				return nil, fmt.Errorf("error marshalling variable: %w", err)
+			}
+			return mcp.NewToolResultText(string(variableJSON)), nil
 		}
 }
 

@@ -55,19 +55,39 @@ func main() {
 
 	//Project
 	mcpServer.AddTool(tools.ListProjects(persesClient))
-	mcpServer.AddTool(tools.CreateProject(persesClient))
+	mcpServer.AddTool(tools.GetProjectByName(persesClient))
+	// mcpServer.AddTool(tools.CreateProject(persesClient))
 
 	//Dashboard
 	mcpServer.AddTool(tools.ListDashboards(persesClient))
+	mcpServer.AddTool(tools.GetDashboardByName(persesClient))
 
 	//Datasource
 	mcpServer.AddTool(tools.ListGlobalDatasources(persesClient))
-	mcpServer.AddTool(tools.ListDatasources(persesClient))
+	mcpServer.AddTool(tools.ListProjectDatasources(persesClient))
+	mcpServer.AddTool(tools.GetGlobalDatasourceByName(persesClient))
+	mcpServer.AddTool(tools.GetProjectDatasourceByName(persesClient))
+
+	// Roles and Role Bindings
+	mcpServer.AddTool(tools.ListGlobalRoles(persesClient))
+	mcpServer.AddTool(tools.GetGlobalRoleByName(persesClient))
+	mcpServer.AddTool(tools.ListGlobalRoleBindings(persesClient))
+	mcpServer.AddTool(tools.GetGlobalRoleBindingByName(persesClient))
+	mcpServer.AddTool(tools.ListProjectRoles(persesClient))
+	mcpServer.AddTool(tools.GetProjectRoleByName(persesClient))
+	mcpServer.AddTool(tools.ListProjectRoleBindings(persesClient))
+	mcpServer.AddTool(tools.GetProjectRoleBindingByName(persesClient))
+
+	// plugins
+	mcpServer.AddTool(tools.ListPlugins(persesClient))
 
 	//Variable
 	mcpServer.AddTool(tools.ListGlobalVariables(persesClient))
-	mcpServer.AddTool(tools.ListVariables(persesClient))
-	mcpServer.AddTool(tools.CreateProjectTextVariable(persesClient))
+	mcpServer.AddTool(tools.GetGlobalVariableByName(persesClient))
+	mcpServer.AddTool(tools.ListProjectVariables(persesClient))
+	mcpServer.AddTool(tools.GetProjectVariableByName(persesClient))
+
+	// mcpServer.AddTool(tools.CreateProjectTextVariable(persesClient))
 
 	if err := server.ServeStdio(mcpServer); err != nil {
 		slog.Error("Error starting server", "error", err)
