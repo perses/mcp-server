@@ -63,14 +63,21 @@ func main() {
 	//Datasource
 	mcpServer.AddTool(tools.ListGlobalDatasources(persesClient))
 	mcpServer.AddTool(tools.ListDatasources(persesClient))
+
+	// Roles and Role Bindings
 	mcpServer.AddTool(tools.ListGlobalRoles(persesClient))
 	mcpServer.AddTool(tools.ListGlobalRoleBindings(persesClient))
+	mcpServer.AddTool(tools.ListProjectRoles(persesClient))
+	mcpServer.AddTool(tools.ListProjectRoleBindings(persesClient))
+
+	// plugins
 	mcpServer.AddTool(tools.ListPlugins(persesClient))
 
 	//Variable
 	mcpServer.AddTool(tools.ListGlobalVariables(persesClient))
 	mcpServer.AddTool(tools.ListVariables(persesClient))
-	mcpServer.AddTool(tools.CreateProjectTextVariable(persesClient))
+
+	// mcpServer.AddTool(tools.CreateProjectTextVariable(persesClient))
 
 	if err := server.ServeStdio(mcpServer); err != nil {
 		slog.Error("Error starting server", "error", err)
