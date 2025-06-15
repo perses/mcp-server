@@ -62,6 +62,7 @@ func main() {
 	mcpServer.AddTool(tools.ListDatasources(persesClient))
 	mcpServer.AddTool(tools.ListGlobalRoles(persesClient))
 	mcpServer.AddTool(tools.ListGlobalRoleBindings(persesClient))
+	mcpServer.AddTool(tools.ListPlugins(persesClient))
 
 	if err := server.ServeStdio(mcpServer); err != nil {
 		slog.Error("Error starting server", "error", err)
