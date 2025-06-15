@@ -27,8 +27,8 @@ func ListGlobalDatasources(client apiClient.ClientInterface) (tool mcp.Tool, han
 		}
 }
 
-func ListDatasources(client apiClient.ClientInterface) (tool mcp.Tool, handler server.ToolHandlerFunc) {
-	return mcp.NewTool("perses_list_datasources",
+func ListProjectDatasources(client apiClient.ClientInterface) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+	return mcp.NewTool("perses_list_project_datasources",
 			mcp.WithDescription("List Datasources for a specific project"),
 			mcp.WithString("project", mcp.Required(),
 				mcp.Description("Project name"))),

@@ -62,7 +62,7 @@ func main() {
 
 	//Datasource
 	mcpServer.AddTool(tools.ListGlobalDatasources(persesClient))
-	mcpServer.AddTool(tools.ListDatasources(persesClient))
+	mcpServer.AddTool(tools.ListProjectDatasources(persesClient))
 
 	// Roles and Role Bindings
 	mcpServer.AddTool(tools.ListGlobalRoles(persesClient))
