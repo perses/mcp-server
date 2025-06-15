@@ -27,6 +27,30 @@ func ListGlobalDatasources(client apiClient.ClientInterface) (tool mcp.Tool, han
 		}
 }
 
+func GetGlobalDatasourceByName(client apiClient.ClientInterface) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+	return mcp.NewTool("perses_get_global_datasource_by_name",
+			mcp.WithDescription("Get a global datasource by name"),
+			mcp.WithString("name", mcp.Required(),
+				mcp.Description("Global Datasource name"))),
+		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			name, err := request.RequireString("name")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			globalDatasource, err := client.GlobalDatasource().Get(name)
+			if err != nil {
+				return nil, fmt.Errorf("error retrieving global datasource '%s': %w", name, err)
+			}
+
+			globalDatasourceJSON, err := json.Marshal(globalDatasource)
+			if err != nil {
+				return nil, fmt.Errorf("error marshalling global datasource '%s': %w", name, err)
+			}
+			return mcp.NewToolResultText(string(globalDatasourceJSON)), nil
+		}
+}
+
 func ListProjectDatasources(client apiClient.ClientInterface) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("perses_list_project_datasources",
 			mcp.WithDescription("List Datasources for a specific project"),
@@ -48,5 +72,35 @@ func ListProjectDatasources(client apiClient.ClientInterface) (tool mcp.Tool, ha
 				return nil, fmt.Errorf("error marshalling datasources: %w", err)
 			}
 			return mcp.NewToolResultText(string(datasourcesJSON)), nil
+		}
+}
+
+func GetProjectDatasourceByName(client apiClient.ClientInterface) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+	return mcp.NewTool("perses_get_project_datasource_by_name",
+			mcp.WithDescription("Get a datasource by name in a specific project"),
+			mcp.WithString("project", mcp.Required(),
+				mcp.Description("Project name")),
+			mcp.WithString("name", mcp.Required(),
+				mcp.Description("Datasource name"))),
+		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			project, err := request.RequireString("project")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			name, err := request.RequireString("name")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			datasource, err := client.Datasource(project).Get(name)
+			if err != nil {
+				return nil, fmt.Errorf("error retrieving datasource '%s' in project '%s': %w", name, project, err)
+			}
+
+			datasourceJSON, err := json.Marshal(datasource)
+			if err != nil {
+				return nil, fmt.Errorf("error marshalling datasource: %w", err)
+			}
+			return mcp.NewToolResultText(string(datasourceJSON)), nil
 		}
 }

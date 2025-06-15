@@ -30,6 +30,30 @@ func ListProjects(client apiClient.ClientInterface) (tool mcp.Tool, handler serv
 		}
 }
 
+func GetProjectByName(client apiClient.ClientInterface) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+	return mcp.NewTool("perses_get_project_by_name",
+			mcp.WithDescription("Get a project by name"),
+			mcp.WithString("name", mcp.Required(),
+				mcp.Description("Project name"))),
+		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			name, err := request.RequireString("name")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			project, err := client.Project().Get(name)
+			if err != nil {
+				return nil, fmt.Errorf("error retrieving project '%s': %w", name, err)
+			}
+
+			projectJSON, err := json.Marshal(project)
+			if err != nil {
+				return nil, fmt.Errorf("error marshalling project '%s': %w", name, err)
+			}
+			return mcp.NewToolResultText(string(projectJSON)), nil
+		}
+}
+
 func CreateProject(client apiClient.ClientInterface) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("perses_create_project",
 			mcp.WithDescription("Create a new Perses Project"), mcp.WithString("project", mcp.Required())),
