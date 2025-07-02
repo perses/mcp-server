@@ -36,8 +36,8 @@ github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f h1:KUppIJq7/+
 github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f/go.mod h1:qRWi+5nqEBWmkhHvq77mSJWrCKwh8bxhgT7d/eI7P4U=
 github.com/nexucis/lamenv v0.5.2 h1:tK/u3XGhCq9qIoVNcXsK9LZb8fKopm0A5weqSRvHd7M=
 github.com/nexucis/lamenv v0.5.2/go.mod h1:HusJm6ltmmT7FMG8A750mOLuME6SHCsr2iFYxp5fFi0=
-github.com/perses/perses v0.51.0 h1:lLssvsMjxFg2oP+vKX6pz2SFTfrUyso/A2/A/6oFens=
-github.com/perses/perses v0.51.0/go.mod h1:DrGiL+itTLl2mwEvNa0wGokELfZTsqOc3TEg+2B0uwY=
+github.com/perses/perses v0.51.1 h1:3M/D0FHDMAofVLyVwQoADZL6b2L5MqeXdlIxgjfi7S0=
+github.com/perses/perses v0.51.1/go.mod h1:DrGiL+itTLl2mwEvNa0wGokELfZTsqOc3TEg+2B0uwY=
 github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 h1:Jamvg5psRIccs7FGNTlIRMkT8wgtp5eCXdBlqhYGL6U=
 github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/prometheus/client_golang v1.22.0 h1:rb93p9lokFEsctTys46VnV1kLCDpVZ0a/Y92Vm0Zc6Q=
