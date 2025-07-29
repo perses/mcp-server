@@ -133,10 +133,13 @@ To integrate the MCP server with VS Code GitHub Copilot, follow these steps:
 
 ### Dashboards
 
-| Tool                           | Description                                | Required Parameters    |
-| ------------------------------ | ------------------------------------------ | ---------------------- |
-| `perses_list_dashboards`       | List all dashboards for a specific project | `project`              |
-| `perses_get_dashboard_by_name` | Get a dashboard by name for a project      | `project`, `dashboard` |
+| Tool                           | Description                                                    | Required Parameters    |
+| ------------------------------ | -------------------------------------------------------------  | ---------------------- |
+| `perses_list_dashboards`       | List all dashboards for a specific project                     | `project`              |
+| `perses_get_dashboard_by_name` | Get a dashboard by name for a project                          | `project`, `dashboard` |
+| `perses_create_dashboard`      | Create a dashboard given a project and dashboard configuration | `project`, `dashboard` |
+
+For dashboard configuration, see [Perses Dashboards](https://github.com/perses/perses/blob/main/docs/api/dashboard.md) 
 
 ### Datasources
 
