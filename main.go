@@ -61,6 +61,7 @@ func main() {
 	//Dashboard
 	mcpServer.AddTool(tools.ListDashboards(persesClient))
 	mcpServer.AddTool(tools.GetDashboardByName(persesClient))
+	mcpServer.AddTool(tools.CreateDashboard(persesClient))
 
 	//Datasource
 	mcpServer.AddTool(tools.ListGlobalDatasources(persesClient))
