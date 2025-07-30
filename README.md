@@ -46,16 +46,21 @@ https://github.com/user-attachments/assets/b80c354a-8006-4e1f-b7f4-e123002f7dc3
 percli login <PERSES_SERVER_URL>
 ```
 
+For example, `percli login https://demo.perses.dev`. 
+
+Or `percli login http://localhost:8080` if you are running [perses/perses](https://github.com/perses/perses) locally from the source code or from the perses image. 
+
 2. After successful login, retrieve your token:
 ```bash
 percli whoami --show-token
 ```
+Copy the token to use in your MCP server configuration.
 
-1. Copy the token to use in your MCP server configuration.
+**WARNING: Your login will automatically expire in 15 minutes**. If you want to extend the token duration, you can change the `access_token_ttl` setting in the Perses app [configuration](https://perses.dev/perses/docs/configuration/configuration/?h=configu), then restart the app (if running locally) or rebuild the Docker image.
 
 ### Integration with Claude Desktop
 
-To add this MCP server to Claude Desktop:
+To add this MCP server to [Claude Desktop](https://claude.ai/download):
 
 1. Create or edit the Claude Desktop configuration file at:
 
@@ -65,7 +70,13 @@ To add this MCP server to Claude Desktop:
    
 You can easily access this file via the Claude Desktop app by navigating to `Claude > Settings > Developer > Edit Config`.
 
-2. Add the following JSON block to the configuration file:
+2. Create the binary 
+```bash 
+make build 
+```
+This should create a `bin` directory which contains the binary named `mcp-server`. Copy the absoluate path to the binary to use in your MCP server configuration.
+
+3. Add the following JSON block to the configuration file:
 
 ```json
 {
@@ -83,6 +94,7 @@ You can easily access this file via the Claude Desktop app by navigating to `Cla
   }
 }
 ```
+
 3. Restart Claude Desktop for the changes to take effect.
 
 ### Integration with VS Code GitHub Copilot
