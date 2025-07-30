@@ -70,11 +70,27 @@ To add this MCP server to [Claude Desktop](https://claude.ai/download):
    
 You can easily access this file via the Claude Desktop app by navigating to `Claude > Settings > Developer > Edit Config`.
 
-2. Create the binary 
+2. Get the binary
+
+You have two options to obtain the MCP server binary:
+
+**Option A: Download from Releases (Recommended)**
+
+1. Go to the [releases page](https://github.com/perses/mcp-server/releases)
+2. Download the appropriate binary for your operating system and architecture
+3. Extract the binary to a location of your choice
+4. Make the binary executable (on Unix-like systems):
+   ```bash
+   chmod +x /path/to/mcp-server
+   ```
+5. Copy the absolute path to the binary to use in your MCP server configuration
+
+**Option B: Build from Source**
+
 ```bash 
 make build 
 ```
-This should create a `bin` directory which contains the binary named `mcp-server`. Copy the absoluate path to the binary to use in your MCP server configuration.
+This should create a `bin` directory which contains the binary named `mcp-server`. Copy the absolute path to the binary to use in your MCP server configuration.
 
 3. Add the following JSON block to the configuration file:
 
