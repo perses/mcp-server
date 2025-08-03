@@ -56,7 +56,14 @@ func GetProjectByName(client apiClient.ClientInterface) (tool mcp.Tool, handler 
 
 func CreateProject(client apiClient.ClientInterface) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("perses_create_project",
-			mcp.WithDescription("Create a new Perses Project"), mcp.WithString("project", mcp.Required())),
+			mcp.WithDescription("Create a new Perses Project"), mcp.WithString("project", mcp.Required()),
+			mcp.WithToolAnnotation(mcp.ToolAnnotation{
+				Title:           "Creates a new project in Perses",
+				ReadOnlyHint:    ToBoolPtr(false),
+				DestructiveHint: ToBoolPtr(false),
+				IdempotentHint:  ToBoolPtr(true),
+				OpenWorldHint:   ToBoolPtr(false),
+			})),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			project, err := request.RequireString("project")
 			if err != nil {
