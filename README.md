@@ -157,7 +157,8 @@ To integrate the MCP server with VS Code GitHub Copilot, follow these steps:
 | Tool                         | Description           | Required Parameters |
 | ---------------------------- | --------------------- | ------------------- |
 | `perses_list_projects`       | List all projects     | -                   |
-| `perses_get_project_by_name` | Get a project by name | `project`           |
+| `perses_get_project_by_name` | Get a project by name | `name`              |
+| `perses_create_project`      | Create a new project  | `name`              |
 
 ### Dashboards
 

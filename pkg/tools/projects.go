@@ -56,7 +56,10 @@ func GetProjectByName(client apiClient.ClientInterface) (tool mcp.Tool, handler 
 
 func CreateProject(client apiClient.ClientInterface) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("perses_create_project",
-			mcp.WithDescription("Create a new Perses Project"), mcp.WithString("project", mcp.Required()),
+			mcp.WithDescription("Create a new Perses Project"),
+			mcp.WithString("name",
+				mcp.Required(),
+				mcp.Description("Project name")),
 			mcp.WithToolAnnotation(mcp.ToolAnnotation{
 				Title:           "Creates a new project in Perses",
 				ReadOnlyHint:    ToBoolPtr(false),
@@ -65,7 +68,7 @@ func CreateProject(client apiClient.ClientInterface) (tool mcp.Tool, handler ser
 				OpenWorldHint:   ToBoolPtr(false),
 			})),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			project, err := request.RequireString("project")
+			name, err := request.RequireString("name")
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
@@ -73,22 +76,22 @@ func CreateProject(client apiClient.ClientInterface) (tool mcp.Tool, handler ser
 			newProjectRequest := &v1.Project{
 				Kind: "Project",
 				Metadata: v1.Metadata{
-					Name: project,
+					Name: name,
 				},
 				Spec: v1.ProjectSpec{
 					Display: &common.Display{
-						Name: project,
+						Name: name,
 					},
 				},
 			}
 
 			response, err := client.Project().Create(newProjectRequest)
 			if err != nil {
-				return nil, fmt.Errorf("error creating project '%s': %w", project, err)
+				return nil, fmt.Errorf("error creating project '%s': %w", name, err)
 			}
 			projectJSON, err := json.Marshal(response)
 			if err != nil {
-				return nil, fmt.Errorf("error marshalling project '%s': %w", project, err)
+				return nil, fmt.Errorf("error marshalling project '%s': %w", name, err)
 			}
 			return mcp.NewToolResultText(string(projectJSON)), nil
 		}
