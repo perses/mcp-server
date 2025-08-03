@@ -56,7 +56,7 @@ func main() {
 	//Project
 	mcpServer.AddTool(tools.ListProjects(persesClient))
 	mcpServer.AddTool(tools.GetProjectByName(persesClient))
-	// mcpServer.AddTool(tools.CreateProject(persesClient))
+	mcpServer.AddTool(tools.CreateProject(persesClient))
 
 	//Dashboard
 	mcpServer.AddTool(tools.ListDashboards(persesClient))
