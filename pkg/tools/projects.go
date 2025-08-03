@@ -33,22 +33,22 @@ func ListProjects(client apiClient.ClientInterface) (tool mcp.Tool, handler serv
 func GetProjectByName(client apiClient.ClientInterface) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("perses_get_project_by_name",
 			mcp.WithDescription("Get a project by name"),
-			mcp.WithString("name", mcp.Required(),
+			mcp.WithString("project", mcp.Required(),
 				mcp.Description("Project name"))),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			name, err := request.RequireString("name")
+			project, err := request.RequireString("project")
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
 
-			project, err := client.Project().Get(name)
+			response, err := client.Project().Get(project)
 			if err != nil {
-				return nil, fmt.Errorf("error retrieving project '%s': %w", name, err)
+				return nil, fmt.Errorf("error retrieving project '%s': %w", project, err)
 			}
 
-			projectJSON, err := json.Marshal(project)
+			projectJSON, err := json.Marshal(response)
 			if err != nil {
-				return nil, fmt.Errorf("error marshalling project '%s': %w", name, err)
+				return nil, fmt.Errorf("error marshalling project '%s': %w", project, err)
 			}
 			return mcp.NewToolResultText(string(projectJSON)), nil
 		}
@@ -57,7 +57,7 @@ func GetProjectByName(client apiClient.ClientInterface) (tool mcp.Tool, handler 
 func CreateProject(client apiClient.ClientInterface) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("perses_create_project",
 			mcp.WithDescription("Create a new Perses Project"),
-			mcp.WithString("name",
+			mcp.WithString("project",
 				mcp.Required(),
 				mcp.Description("Project name")),
 			mcp.WithToolAnnotation(mcp.ToolAnnotation{
@@ -68,7 +68,7 @@ func CreateProject(client apiClient.ClientInterface) (tool mcp.Tool, handler ser
 				OpenWorldHint:   ToBoolPtr(false),
 			})),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			name, err := request.RequireString("name")
+			project, err := request.RequireString("project")
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
@@ -76,22 +76,22 @@ func CreateProject(client apiClient.ClientInterface) (tool mcp.Tool, handler ser
 			newProjectRequest := &v1.Project{
 				Kind: "Project",
 				Metadata: v1.Metadata{
-					Name: name,
+					Name: project,
 				},
 				Spec: v1.ProjectSpec{
 					Display: &common.Display{
-						Name: name,
+						Name: project,
 					},
 				},
 			}
 
 			response, err := client.Project().Create(newProjectRequest)
 			if err != nil {
-				return nil, fmt.Errorf("error creating project '%s': %w", name, err)
+				return nil, fmt.Errorf("error creating project '%s': %w", project, err)
 			}
 			projectJSON, err := json.Marshal(response)
 			if err != nil {
-				return nil, fmt.Errorf("error marshalling project '%s': %w", name, err)
+				return nil, fmt.Errorf("error marshalling project '%s': %w", project, err)
 			}
 			return mcp.NewToolResultText(string(projectJSON)), nil
 		}
