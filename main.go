@@ -68,6 +68,8 @@ func main() {
 	mcpServer.AddTool(tools.ListProjectDatasources(persesClient))
 	mcpServer.AddTool(tools.GetGlobalDatasourceByName(persesClient))
 	mcpServer.AddTool(tools.GetProjectDatasourceByName(persesClient))
+	mcpServer.AddTool(tools.CreateGlobalDatasource(persesClient))
+	mcpServer.AddTool(tools.UpdateGlobalDatasource(persesClient))
 
 	// Roles and Role Bindings
 	mcpServer.AddTool(tools.ListGlobalRoles(persesClient))

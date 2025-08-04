@@ -172,12 +172,14 @@ For dashboard configuration, see [Perses Dashboards](https://github.com/perses/p
 
 ### Datasources
 
-| Tool                                    | Description                                 | Required Parameters     |
-| --------------------------------------- | ------------------------------------------- | ----------------------- |
-| `perses_list_global_datasources`        | List all global datasources                 | -                       |
-| `perses_list_datasources`               | List all datasources for a specific project | `project`               |
-| `perses_get_global_datasource_by_name`  | Get a global datasource by name             | `datasource`            |
-| `perses_get_project_datasource_by_name` | Get a project datasource by name            | `project`, `datasource` |
+| Tool                                    | Description                                 | Required Parameters     | Optional Parameters |
+| --------------------------------------- | ------------------------------------------- | ----------------------- | ------------------- |
+| `perses_list_global_datasources`        | List all global datasources                 | -                       | -                   |
+| `perses_list_datasources`               | List all datasources for a specific project | `project`               | -                   |
+| `perses_get_global_datasource_by_name`  | Get a global datasource by name             | `datasource`            | -                   |
+| `perses_get_project_datasource_by_name` | Get a project datasource by name            | `project`, `datasource` | -                   |
+| `perses_create_global_datasource`       | Create a new global datasource              | `name`, `type`, `url`   | `display_name`, `proxy_type` |
+| `perses_update_global_datasource`       | Update an existing global datasource        | `name`, `type`, `url`   | `display_name`, `proxy_type` |
 
 ### Roles
 
