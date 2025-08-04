@@ -14,7 +14,14 @@ import (
 
 func ListGlobalVariables(client apiClient.ClientInterface) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("perses_list_global_variables",
-			mcp.WithDescription("List all Global Variables")),
+			mcp.WithDescription("List all Global Variables"),
+			mcp.WithToolAnnotation(mcp.ToolAnnotation{
+				Title:           "Lists all global variables in Perses",
+				ReadOnlyHint:    ToBoolPtr(true),
+				DestructiveHint: ToBoolPtr(false),
+				IdempotentHint:  ToBoolPtr(true),
+				OpenWorldHint:   ToBoolPtr(false),
+			})),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 
 			variables, err := client.GlobalVariable().List("")
@@ -34,7 +41,14 @@ func GetGlobalVariableByName(client apiClient.ClientInterface) (tool mcp.Tool, h
 	return mcp.NewTool("perses_get_global_variable_by_name",
 			mcp.WithDescription("Get a global variable by name"),
 			mcp.WithString("name", mcp.Required(),
-				mcp.Description("Global Variable name"))),
+				mcp.Description("Global Variable name")),
+			mcp.WithToolAnnotation(mcp.ToolAnnotation{
+				Title:           "Gets a global variable by name in Perses",
+				ReadOnlyHint:    ToBoolPtr(true),
+				DestructiveHint: ToBoolPtr(false),
+				IdempotentHint:  ToBoolPtr(true),
+				OpenWorldHint:   ToBoolPtr(false),
+			})),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			name, err := request.RequireString("name")
 			if err != nil {
@@ -58,7 +72,14 @@ func ListProjectVariables(client apiClient.ClientInterface) (tool mcp.Tool, hand
 	return mcp.NewTool("perses_list_project_variables",
 			mcp.WithDescription("List variables for a specific project"),
 			mcp.WithString("project", mcp.Required(),
-				mcp.Description("Project name"))),
+				mcp.Description("Project name")),
+			mcp.WithToolAnnotation(mcp.ToolAnnotation{
+				Title:           "Lists variables for a specific project in Perses",
+				ReadOnlyHint:    ToBoolPtr(true),
+				DestructiveHint: ToBoolPtr(false),
+				IdempotentHint:  ToBoolPtr(true),
+				OpenWorldHint:   ToBoolPtr(false),
+			})),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			project, err := request.RequireString("project")
 			if err != nil {
@@ -84,7 +105,14 @@ func GetProjectVariableByName(client apiClient.ClientInterface) (tool mcp.Tool, 
 			mcp.WithString("project", mcp.Required(),
 				mcp.Description("Project name")),
 			mcp.WithString("name", mcp.Required(),
-				mcp.Description("Variable name"))),
+				mcp.Description("Variable name")),
+			mcp.WithToolAnnotation(mcp.ToolAnnotation{
+				Title:           "Gets a variable by name in a specific project in Perses",
+				ReadOnlyHint:    ToBoolPtr(true),
+				DestructiveHint: ToBoolPtr(false),
+				IdempotentHint:  ToBoolPtr(true),
+				OpenWorldHint:   ToBoolPtr(false),
+			})),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			project, err := request.RequireString("project")
 			if err != nil {
@@ -114,7 +142,14 @@ func CreateProjectTextVariable(client apiClient.ClientInterface) (tool mcp.Tool,
 			mcp.WithString("name", mcp.Required(),
 				mcp.Description("Variable name")),
 			mcp.WithString("project", mcp.Required(),
-				mcp.Description("Project name"))),
+				mcp.Description("Project name")),
+			mcp.WithToolAnnotation(mcp.ToolAnnotation{
+				Title:           "Creates a project level variable in Perses",
+				ReadOnlyHint:    ToBoolPtr(false),
+				DestructiveHint: ToBoolPtr(false),
+				IdempotentHint:  ToBoolPtr(true),
+				OpenWorldHint:   ToBoolPtr(false),
+			})),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			name, err := request.RequireString("name")
 			if err != nil {

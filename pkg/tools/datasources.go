@@ -16,7 +16,14 @@ import (
 
 func ListGlobalDatasources(client apiClient.ClientInterface) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("perses_list_global_datasources",
-			mcp.WithDescription("List all Perses Global Datasources")),
+			mcp.WithDescription("List all Perses Global Datasources"),
+			mcp.WithToolAnnotation(mcp.ToolAnnotation{
+				Title:           "Lists all global datasources in Perses",
+				ReadOnlyHint:    ToBoolPtr(true),
+				DestructiveHint: ToBoolPtr(false),
+				IdempotentHint:  ToBoolPtr(true),
+				OpenWorldHint:   ToBoolPtr(false),
+			})),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			globalDatasources, err := client.GlobalDatasource().List("")
 			if err != nil {
@@ -35,7 +42,14 @@ func GetGlobalDatasourceByName(client apiClient.ClientInterface) (tool mcp.Tool,
 	return mcp.NewTool("perses_get_global_datasource_by_name",
 			mcp.WithDescription("Get a global datasource by name"),
 			mcp.WithString("name", mcp.Required(),
-				mcp.Description("Global Datasource name"))),
+				mcp.Description("Global Datasource name")),
+			mcp.WithToolAnnotation(mcp.ToolAnnotation{
+				Title:           "Gets a global datasource by name in Perses",
+				ReadOnlyHint:    ToBoolPtr(true),
+				DestructiveHint: ToBoolPtr(false),
+				IdempotentHint:  ToBoolPtr(true),
+				OpenWorldHint:   ToBoolPtr(false),
+			})),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			name, err := request.RequireString("name")
 			if err != nil {
@@ -59,7 +73,14 @@ func ListProjectDatasources(client apiClient.ClientInterface) (tool mcp.Tool, ha
 	return mcp.NewTool("perses_list_project_datasources",
 			mcp.WithDescription("List Datasources for a specific project"),
 			mcp.WithString("project", mcp.Required(),
-				mcp.Description("Project name"))),
+				mcp.Description("Project name")),
+			mcp.WithToolAnnotation(mcp.ToolAnnotation{
+				Title:           "Lists datasources for a specific project in Perses",
+				ReadOnlyHint:    ToBoolPtr(true),
+				DestructiveHint: ToBoolPtr(false),
+				IdempotentHint:  ToBoolPtr(true),
+				OpenWorldHint:   ToBoolPtr(false),
+			})),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			project, err := request.RequireString("project")
 			if err != nil {
@@ -85,7 +106,14 @@ func GetProjectDatasourceByName(client apiClient.ClientInterface) (tool mcp.Tool
 			mcp.WithString("project", mcp.Required(),
 				mcp.Description("Project name")),
 			mcp.WithString("name", mcp.Required(),
-				mcp.Description("Datasource name"))),
+				mcp.Description("Datasource name")),
+			mcp.WithToolAnnotation(mcp.ToolAnnotation{
+				Title:           "Gets a datasource by name in a specific project in Perses",
+				ReadOnlyHint:    ToBoolPtr(true),
+				DestructiveHint: ToBoolPtr(false),
+				IdempotentHint:  ToBoolPtr(true),
+				OpenWorldHint:   ToBoolPtr(false),
+			})),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			project, err := request.RequireString("project")
 			if err != nil {

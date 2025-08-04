@@ -12,7 +12,14 @@ import (
 
 func ListGlobalRoles(client apiClient.ClientInterface) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("perses_list_global_roles",
-			mcp.WithDescription("List all Perses Global Roles")),
+			mcp.WithDescription("List all Perses Global Roles"),
+			mcp.WithToolAnnotation(mcp.ToolAnnotation{
+				Title:           "Lists all global roles in Perses",
+				ReadOnlyHint:    ToBoolPtr(true),
+				DestructiveHint: ToBoolPtr(false),
+				IdempotentHint:  ToBoolPtr(true),
+				OpenWorldHint:   ToBoolPtr(false),
+			})),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 
 			globalRoles, err := client.GlobalRole().List("")
@@ -32,7 +39,14 @@ func GetGlobalRoleByName(client apiClient.ClientInterface) (tool mcp.Tool, handl
 	return mcp.NewTool("perses_get_global_role_by_name",
 			mcp.WithDescription("Get a global role by name"),
 			mcp.WithString("name", mcp.Required(),
-				mcp.Description("Global Role name"))),
+				mcp.Description("Global Role name")),
+			mcp.WithToolAnnotation(mcp.ToolAnnotation{
+				Title:           "Gets a global role by name in Perses",
+				ReadOnlyHint:    ToBoolPtr(true),
+				DestructiveHint: ToBoolPtr(false),
+				IdempotentHint:  ToBoolPtr(true),
+				OpenWorldHint:   ToBoolPtr(false),
+			})),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			name, err := request.RequireString("name")
 			if err != nil {
@@ -54,7 +68,14 @@ func GetGlobalRoleByName(client apiClient.ClientInterface) (tool mcp.Tool, handl
 
 func ListGlobalRoleBindings(client apiClient.ClientInterface) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("perses_list_global_role_bindings",
-			mcp.WithDescription("List all Perses Global Role Bindings")),
+			mcp.WithDescription("List all Perses Global Role Bindings"),
+			mcp.WithToolAnnotation(mcp.ToolAnnotation{
+				Title:           "Lists all global role bindings in Perses",
+				ReadOnlyHint:    ToBoolPtr(true),
+				DestructiveHint: ToBoolPtr(false),
+				IdempotentHint:  ToBoolPtr(true),
+				OpenWorldHint:   ToBoolPtr(false),
+			})),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 
 			globalRoleBindings, err := client.GlobalRoleBinding().List("")
@@ -74,7 +95,14 @@ func GetGlobalRoleBindingByName(client apiClient.ClientInterface) (tool mcp.Tool
 	return mcp.NewTool("perses_get_global_role_binding_by_name",
 			mcp.WithDescription("Get a global role binding by name"),
 			mcp.WithString("name", mcp.Required(),
-				mcp.Description("Global Role Binding name"))),
+				mcp.Description("Global Role Binding name")),
+			mcp.WithToolAnnotation(mcp.ToolAnnotation{
+				Title:           "Gets a global role binding by name in Perses",
+				ReadOnlyHint:    ToBoolPtr(true),
+				DestructiveHint: ToBoolPtr(false),
+				IdempotentHint:  ToBoolPtr(true),
+				OpenWorldHint:   ToBoolPtr(false),
+			})),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			name, err := request.RequireString("name")
 			if err != nil {
@@ -98,7 +126,14 @@ func ListProjectRoles(client apiClient.ClientInterface) (tool mcp.Tool, handler 
 	return mcp.NewTool("perses_list_project_roles",
 			mcp.WithDescription("List Roles for a specific project"),
 			mcp.WithString("project", mcp.Required(),
-				mcp.Description("Project name"))),
+				mcp.Description("Project name")),
+			mcp.WithToolAnnotation(mcp.ToolAnnotation{
+				Title:           "Lists roles for a specific project in Perses",
+				ReadOnlyHint:    ToBoolPtr(true),
+				DestructiveHint: ToBoolPtr(false),
+				IdempotentHint:  ToBoolPtr(true),
+				OpenWorldHint:   ToBoolPtr(false),
+			})),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			project, err := request.RequireString("project")
 			if err != nil {
@@ -124,7 +159,14 @@ func GetProjectRoleByName(client apiClient.ClientInterface) (tool mcp.Tool, hand
 			mcp.WithString("project", mcp.Required(),
 				mcp.Description("Project name")),
 			mcp.WithString("name", mcp.Required(),
-				mcp.Description("Role name"))),
+				mcp.Description("Role name")),
+			mcp.WithToolAnnotation(mcp.ToolAnnotation{
+				Title:           "Gets a role by name in a specific project in Perses",
+				ReadOnlyHint:    ToBoolPtr(true),
+				DestructiveHint: ToBoolPtr(false),
+				IdempotentHint:  ToBoolPtr(true),
+				OpenWorldHint:   ToBoolPtr(false),
+			})),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			project, err := request.RequireString("project")
 			if err != nil {
@@ -152,7 +194,14 @@ func ListProjectRoleBindings(client apiClient.ClientInterface) (tool mcp.Tool, h
 	return mcp.NewTool("perses_list_project_role_bindings",
 			mcp.WithDescription("List Role Bindings for a specific project"),
 			mcp.WithString("project", mcp.Required(),
-				mcp.Description("Project name"))),
+				mcp.Description("Project name")),
+			mcp.WithToolAnnotation(mcp.ToolAnnotation{
+				Title:           "Lists role bindings for a specific project in Perses",
+				ReadOnlyHint:    ToBoolPtr(true),
+				DestructiveHint: ToBoolPtr(false),
+				IdempotentHint:  ToBoolPtr(true),
+				OpenWorldHint:   ToBoolPtr(false),
+			})),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			project, err := request.RequireString("project")
 			if err != nil {
@@ -178,7 +227,14 @@ func GetProjectRoleBindingByName(client apiClient.ClientInterface) (tool mcp.Too
 			mcp.WithString("project", mcp.Required(),
 				mcp.Description("Project name")),
 			mcp.WithString("name", mcp.Required(),
-				mcp.Description("Role Binding name"))),
+				mcp.Description("Role Binding name")),
+			mcp.WithToolAnnotation(mcp.ToolAnnotation{
+				Title:           "Gets a role binding by name in a specific project in Perses",
+				ReadOnlyHint:    ToBoolPtr(true),
+				DestructiveHint: ToBoolPtr(false),
+				IdempotentHint:  ToBoolPtr(true),
+				OpenWorldHint:   ToBoolPtr(false),
+			})),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			project, err := request.RequireString("project")
 			if err != nil {
