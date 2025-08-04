@@ -12,7 +12,14 @@ import (
 
 func ListPlugins(client apiClient.ClientInterface) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("perses_list_plugins",
-			mcp.WithDescription("List all Perses Plugins")),
+			mcp.WithDescription("List all Perses Plugins"),
+			mcp.WithToolAnnotation(mcp.ToolAnnotation{
+				Title:           "Lists all plugins in Perses",
+				ReadOnlyHint:    ToBoolPtr(true),
+				DestructiveHint: ToBoolPtr(false),
+				IdempotentHint:  ToBoolPtr(true),
+				OpenWorldHint:   ToBoolPtr(false),
+			})),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 
 			plugins, err := client.Plugin().List()

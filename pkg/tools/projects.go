@@ -14,7 +14,14 @@ import (
 
 func ListProjects(client apiClient.ClientInterface) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("perses_list_projects",
-			mcp.WithDescription("List all Perses Projects")),
+			mcp.WithDescription("List all Perses Projects"),
+			mcp.WithToolAnnotation(mcp.ToolAnnotation{
+				Title:           "Lists all projects in Perses",
+				ReadOnlyHint:    ToBoolPtr(true),
+				DestructiveHint: ToBoolPtr(false),
+				IdempotentHint:  ToBoolPtr(true),
+				OpenWorldHint:   ToBoolPtr(false),
+			})),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 
 			projects, err := client.Project().List("")
@@ -34,7 +41,14 @@ func GetProjectByName(client apiClient.ClientInterface) (tool mcp.Tool, handler 
 	return mcp.NewTool("perses_get_project_by_name",
 			mcp.WithDescription("Get a project by name"),
 			mcp.WithString("project", mcp.Required(),
-				mcp.Description("Project name"))),
+				mcp.Description("Project name")),
+			mcp.WithToolAnnotation(mcp.ToolAnnotation{
+				Title:           "Gets a project by name in Perses",
+				ReadOnlyHint:    ToBoolPtr(true),
+				DestructiveHint: ToBoolPtr(false),
+				IdempotentHint:  ToBoolPtr(true),
+				OpenWorldHint:   ToBoolPtr(false),
+			})),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			project, err := request.RequireString("project")
 			if err != nil {

@@ -15,7 +15,14 @@ func ListDashboards(client apiClient.ClientInterface) (tool mcp.Tool, handler se
 	return mcp.NewTool("perses_list_dashboards",
 			mcp.WithDescription("List dashboards for a specific project"),
 			mcp.WithString("project", mcp.Required(),
-				mcp.Description("Project name"))),
+				mcp.Description("Project name")),
+			mcp.WithToolAnnotation(mcp.ToolAnnotation{
+				Title:           "Lists dashboards for a specific project in Perses",
+				ReadOnlyHint:    ToBoolPtr(true),
+				DestructiveHint: ToBoolPtr(false),
+				IdempotentHint:  ToBoolPtr(true),
+				OpenWorldHint:   ToBoolPtr(false),
+			})),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			project, err := request.RequireString("project")
 			if err != nil {
@@ -41,7 +48,14 @@ func GetDashboardByName(client apiClient.ClientInterface) (tool mcp.Tool, handle
 			mcp.WithString("project", mcp.Required(),
 				mcp.Description("Project name")),
 			mcp.WithString("name", mcp.Required(),
-				mcp.Description("Dashboard name"))),
+				mcp.Description("Dashboard name")),
+			mcp.WithToolAnnotation(mcp.ToolAnnotation{
+				Title:           "Gets a dashboard by name in a specific project in Perses",
+				ReadOnlyHint:    ToBoolPtr(true),
+				DestructiveHint: ToBoolPtr(false),
+				IdempotentHint:  ToBoolPtr(true),
+				OpenWorldHint:   ToBoolPtr(false),
+			})),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			project, err := request.RequireString("project")
 			if err != nil {
@@ -71,7 +85,14 @@ func CreateDashboard(client apiClient.ClientInterface) (tool mcp.Tool, handler s
 			mcp.WithString("project", mcp.Required(),
 				mcp.Description("Project name")),
 			mcp.WithString("dashboard", mcp.Required(),
-				mcp.Description("Dashboard JSON as string"))),
+				mcp.Description("Dashboard JSON as string")),
+			mcp.WithToolAnnotation(mcp.ToolAnnotation{
+				Title:           "Creates a new dashboard in a specific project in Perses",
+				ReadOnlyHint:    ToBoolPtr(false),
+				DestructiveHint: ToBoolPtr(false),
+				IdempotentHint:  ToBoolPtr(true),
+				OpenWorldHint:   ToBoolPtr(false),
+			})),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			project, err := request.RequireString("project")
 			if err != nil {
