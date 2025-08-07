@@ -6,7 +6,6 @@
 > [!WARNING]  
 > This MCP Server is currently in **beta**. Features and tools may change, and stability is not guaranteed. Feedback and contributions are most welcome!
 
-
 ## Overview
 
 The Perses MCP Server is a local [Model Context Protocol (MCP)](https://modelcontextprotocol.io/introduction) Server that enables the LLM hosts(Claude Desktop, VS Code, Cursor) to interact with the Perses Application in a standardized way.
@@ -29,12 +28,13 @@ https://github.com/user-attachments/assets/87137515-1b45-442d-a4c9-68f460a1ba4c
 <summary>VS Code with GitHub Copilot</summary>
 
 https://github.com/user-attachments/assets/b80c354a-8006-4e1f-b7f4-e123002f7dc3
-</details>
 
+</details>
 
 ## Usage
 
 ### Pre-requisites
+
 - [percli](https://perses.dev/perses/docs/cli/)
 - `PERSES_TOKEN`
 
@@ -46,14 +46,16 @@ https://github.com/user-attachments/assets/b80c354a-8006-4e1f-b7f4-e123002f7dc3
 percli login <PERSES_SERVER_URL>
 ```
 
-For example, `percli login https://demo.perses.dev`. 
+For example, `percli login https://demo.perses.dev`.
 
-Or `percli login http://localhost:8080` if you are running [perses/perses](https://github.com/perses/perses) locally from the source code or from the perses image. 
+Or `percli login http://localhost:8080` if you are running [perses/perses](https://github.com/perses/perses) locally from the source code or from the perses image.
 
 2. After successful login, retrieve your token:
+
 ```bash
 percli whoami --show-token
 ```
+
 Copy the token to use in your MCP server configuration.
 
 **WARNING: Your login will automatically expire in 15 minutes**. If you want to extend the token duration, you can change the `access_token_ttl` setting in the Perses app [configuration](https://perses.dev/perses/docs/configuration/configuration/?h=configu), then restart the app (if running locally) or rebuild the Docker image.
@@ -67,7 +69,7 @@ To add this MCP server to [Claude Desktop](https://claude.ai/download):
    - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
    - Windows: `%APPDATA%\Claude\claude_desktop_config.json`
    - Linux: `~/.config/Claude/claude_desktop_config.json`
-   
+
 You can easily access this file via the Claude Desktop app by navigating to `Claude > Settings > Developer > Edit Config`.
 
 2. Get the binary
@@ -87,9 +89,10 @@ You have two options to obtain the MCP server binary:
 
 **Option B: Build from Source**
 
-```bash 
-make build 
+```bash
+make build
 ```
+
 This should create a `bin` directory which contains the binary named `mcp-server`. Copy the absolute path to the binary to use in your MCP server configuration.
 
 3. Add the following JSON block to the configuration file:
@@ -102,6 +105,7 @@ This should create a `bin` directory which contains the binary named `mcp-server
       "args": [
         "--perses-server-url",
         "<PERSES_SERVER_URL>"
+        // Add "--read-only" here for read-only mode
       ],
       "env": {
         "PERSES_TOKEN": "<PERSES_TOKEN>"
@@ -118,6 +122,7 @@ This should create a `bin` directory which contains the binary named `mcp-server
 To integrate the MCP server with VS Code GitHub Copilot, follow these steps:
 
 1. Open User Settings (JSON) in VS Code:
+
    - Press `Cmd + Shift + P` (on macOS) or `Ctrl + Shift + P` (on other platforms).
    - Type `Preferences: Open User Settings (JSON)` and select it.
 
@@ -139,6 +144,7 @@ To integrate the MCP server with VS Code GitHub Copilot, follow these steps:
       "args": [
         "--perses-server-url",
         "http://localhost:8080"
+        // Add "--read-only" here for read-only mode
       ],
       "env": {
         "PERSES_TOKEN": "${input:perses-token}"
@@ -152,32 +158,35 @@ To integrate the MCP server with VS Code GitHub Copilot, follow these steps:
 
 ## Tools
 
+> [!NOTE]  
+> When running in read-only mode (`--read-only` flag), only tools that retrieve information are available. Write operations like `create_project`, `create_dashboard`, `create_global_datasource`, `update_global_datasource`, and `create_project_variable` are disabled in read-only mode.
+
 ### Projects
 
 | Tool                         | Description           | Required Parameters |
 | ---------------------------- | --------------------- | ------------------- |
 | `perses_list_projects`       | List all projects     | -                   |
-| `perses_get_project_by_name` | Get a project by name | `project`              |
-| `perses_create_project`      | Create a new project  | `project`              |
+| `perses_get_project_by_name` | Get a project by name | `project`           |
+| `perses_create_project`      | Create a new project  | `project`           |
 
 ### Dashboards
 
 | Tool                           | Description                                                    | Required Parameters    |
-| ------------------------------ | -------------------------------------------------------------  | ---------------------- |
+| ------------------------------ | -------------------------------------------------------------- | ---------------------- |
 | `perses_list_dashboards`       | List all dashboards for a specific project                     | `project`              |
 | `perses_get_dashboard_by_name` | Get a dashboard by name for a project                          | `project`, `dashboard` |
 | `perses_create_dashboard`      | Create a dashboard given a project and dashboard configuration | `project`, `dashboard` |
 
-For dashboard configuration, see [Perses Dashboards](https://github.com/perses/perses/blob/main/docs/api/dashboard.md) 
+For dashboard configuration, see [Perses Dashboards](https://github.com/perses/perses/blob/main/docs/api/dashboard.md)
 
 ### Datasources
 
-| Tool                                    | Description                                 | Required Parameters     | Optional Parameters |
-| --------------------------------------- | ------------------------------------------- | ----------------------- | ------------------- |
-| `perses_list_global_datasources`        | List all global datasources                 | -                       | -                   |
-| `perses_list_datasources`               | List all datasources for a specific project | `project`               | -                   |
-| `perses_get_global_datasource_by_name`  | Get a global datasource by name             | `datasource`            | -                   |
-| `perses_get_project_datasource_by_name` | Get a project datasource by name            | `project`, `datasource` | -                   |
+| Tool                                    | Description                                 | Required Parameters     | Optional Parameters          |
+| --------------------------------------- | ------------------------------------------- | ----------------------- | ---------------------------- |
+| `perses_list_global_datasources`        | List all global datasources                 | -                       | -                            |
+| `perses_list_datasources`               | List all datasources for a specific project | `project`               | -                            |
+| `perses_get_global_datasource_by_name`  | Get a global datasource by name             | `datasource`            | -                            |
+| `perses_get_project_datasource_by_name` | Get a project datasource by name            | `project`, `datasource` | -                            |
 | `perses_create_global_datasource`       | Create a new global datasource              | `name`, `type`, `url`   | `display_name`, `proxy_type` |
 | `perses_update_global_datasource`       | Update an existing global datasource        | `name`, `type`, `url`   | `display_name`, `proxy_type` |
 
@@ -208,6 +217,7 @@ For dashboard configuration, see [Perses Dashboards](https://github.com/perses/p
 | `perses_get_global_variable_by_name`  | Get a global variable by name             | `variable`            |
 | `perses_list_variables`               | List all variables for a specific project | `project`             |
 | `perses_get_project_variable_by_name` | Get a project variable by name            | `project`, `variable` |
+| `perses_create_project_variable`      | Create a project level variable           | `name`, `project`     |
 
 ## License
 

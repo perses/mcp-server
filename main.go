@@ -17,6 +17,7 @@ import (
 var (
 	persesServerURL string
 	logLevel        string
+	readOnly        bool
 )
 
 const PERSES_TOKEN = "PERSES_TOKEN"
@@ -24,6 +25,7 @@ const PERSES_TOKEN = "PERSES_TOKEN"
 func init() {
 	flag.StringVar(&persesServerURL, "perses-server-url", "http://localhost:8080", "The Perses backend server URL")
 	flag.StringVar(&logLevel, "log-level", "info", "Log level (debug, info, warn, error)")
+	flag.BoolVar(&readOnly, "read-only", false, "Restrict the server to read-only operations")
 	flag.Parse()
 
 	// configure logging
@@ -51,25 +53,37 @@ func main() {
 		server.WithLogging(),
 	)
 
-	slog.Info("Starting Perses MCP server using stdio transport")
+	if readOnly {
+		slog.Info("Starting Perses MCP server in READ-ONLY mode")
+	} else {
+		slog.Info("Starting Perses MCP server in FULL-ACCESS mode")
+	}
 
-	//Project
+	addReadOnlyTools(mcpServer, persesClient)
+
+	if !readOnly {
+		addWriteTools(mcpServer, persesClient)
+	}
+
+	if err := server.ServeStdio(mcpServer); err != nil {
+		slog.Error("Error starting server", "error", err)
+	}
+}
+
+func addReadOnlyTools(mcpServer *server.MCPServer, persesClient apiClient.ClientInterface) {
+	// Project
 	mcpServer.AddTool(tools.ListProjects(persesClient))
 	mcpServer.AddTool(tools.GetProjectByName(persesClient))
-	mcpServer.AddTool(tools.CreateProject(persesClient))
 
-	//Dashboard
+	// Dashboard
 	mcpServer.AddTool(tools.ListDashboards(persesClient))
 	mcpServer.AddTool(tools.GetDashboardByName(persesClient))
-	mcpServer.AddTool(tools.CreateDashboard(persesClient))
 
-	//Datasource
+	// Datasource
 	mcpServer.AddTool(tools.ListGlobalDatasources(persesClient))
 	mcpServer.AddTool(tools.ListProjectDatasources(persesClient))
 	mcpServer.AddTool(tools.GetGlobalDatasourceByName(persesClient))
 	mcpServer.AddTool(tools.GetProjectDatasourceByName(persesClient))
-	mcpServer.AddTool(tools.CreateGlobalDatasource(persesClient))
-	mcpServer.AddTool(tools.UpdateGlobalDatasource(persesClient))
 
 	// Roles and Role Bindings
 	mcpServer.AddTool(tools.ListGlobalRoles(persesClient))
@@ -90,11 +104,24 @@ func main() {
 	mcpServer.AddTool(tools.ListProjectVariables(persesClient))
 	mcpServer.AddTool(tools.GetProjectVariableByName(persesClient))
 
-	// mcpServer.AddTool(tools.CreateProjectTextVariable(persesClient))
+	slog.Debug("Added read-only tools")
+}
 
-	if err := server.ServeStdio(mcpServer); err != nil {
-		slog.Error("Error starting server", "error", err)
-	}
+func addWriteTools(mcpServer *server.MCPServer, persesClient apiClient.ClientInterface) {
+	// Project
+	mcpServer.AddTool(tools.CreateProject(persesClient))
+
+	// Dashboard
+	mcpServer.AddTool(tools.CreateDashboard(persesClient))
+
+	// Datasource
+	mcpServer.AddTool(tools.CreateGlobalDatasource(persesClient))
+	mcpServer.AddTool(tools.UpdateGlobalDatasource(persesClient))
+
+	// Variable
+	mcpServer.AddTool(tools.CreateProjectTextVariable(persesClient))
+
+	slog.Debug("Added write tools")
 }
 
 func initializePersesClient(baseURL string) (apiClient.ClientInterface, error) {
