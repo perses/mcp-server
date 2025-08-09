@@ -16,8 +16,10 @@ import (
 
 var (
 	persesServerURL string
+	transport       string
 	logLevel        string
 	readOnly        bool
+	port            string
 )
 
 const PERSES_TOKEN = "PERSES_TOKEN"
@@ -25,6 +27,8 @@ const PERSES_TOKEN = "PERSES_TOKEN"
 func init() {
 	flag.StringVar(&persesServerURL, "perses-server-url", "http://localhost:8080", "The Perses backend server URL")
 	flag.StringVar(&logLevel, "log-level", "info", "Log level (debug, info, warn, error)")
+	flag.StringVar(&transport, "transport", "stdio", "MCP protocol currently supports 'stdio' and 'http-streamable' transport mechanisms")
+	flag.StringVar(&port, "port", "8000", "Port to run the HTTP Streamable server on")
 	flag.BoolVar(&readOnly, "read-only", false, "Restrict the server to read-only operations")
 	flag.Parse()
 
@@ -39,6 +43,7 @@ func main() {
 
 	slog.Info("The Perses Server URL is", "url", persesServerURL)
 	slog.Info("Log level set to", "level", logLevel)
+	slog.Info("Transport type set to", "type", transport)
 
 	// Initialize the Perses client
 	persesClient, err := initializePersesClient(persesServerURL)
@@ -65,8 +70,22 @@ func main() {
 		addWriteTools(mcpServer, persesClient)
 	}
 
-	if err := server.ServeStdio(mcpServer); err != nil {
-		slog.Error("Error starting server", "error", err)
+	if err := start(mcpServer); err != nil {
+		slog.Error("Error starting Perses MCP server", "error", err)
+		os.Exit(1)
+	}
+}
+
+func start(mcpServer *server.MCPServer) error {
+	switch transport {
+	case "stdio":
+		return server.ServeStdio(mcpServer)
+	case "streamable-http":
+		streamableServer := server.NewStreamableHTTPServer(mcpServer)
+		slog.Info("Starting as Streamable HTTP server", "port", port)
+		return streamableServer.Start(":" + port)
+	default:
+		return fmt.Errorf("unsupported transport type: %s", transport)
 	}
 }
 
