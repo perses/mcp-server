@@ -63,7 +63,7 @@ Copy the token to use in your MCP server configuration.
    ```bash
    chmod +x /path/to/mcp-server
    ```
-5. Copy the absolute path to the binary to use in your MCP server configuration
+5. Copy the absolute path to the binary (e.g., /path/to/mcp-server) to use in your MCP server configuration
 
 ## Transport Modes
 
@@ -163,7 +163,7 @@ export PERSES_TOKEN=<YOUR_PERSES_TOKEN>
 Run the following command to start the MCP server in Streamable HTTP mode:
 
 ```bash
-./bin/mcp-server --transport streamable-http --perses-server-url <PERSES_SERVER_URL> --port 8000
+/path/to/mcp-server --transport streamable-http --perses-server-url <PERSES_SERVER_URL> --port 8000
 ```
 
 <details>
