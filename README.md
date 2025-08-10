@@ -54,9 +54,7 @@ Copy the token to use in your MCP server configuration.
 
 ## Download the MCP Server Binary
 
-You have two options to obtain the MCP server binary:
-
-**Option A: Download from Releases (Recommended)**
+**Download from Releases (Recommended)**
 
 1. Go to the [releases page](https://github.com/perses/mcp-server/releases)
 2. Download the appropriate binary for your operating system and architecture
@@ -66,16 +64,6 @@ You have two options to obtain the MCP server binary:
    chmod +x /path/to/mcp-server
    ```
 5. Copy the absolute path to the binary to use in your MCP server configuration
-
-**Option B: Build from Source**
-
-Run the following command from the source code root directory:
-
-```bash
-make build
-```
-
-This should create a `bin` directory which contains the binary named `mcp-server`. Copy the absolute path to the binary to use in your MCP server configuration.
 
 ## Transport Modes
 
@@ -187,7 +175,7 @@ Add the following JSON code snippet to the VS Code MCP Config file. See [VS Code
   "servers": {
     "perses-http": {
       "type": "http",
-      "url": "http://localhost:8000/mcp"
+      "url": "http://<hostname>:<port>/mcp"
     }
   }
 }
@@ -205,6 +193,18 @@ The Perses MCP Server supports several command-line flags to customize its behav
 | `--transport` | `stdio` | MCP protocol transport mechanism (options: `stdio`, `streamable-http`) |
 | `--port` | `8000` | Port to run the HTTP Streamable server on (only used with `streamable-http` transport) |
 | `--read-only` | `false` | Restrict the server to read-only operations |
+
+## Local Development
+
+### Build from Source
+
+If you want to build the MCP server from source code (for development or contribution purposes), run the following command from the source code root directory:
+
+```bash
+make build
+```
+
+This should create a `bin` directory which contains the binary named `mcp-server`. Copy the absolute path to the binary to use in your MCP server configuration.
 
 ## Tools
 
