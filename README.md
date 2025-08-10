@@ -54,7 +54,7 @@ Copy the token to use in your MCP server configuration.
 
 ## Download the MCP Server Binary
 
-**Download from Releases (Recommended)**
+**Download from Releases**
 
 1. Go to the [releases page](https://github.com/perses/mcp-server/releases)
 2. Download the appropriate binary for your operating system and architecture
