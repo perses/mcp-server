@@ -10,12 +10,6 @@
 
 The Perses MCP Server is a local [Model Context Protocol (MCP)](https://modelcontextprotocol.io/introduction) Server that enables the LLM hosts(Claude Desktop, VS Code, Cursor) to interact with the Perses Application in a standardized way.
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://github.com/user-attachments/assets/d691a924-c53d-408d-a3f9-a029f3fa6dc2">
-  <source media="(prefers-color-scheme: light)" srcset="https://github.com/user-attachments/assets/416409df-9045-41f3-b10b-91df3020af1f">
-  <img alt="Fallback image description" src="https://github.com/user-attachments/assets/416409df-9045-41f3-b10b-91df3020af1f">
-</picture>
-
 ## Demo
 
 <details open>
@@ -31,14 +25,12 @@ https://github.com/user-attachments/assets/b80c354a-8006-4e1f-b7f4-e123002f7dc3
 
 </details>
 
-## Usage
-
-### Pre-requisites
+## Pre-requisites
 
 - [percli](https://perses.dev/perses/docs/cli/)
 - `PERSES_TOKEN`
 
-#### Obtaining Your Perses Authentication Token
+### Obtaining Your Perses Authentication Token
 
 1. Login to your Perses server using the `percli` command line tool:
 
@@ -60,19 +52,7 @@ Copy the token to use in your MCP server configuration.
 
 **WARNING: Your login will automatically expire in 15 minutes**. If you want to extend the token duration, you can change the `access_token_ttl` setting in the Perses app [configuration](https://perses.dev/perses/docs/configuration/configuration/?h=configu), then restart the app (if running locally) or rebuild the Docker image.
 
-### Integration with Claude Desktop
-
-To add this MCP server to [Claude Desktop](https://claude.ai/download):
-
-1. Create or edit the Claude Desktop configuration file at:
-
-   - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
-   - Windows: `%APPDATA%\Claude\claude_desktop_config.json`
-   - Linux: `~/.config/Claude/claude_desktop_config.json`
-
-You can easily access this file via the Claude Desktop app by navigating to `Claude > Settings > Developer > Edit Config`.
-
-2. Get the binary
+## Download the MCP Server Binary
 
 You have two options to obtain the MCP server binary:
 
@@ -89,13 +69,38 @@ You have two options to obtain the MCP server binary:
 
 **Option B: Build from Source**
 
+Run the following command from the source code root directory:
+
 ```bash
 make build
 ```
 
 This should create a `bin` directory which contains the binary named `mcp-server`. Copy the absolute path to the binary to use in your MCP server configuration.
 
-3. Add the following JSON block to the configuration file:
+## Transport Modes
+
+The Perses MCP Server supports both the transport modes: STDIO mode and Streamable HTTP mode.
+
+### STDIO Mode
+
+In this mode, the MCP server communicates with the LLM host via standard input and output (STDIO). For more details, see the [MCP Protocol Specification docs](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports#stdio).
+
+<details>
+<summary>Install in Claude Desktop</summary>
+
+https://github.com/user-attachments/assets/b80c354a-8006-4e1f-b7f4-e123002f7dc3
+
+To add this MCP server to [Claude Desktop](https://claude.ai/download):
+
+1. Create or edit the Claude Desktop configuration file at:
+
+   - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
+   - Windows: `%APPDATA%\Claude\claude_desktop_config.json`
+   - Linux: `~/.config/Claude/claude_desktop_config.json`
+
+You can easily access this file via the Claude Desktop app by navigating to `Claude > Settings > Developer > Edit Config`.
+
+2. Add the following JSON block to the configuration file:
 
 ```json
 {
@@ -116,17 +121,13 @@ This should create a `bin` directory which contains the binary named `mcp-server
 ```
 
 3. Restart Claude Desktop for the changes to take effect.
+</details>
 
-### Integration with VS Code GitHub Copilot
+<details>
+<summary>Install in VS Code</summary>
 
-To integrate the MCP server with VS Code GitHub Copilot, follow these steps:
 
-1. Open User Settings (JSON) in VS Code:
-
-   - Press `Cmd + Shift + P` (on macOS) or `Ctrl + Shift + P` (on other platforms).
-   - Type `Preferences: Open User Settings (JSON)` and select it.
-
-2. Add the following JSON block to the User Settings (JSON) file:
+Add the following JSON code snippet to the VS Code MCP Config file. See [VS Code MCP documentation](https://code.visualstudio.com/docs/copilot/chat/mcp-servers) for more details.
 
 ```json
 {
@@ -153,8 +154,57 @@ To integrate the MCP server with VS Code GitHub Copilot, follow these steps:
   }
 }
 ```
+</details>
 
-1. Optionally, create a file named `.vscode/mcp.json` in your workspace and add the same JSON block. This allows you to share the configuration with others.
+
+### Streamable HTTP Mode
+The Streamable HTTP mode allows the MCP server to communicate with LLM hosts over HTTP, similar to a regular web API. This mode is particularly useful for:
+
+- **Remote hosting**: Deploy the MCP server on a cloud instance or remote server
+- **Multiple clients**: Allow multiple LLM hosts to connect to the same server instance
+
+For technical details, see the [MCP Protocol Specification](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports#streamable-http).
+
+
+Before starting the MCP server, set your Perses authentication token:
+
+```bash
+export PERSES_TOKEN=<YOUR_PERSES_TOKEN>
+```
+
+Run the following command to start the MCP server in Streamable HTTP mode:
+
+```bash
+./bin/mcp-server --transport streamable-http --perses-server-url <PERSES_SERVER_URL> --port 8000
+```
+
+<details>
+<summary>Install in VS Code</summary>
+Add the following JSON code snippet to the VS Code MCP Config file. See [VS Code MCP documentation](https://code.visualstudio.com/docs/copilot/chat/mcp-servers) for more details.
+
+```json
+{
+  "servers": {
+    "perses-http": {
+      "type": "http",
+      "url": "http://localhost:8000/mcp"
+    }
+  }
+}
+```
+</details>
+
+## Command-Line Flags
+
+The Perses MCP Server supports several command-line flags to customize its behavior:
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--perses-server-url` | `http://localhost:8080` | The Perses backend server URL |
+| `--log-level` | `info` | Log level (options: `debug`, `info`, `warn`, `error`) |
+| `--transport` | `stdio` | MCP protocol transport mechanism (options: `stdio`, `streamable-http`) |
+| `--port` | `8000` | Port to run the HTTP Streamable server on (only used with `streamable-http` transport) |
+| `--read-only` | `false` | Restrict the server to read-only operations |
 
 ## Tools
 

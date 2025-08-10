@@ -59,9 +59,9 @@ func main() {
 	)
 
 	if readOnly {
-		slog.Info("Starting Perses MCP server in READ-ONLY mode")
+		slog.Info("Starting in READ-ONLY mode")
 	} else {
-		slog.Info("Starting Perses MCP server in FULL-ACCESS mode")
+		slog.Info("Starting in FULL-ACCESS mode")
 	}
 
 	addReadOnlyTools(mcpServer, persesClient)
@@ -82,7 +82,7 @@ func start(mcpServer *server.MCPServer) error {
 		return server.ServeStdio(mcpServer)
 	case "streamable-http":
 		streamableServer := server.NewStreamableHTTPServer(mcpServer)
-		slog.Info("Starting as Streamable HTTP server", "port", port)
+		slog.Info("Server ready to accept connections", "port", port)
 		return streamableServer.Start(":" + port)
 	default:
 		return fmt.Errorf("unsupported transport type: %s", transport)
