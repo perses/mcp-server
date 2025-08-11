@@ -71,7 +71,9 @@ The Perses MCP Server supports both the transport modes: STDIO mode and Streamab
 
 ### STDIO Mode
 
-In this mode, the MCP server communicates with the LLM host via standard input and output (STDIO). For more details, see the [MCP Protocol Specification docs](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports#stdio).
+In this mode, the MCP server communicates with the LLM host via standard input and output (STDIO). 
+
+For more details, see the [MCP Protocol Specification docs](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports#stdio).
 
 <details>
 <summary>Install in Claude Desktop</summary>
