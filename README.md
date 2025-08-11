@@ -151,7 +151,7 @@ The Streamable HTTP mode allows the MCP server to communicate with LLM hosts ove
 - **Remote hosting**: Deploy the MCP server on a cloud instance or remote server
 - **Multiple clients**: Allow multiple LLM hosts to connect to the same server instance
 
-For technical details, see the [MCP Protocol Specification](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports#streamable-http).
+For more details, see the [MCP Protocol Specification Docs](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports#streamable-http).
 
 
 Before starting the MCP server, set your Perses authentication token:
