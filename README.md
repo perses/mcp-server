@@ -175,7 +175,7 @@ Add the following JSON code snippet to the VS Code MCP Config file. See [VS Code
   "servers": {
     "perses-http": {
       "type": "http",
-      "url": "http://<hostname>:<port>/mcp"
+      "url": "http://localhost:<port>/mcp"
     }
   }
 }
