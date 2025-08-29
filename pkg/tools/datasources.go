@@ -185,7 +185,7 @@ func CreateGlobalDatasource(client apiClient.ClientInterface) (tool mcp.Tool, ha
 			proxyType := request.GetString("proxy_type", "HTTPProxy")
 
 			// Create the datasource spec based on proxy type
-			var pluginSpec interface{}
+			var pluginSpec any
 			if proxyType == "direct" {
 				pluginSpec = &datasource.Prometheus{
 					DirectURL: parsedURL.URL,
@@ -279,7 +279,7 @@ func UpdateGlobalDatasource(client apiClient.ClientInterface) (tool mcp.Tool, ha
 			displayName := request.GetString("display_name", name)
 			proxyType := request.GetString("proxy_type", "HTTPProxy")
 
-			var pluginSpec interface{}
+			var pluginSpec any
 			if proxyType == "direct" {
 				pluginSpec = &datasource.Prometheus{
 					DirectURL: parsedURL.URL,
