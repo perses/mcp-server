@@ -6,6 +6,10 @@ GOCI ?= golangci-lint
 build:
 	go build -o bin/
 
+.PHONY: permcp
+permcp:
+	$(GO) build -o bin/permcp ./cmd/permcp
+
 
 .PHONY: checkstyle
 checkstyle:
