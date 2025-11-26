@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -34,7 +35,7 @@ type MCPServerConfig struct {
 	// LogFilePath is the path to the log file (if empty, logs go to stderr)
 	LogFilePath string
 
-	// log level
+	// LogLevel specifies the minimum log level (debug, info, warn, error)
 	LogLevel string
 
 	// Transport mechanism for the MCP server (e.g., "stdio", "http-streamable")
@@ -70,17 +71,14 @@ func (cfg MCPServerConfig) RunMCPServer() error {
 		if err != nil {
 			return fmt.Errorf("failed to open log file: %w", err)
 		}
-
 		logOutput = file
-		slogHandler = slog.NewTextHandler(logOutput, &slog.HandlerOptions{
-			Level: logLevel(cfg.LogLevel),
-		})
 	} else {
 		logOutput = os.Stderr
-		slogHandler = slog.NewTextHandler(logOutput, &slog.HandlerOptions{
-			Level: logLevel(cfg.LogLevel),
-		})
 	}
+
+	slogHandler = slog.NewTextHandler(logOutput, &slog.HandlerOptions{
+		Level: logLevel(cfg.LogLevel),
+	})
 
 	logger := slog.New(slogHandler)
 	logger.Info("Starting Perses Mcp Server", "Version", cfg.Version, "PersesServerURL", cfg.PersesServerURL, "ReadOnly", cfg.ReadOnly)
@@ -131,13 +129,13 @@ func (cfg *MCPServerConfig) initializePersesClient() (v1.ClientInterface, error)
 
 func logLevel(level string) slog.Level {
 	switch level {
-	case "debug":
+	case strings.ToLower("debug"):
 		return slog.LevelDebug
-	case "info":
+	case strings.ToLower("info"):
 		return slog.LevelInfo
-	case "warn":
+	case strings.ToLower("warn"):
 		return slog.LevelWarn
-	case "error":
+	case strings.ToLower("error"):
 		return slog.LevelError
 	default:
 		return slog.LevelInfo
