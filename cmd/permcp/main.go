@@ -41,6 +41,7 @@ var (
 				Token:           token,
 				ReadOnly:        viper.GetBool("read-only"),
 				LogFilePath:     viper.GetString("log-file-path"),
+				LogLevel:        viper.GetString("log-level"),
 			}
 			return mcpServerConfig.RunMCPServer()
 		},
