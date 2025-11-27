@@ -103,9 +103,22 @@ func (cfg MCPServerConfig) RunMCPServer() error {
 
 	mcp.AddTool(mcpServer, &mcp.Tool{Name: "greet", Description: "say hi"}, SayHi)
 
-	if err := mcpServer.Run(ctx, &mcp.StdioTransport{}); err != nil {
-		slog.Error("Failed to run MCP server", "error", err)
-		return err
+	errChan := make(chan error, 1)
+
+	go func() {
+		errChan <- mcpServer.Run(ctx, &mcp.StdioTransport{})
+	}()
+
+	fmt.Fprintf(os.Stderr, "Perses MCP Server running on stdio\n")
+
+	select {
+	case <-ctx.Done():
+		logger.Info("shutting down server", "signal", "context done")
+	case err := <-errChan:
+		if err != nil {
+			logger.Error("error running Perses MCP Server", "error", err)
+			return fmt.Errorf("error running Perses MCP Server: %w", err)
+		}
 	}
 
 	return nil
