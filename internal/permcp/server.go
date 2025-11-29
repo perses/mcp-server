@@ -81,15 +81,22 @@ func (cfg MCPServerConfig) RunMCPServer() error {
 	})
 
 	logger := slog.New(slogHandler)
+	cfg.Logger = logger
 	logger.Info("Starting Perses Mcp Server", "Version", cfg.Version, "PersesServerURL", cfg.PersesServerURL, "ReadOnly", cfg.ReadOnly)
 
 	// TODO: add log configuration
 
-	// persesClient, err := cfg.initializePersesClient()
-	// if err != nil {
-	// 	return err
-	// }
+	persesClient, err := cfg.initializePersesClient()
+	if err != nil {
+		return err
+	}
 
+	projects, err := persesClient.Project().List("")
+	if err != nil {
+		return fmt.Errorf("error when listing projects: %w", err)
+	}
+
+	logger.Info("Successfully connected to Perses server", "projects_count", len(projects))
 	// Create a new MCP Server instance
 	mcpServer := mcp.NewServer(&mcp.Implementation{
 		Name:    "perses-mcp-server",
@@ -99,6 +106,7 @@ func (cfg MCPServerConfig) RunMCPServer() error {
 			HasTools:     true,
 			HasResources: false,
 			HasPrompts:   false,
+			Logger:       cfg.Logger,
 		})
 
 	mcp.AddTool(mcpServer, &mcp.Tool{Name: "greet", Description: "say hi"}, SayHi)
@@ -132,11 +140,11 @@ func (cfg *MCPServerConfig) initializePersesClient() (v1.ClientInterface, error)
 		},
 	})
 	if err != nil {
-		slog.Error("Failed to create Perses client", "error", err)
 		return nil, err
 	}
 
 	persesClient := v1.NewWithClient(restClient)
+	cfg.Logger.Info("Perses client initialized", "URL", cfg.PersesServerURL)
 	return persesClient, nil
 }
 
