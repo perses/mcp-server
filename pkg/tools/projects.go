@@ -7,10 +7,27 @@ import (
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
+	newMcp "github.com/modelcontextprotocol/go-sdk/mcp"
 	apiClient "github.com/perses/perses/pkg/client/api/v1"
 	v1 "github.com/perses/perses/pkg/model/api/v1"
 	"github.com/perses/perses/pkg/model/api/v1/common"
 )
+
+func ListNewProjects(client apiClient.ClientInterface) newMcp.ToolHandlerFor[map[string]any, any] {
+	return func(ctx context.Context, _ *newMcp.CallToolRequest, input map[string]any) (result *newMcp.CallToolResult, output any, _ error) {
+		projects, err := client.Project().List("")
+		if err != nil {
+			return nil, nil, fmt.Errorf("error retrieving projects: %w", err)
+		}
+
+		projectsJSON, err := json.Marshal(projects)
+		if err != nil {
+			return nil, nil, fmt.Errorf("error marshalling projects: %w", err)
+		}
+
+		return nil, string(projectsJSON), nil
+	}
+}
 
 func ListProjects(client apiClient.ClientInterface) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("perses_list_projects",

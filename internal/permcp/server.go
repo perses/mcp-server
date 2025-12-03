@@ -11,6 +11,7 @@ import (
 	"syscall"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/perses/mcp-server/pkg/tools"
 	v1 "github.com/perses/perses/pkg/client/api/v1"
 	"github.com/perses/perses/pkg/client/config"
 	"github.com/perses/perses/pkg/model/api/v1/common"
@@ -53,10 +54,6 @@ type Output struct {
 	Greeting string `json:"greeting" jsonschema:"The greeting to tell to the user"`
 }
 
-func SayHi(ctx context.Context, req *mcp.CallToolRequest, input Input) (*mcp.CallToolResult, Output, error) {
-	return nil, Output{Greeting: "Hi " + input.Name}, nil
-}
-
 func (cfg MCPServerConfig) RunMCPServer() error {
 
 	// Create app context
@@ -84,8 +81,6 @@ func (cfg MCPServerConfig) RunMCPServer() error {
 	cfg.Logger = logger
 	logger.Info("Starting Perses Mcp Server", "Version", cfg.Version, "PersesServerURL", cfg.PersesServerURL, "ReadOnly", cfg.ReadOnly)
 
-	// TODO: add log configuration
-
 	persesClient, err := cfg.initializePersesClient()
 	if err != nil {
 		return err
@@ -109,7 +104,18 @@ func (cfg MCPServerConfig) RunMCPServer() error {
 			Logger:       cfg.Logger,
 		})
 
-	mcp.AddTool(mcpServer, &mcp.Tool{Name: "greet", Description: "say hi"}, SayHi)
+	if cfg.ReadOnly {
+		logger.Info("Starting in READ-ONLY mode")
+	}
+
+	mcp.AddTool(mcpServer, &mcp.Tool{
+		Name:        "perses_list_projects",
+		Description: "List all Perses projects",
+		Annotations: &mcp.ToolAnnotations{
+			ReadOnlyHint:   true,
+			IdempotentHint: true,
+		},
+	}, tools.ListNewProjects(persesClient))
 
 	errChan := make(chan error, 1)
 
