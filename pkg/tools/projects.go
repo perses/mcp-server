@@ -13,8 +13,17 @@ import (
 	"github.com/perses/perses/pkg/model/api/v1/common"
 )
 
-func ListNewProjects(client apiClient.ClientInterface) newMcp.ToolHandlerFor[map[string]any, any] {
-	return func(ctx context.Context, _ *newMcp.CallToolRequest, input map[string]any) (result *newMcp.CallToolResult, output any, _ error) {
+func ListNewProjects(client apiClient.ClientInterface) (*newMcp.Tool, newMcp.ToolHandlerFor[map[string]any, any]) {
+	tool := &newMcp.Tool{
+		Name:        "perses_list_projects",
+		Description: "List all Perses projects",
+		Annotations: &newMcp.ToolAnnotations{
+			ReadOnlyHint:   true,
+			IdempotentHint: true,
+		},
+	}
+
+	handler := func(ctx context.Context, _ *newMcp.CallToolRequest, input map[string]any) (result *newMcp.CallToolResult, output any, _ error) {
 		projects, err := client.Project().List("")
 		if err != nil {
 			return nil, nil, fmt.Errorf("error retrieving projects: %w", err)
@@ -27,6 +36,8 @@ func ListNewProjects(client apiClient.ClientInterface) newMcp.ToolHandlerFor[map
 
 		return nil, string(projectsJSON), nil
 	}
+
+	return tool, handler
 }
 
 func ListProjects(client apiClient.ClientInterface) (tool mcp.Tool, handler server.ToolHandlerFunc) {

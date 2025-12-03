@@ -44,6 +44,9 @@ type MCPServerConfig struct {
 
 	// Port to run the HTTP Streamable server on
 	Port string
+
+	// PersesClient is the client interface for interacting with Perses
+	PersesClient v1.ClientInterface
 }
 
 type Input struct {
@@ -81,18 +84,18 @@ func (cfg MCPServerConfig) RunMCPServer() error {
 	cfg.Logger = logger
 	logger.Info("Starting Perses Mcp Server", "Version", cfg.Version, "PersesServerURL", cfg.PersesServerURL, "ReadOnly", cfg.ReadOnly)
 
-	persesClient, err := cfg.initializePersesClient()
+	err := cfg.initializePersesClient()
 	if err != nil {
 		return err
 	}
 
-	projects, err := persesClient.Project().List("")
+	projects, err := cfg.PersesClient.Project().List("")
 	if err != nil {
 		return fmt.Errorf("error when listing projects: %w", err)
 	}
 
 	logger.Info("Successfully connected to Perses server", "projects_count", len(projects))
-	// Create a new MCP Server instance
+
 	mcpServer := mcp.NewServer(&mcp.Implementation{
 		Name:    "perses-mcp-server",
 		Title:   "Perses MCP Server",
@@ -108,14 +111,8 @@ func (cfg MCPServerConfig) RunMCPServer() error {
 		logger.Info("Starting in READ-ONLY mode")
 	}
 
-	mcp.AddTool(mcpServer, &mcp.Tool{
-		Name:        "perses_list_projects",
-		Description: "List all Perses projects",
-		Annotations: &mcp.ToolAnnotations{
-			ReadOnlyHint:   true,
-			IdempotentHint: true,
-		},
-	}, tools.ListNewProjects(persesClient))
+	tool, handler := tools.ListNewProjects(cfg.PersesClient)
+	mcp.AddTool(mcpServer, tool, handler)
 
 	errChan := make(chan error, 1)
 
@@ -138,7 +135,7 @@ func (cfg MCPServerConfig) RunMCPServer() error {
 	return nil
 }
 
-func (cfg *MCPServerConfig) initializePersesClient() (v1.ClientInterface, error) {
+func (cfg *MCPServerConfig) initializePersesClient() error {
 	restClient, err := config.NewRESTClient(config.RestConfigClient{
 		URL: common.MustParseURL(cfg.PersesServerURL),
 		Headers: map[string]string{
@@ -146,12 +143,13 @@ func (cfg *MCPServerConfig) initializePersesClient() (v1.ClientInterface, error)
 		},
 	})
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	persesClient := v1.NewWithClient(restClient)
 	cfg.Logger.Info("Perses client initialized", "URL", cfg.PersesServerURL)
-	return persesClient, nil
+	cfg.PersesClient = persesClient
+	return nil
 }
 
 func logLevel(level string) slog.Level {
