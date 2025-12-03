@@ -47,6 +47,9 @@ type MCPServerConfig struct {
 
 	// PersesClient is the client interface for interacting with Perses
 	PersesClient v1.ClientInterface
+
+	// MCPServer is the MCP server instance
+	MCPServer *mcp.Server
 }
 
 type Input struct {
@@ -57,7 +60,7 @@ type Output struct {
 	Greeting string `json:"greeting" jsonschema:"The greeting to tell to the user"`
 }
 
-func (cfg MCPServerConfig) RunMCPServer() error {
+func (cfg *MCPServerConfig) RunMCPServer() error {
 
 	// Create app context
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -71,6 +74,7 @@ func (cfg MCPServerConfig) RunMCPServer() error {
 		if err != nil {
 			return fmt.Errorf("failed to open log file: %w", err)
 		}
+		defer file.Close()
 		logOutput = file
 	} else {
 		logOutput = os.Stderr
@@ -107,12 +111,8 @@ func (cfg MCPServerConfig) RunMCPServer() error {
 			Logger:       cfg.Logger,
 		})
 
-	if cfg.ReadOnly {
-		logger.Info("Starting in READ-ONLY mode")
-	}
-
-	tool, handler := tools.ListNewProjects(cfg.PersesClient)
-	mcp.AddTool(mcpServer, tool, handler)
+	cfg.MCPServer = mcpServer
+	cfg.registerTools()
 
 	errChan := make(chan error, 1)
 
@@ -152,15 +152,39 @@ func (cfg *MCPServerConfig) initializePersesClient() error {
 	return nil
 }
 
+func (cfg *MCPServerConfig) registerTools() {
+
+	readOnlyTools := []func(v1.ClientInterface) (*mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]){
+		tools.ListNewProjects,
+	}
+
+	for _, toolFunc := range readOnlyTools {
+		tool, handler := toolFunc(cfg.PersesClient)
+		mcp.AddTool(cfg.MCPServer, tool, handler)
+	}
+
+	if !cfg.ReadOnly {
+		writeTools := []func(v1.ClientInterface) (*mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]){
+			// Add write tool functions here
+		}
+
+		for _, toolFunc := range writeTools {
+			tool, handler := toolFunc(cfg.PersesClient)
+			mcp.AddTool(cfg.MCPServer, tool, handler)
+		}
+	}
+
+}
+
 func logLevel(level string) slog.Level {
-	switch level {
-	case strings.ToLower("debug"):
+	switch strings.ToLower(level) {
+	case "debug":
 		return slog.LevelDebug
-	case strings.ToLower("info"):
+	case "info":
 		return slog.LevelInfo
-	case strings.ToLower("warn"):
+	case "warn":
 		return slog.LevelWarn
-	case strings.ToLower("error"):
+	case "error":
 		return slog.LevelError
 	default:
 		return slog.LevelInfo
