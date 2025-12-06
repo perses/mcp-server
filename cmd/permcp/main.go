@@ -10,7 +10,9 @@ import (
 	"github.com/spf13/viper"
 )
 
-const PERSES_TOKEN = "PERSES_TOKEN"
+const (
+	envPersesToken = "PERSES_TOKEN"
+)
 
 var version = "version"
 var commit = "commit"
@@ -22,28 +24,21 @@ var (
 		Short:   "Perses MCP Server",
 		Long:    "A Perses MCP Server to manage Perses resources",
 		Version: fmt.Sprintf("Version: %s\nCommit: %s\nBuild Date: %s", version, commit, date),
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			if viper.GetString(envPersesToken) == "" {
+				return fmt.Errorf("environment variable %s is required", envPersesToken)
+			}
+			return nil
+		},
 	}
 
 	stdioCmd = &cobra.Command{
 		Use:   "stdio",
 		Short: "Start stdio MCP server",
 		Long:  "Start a Perses MCP server that communicates via standard input/output streams using JSON-RPC messages.",
-		RunE: func(_ *cobra.Command, _ []string) error {
-
-			token := viper.GetString(PERSES_TOKEN)
-			if token == "" {
-				return fmt.Errorf("%s environment variable not set", PERSES_TOKEN)
-			}
-
-			mcpServerConfig := permcp.MCPServerConfig{
-				Version:         version,
-				PersesServerURL: viper.GetString("perses-server-url"),
-				Token:           token,
-				ReadOnly:        viper.GetBool("read-only"),
-				LogFilePath:     viper.GetString("log-file-path"),
-				LogLevel:        viper.GetString("log-level"),
-			}
-			return mcpServerConfig.RunMCPServer()
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			cfg := loadConfig("stdio")
+			return permcp.Serve(cmd.Context(), cfg)
 		},
 	}
 
@@ -51,21 +46,10 @@ var (
 		Use:   "http",
 		Short: "Start HTTP Streamable MCP server",
 		Long:  "Start a Perses MCP server that communicates via HTTP using streamable JSON-RPC messages.",
-		RunE: func(_ *cobra.Command, _ []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 
-			token := viper.GetString(PERSES_TOKEN)
-			if token == "" {
-				return fmt.Errorf("%s environment variable not set", PERSES_TOKEN)
-			}
-
-			mcpServerConfig := permcp.MCPServerConfig{
-				Version:         version,
-				PersesServerURL: viper.GetString("perses-server-url"),
-				Token:           token,
-				ReadOnly:        viper.GetBool("read-only"),
-				LogFilePath:     viper.GetString("log-file-path"),
-			}
-			return mcpServerConfig.RunMCPServer()
+			cfg := loadConfig("http")
+			return permcp.Serve(cmd.Context(), cfg)
 		},
 	}
 )
@@ -100,5 +84,18 @@ func main() {
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)
+	}
+}
+
+func loadConfig(transport string) permcp.Config {
+	return permcp.Config{
+		Version:         version,
+		Transport:       transport,
+		PersesServerURL: viper.GetString("perses-server-url"),
+		Token:           viper.GetString(envPersesToken),
+		ReadOnly:        viper.GetBool("read-only"),
+		LogFilePath:     viper.GetString("log-file-path"),
+		LogLevel:        viper.GetString("log-level"),
+		Port:            viper.GetString("port"),
 	}
 }

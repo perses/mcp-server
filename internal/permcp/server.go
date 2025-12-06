@@ -17,7 +17,7 @@ import (
 	"github.com/perses/perses/pkg/model/api/v1/common"
 )
 
-type MCPServerConfig struct {
+type Config struct {
 	// Version of the MCP server
 	Version string
 
@@ -30,9 +30,6 @@ type MCPServerConfig struct {
 	// ReadOnly indicates if the server should operate in read-only mode
 	ReadOnly bool
 
-	// Logger for the MCP server
-	Logger *slog.Logger
-
 	// LogFilePath is the path to the log file (if empty, logs go to stderr)
 	LogFilePath string
 
@@ -44,37 +41,81 @@ type MCPServerConfig struct {
 
 	// Port to run the HTTP Streamable server on
 	Port string
-
-	// PersesClient is the client interface for interacting with Perses
-	PersesClient v1.ClientInterface
-
-	// MCPServer is the MCP server instance
-	MCPServer *mcp.Server
 }
 
-type Input struct {
-	Name string `json:"name" jsonschema:"The name of the person"`
+func Serve(ctx context.Context, cfg Config) error {
+	server, err := NewServer(cfg)
+	if err != nil {
+		return fmt.Errorf("initialization failed: %w", err)
+	}
+
+	return server.Run(ctx)
 }
 
-type Output struct {
-	Greeting string `json:"greeting" jsonschema:"The greeting to tell to the user"`
+type Server struct {
+	// cfg contains the server configuration settings
+	cfg Config
+	// logger is the structured logger for the server
+	logger *slog.Logger
+	// persesClient is the client interface for interacting with the Perses API
+	persesClient v1.ClientInterface
+	// mcpServer is the Model Context Protocol server instance
+	mcpServer *mcp.Server
 }
 
-func (cfg *MCPServerConfig) RunMCPServer() error {
+func (s *Server) Run(ctx context.Context) error {
 
-	// Create app context
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	// Setup graceful shutdown
+	ctx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
+	s.logger.Info("Starting Perses MCP Server",
+		"version", s.cfg.Version,
+		"read_only", s.cfg.ReadOnly,
+		"transport", s.cfg.Transport,
+	)
+
+	tool, handler := tools.ListNewProjects(s.persesClient)
+	mcp.AddTool(s.mcpServer, tool, handler)
+
+	errChan := make(chan error, 1)
+
+	go func() {
+		var runErr error
+
+		if strings.ToLower(s.cfg.Transport) == "http" {
+			// TODO:  Run the server with HTTP Streamable transport
+		} else {
+			runErr = s.mcpServer.Run(ctx, &mcp.StdioTransport{})
+		}
+		errChan <- runErr
+	}()
+
+	s.logger.Info("Perses MCP Server is running", "transport", s.cfg.Transport)
+
+	select {
+	case <-ctx.Done():
+		s.logger.Info("Shutting down signal received")
+		return nil
+	case err := <-errChan:
+		if err != nil {
+			s.logger.Error("Server stopped unexpectedly", "error", err)
+			return fmt.Errorf("server error: %w", err)
+		}
+		return nil
+	}
+}
+
+func NewServer(cfg Config) (*Server, error) {
 	var slogHandler slog.Handler
 	var logOutput io.Writer
 
 	if cfg.LogFilePath != "" {
 		file, err := os.OpenFile(cfg.LogFilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 		if err != nil {
-			return fmt.Errorf("failed to open log file: %w", err)
+			return nil, fmt.Errorf("failed to open log file: %w", err)
 		}
-		defer file.Close()
+		// defer file.Close()
 		logOutput = file
 	} else {
 		logOutput = os.Stderr
@@ -85,20 +126,13 @@ func (cfg *MCPServerConfig) RunMCPServer() error {
 	})
 
 	logger := slog.New(slogHandler)
-	cfg.Logger = logger
-	logger.Info("Starting Perses Mcp Server", "Version", cfg.Version, "PersesServerURL", cfg.PersesServerURL, "ReadOnly", cfg.ReadOnly)
 
-	err := cfg.initializePersesClient()
+	persesClient, err := initializePersesClient(cfg)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	projects, err := cfg.PersesClient.Project().List("")
-	if err != nil {
-		return fmt.Errorf("error when listing projects: %w", err)
-	}
-
-	logger.Info("Successfully connected to Perses server", "projects_count", len(projects))
+	logger.Info("Perses client initialized", "URL", cfg.PersesServerURL)
 
 	mcpServer := mcp.NewServer(&mcp.Implementation{
 		Name:    "perses-mcp-server",
@@ -108,34 +142,42 @@ func (cfg *MCPServerConfig) RunMCPServer() error {
 			HasTools:     true,
 			HasResources: false,
 			HasPrompts:   false,
-			Logger:       cfg.Logger,
+			Logger:       logger,
 		})
 
-	cfg.MCPServer = mcpServer
-	cfg.registerTools()
-
-	errChan := make(chan error, 1)
-
-	go func() {
-		errChan <- mcpServer.Run(ctx, &mcp.StdioTransport{})
-	}()
-
-	fmt.Fprintf(os.Stderr, "Perses MCP Server running on stdio\n")
-
-	select {
-	case <-ctx.Done():
-		logger.Info("shutting down server", "signal", "context done")
-	case err := <-errChan:
-		if err != nil {
-			logger.Error("error running Perses MCP Server", "error", err)
-			return fmt.Errorf("error running Perses MCP Server: %w", err)
-		}
-	}
-
-	return nil
+	return &Server{
+		cfg:          cfg,
+		logger:       logger,
+		persesClient: persesClient,
+		mcpServer:    mcpServer,
+	}, nil
 }
 
-func (cfg *MCPServerConfig) initializePersesClient() error {
+// func (cfg *MCPServerConfig) registerTools() {
+
+// 	readOnlyTools := []func(v1.ClientInterface) (*mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]){
+// 		tools.ListNewProjects,
+// 	}
+
+// 	for _, toolFunc := range readOnlyTools {
+// 		tool, handler := toolFunc(cfg.PersesClient)
+// 		mcp.AddTool(cfg.MCPServer, tool, handler)
+// 	}
+
+// 	if !cfg.ReadOnly {
+// 		writeTools := []func(v1.ClientInterface) (*mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]){
+// 			// Add write tool functions here
+// 		}
+
+// 		for _, toolFunc := range writeTools {
+// 			tool, handler := toolFunc(cfg.PersesClient)
+// 			mcp.AddTool(cfg.MCPServer, tool, handler)
+// 		}
+// 	}
+
+// }
+
+func initializePersesClient(cfg Config) (v1.ClientInterface, error) {
 	restClient, err := config.NewRESTClient(config.RestConfigClient{
 		URL: common.MustParseURL(cfg.PersesServerURL),
 		Headers: map[string]string{
@@ -143,37 +185,11 @@ func (cfg *MCPServerConfig) initializePersesClient() error {
 		},
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	persesClient := v1.NewWithClient(restClient)
-	cfg.Logger.Info("Perses client initialized", "URL", cfg.PersesServerURL)
-	cfg.PersesClient = persesClient
-	return nil
-}
-
-func (cfg *MCPServerConfig) registerTools() {
-
-	readOnlyTools := []func(v1.ClientInterface) (*mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]){
-		tools.ListNewProjects,
-	}
-
-	for _, toolFunc := range readOnlyTools {
-		tool, handler := toolFunc(cfg.PersesClient)
-		mcp.AddTool(cfg.MCPServer, tool, handler)
-	}
-
-	if !cfg.ReadOnly {
-		writeTools := []func(v1.ClientInterface) (*mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]){
-			// Add write tool functions here
-		}
-
-		for _, toolFunc := range writeTools {
-			tool, handler := toolFunc(cfg.PersesClient)
-			mcp.AddTool(cfg.MCPServer, tool, handler)
-		}
-	}
-
+	return persesClient, nil
 }
 
 func logLevel(level string) slog.Level {
