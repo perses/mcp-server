@@ -75,8 +75,7 @@ func (s *Server) Run(ctx context.Context) error {
 		"transport", s.cfg.Transport,
 	)
 
-	tool, handler := tools.ListNewProjects(s.persesClient)
-	mcp.AddTool(s.mcpServer, tool, handler)
+	s.registerTools()
 
 	errChan := make(chan error, 1)
 
@@ -104,6 +103,30 @@ func (s *Server) Run(ctx context.Context) error {
 		}
 		return nil
 	}
+}
+
+func (s *Server) registerTools() {
+
+	readOnlyTools := []func(v1.ClientInterface) (*mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]){
+		tools.ListNewProjects,
+	}
+
+	for _, toolFunc := range readOnlyTools {
+		tool, handler := toolFunc(s.persesClient)
+		mcp.AddTool(s.mcpServer, tool, handler)
+	}
+
+	if !s.cfg.ReadOnly {
+		writeTools := []func(v1.ClientInterface) (*mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]){
+			// Add write tool functions here
+		}
+
+		for _, toolFunc := range writeTools {
+			tool, handler := toolFunc(s.persesClient)
+			mcp.AddTool(s.mcpServer, tool, handler)
+		}
+	}
+
 }
 
 func NewServer(cfg Config) (*Server, error) {
@@ -152,30 +175,6 @@ func NewServer(cfg Config) (*Server, error) {
 		mcpServer:    mcpServer,
 	}, nil
 }
-
-// func (cfg *MCPServerConfig) registerTools() {
-
-// 	readOnlyTools := []func(v1.ClientInterface) (*mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]){
-// 		tools.ListNewProjects,
-// 	}
-
-// 	for _, toolFunc := range readOnlyTools {
-// 		tool, handler := toolFunc(cfg.PersesClient)
-// 		mcp.AddTool(cfg.MCPServer, tool, handler)
-// 	}
-
-// 	if !cfg.ReadOnly {
-// 		writeTools := []func(v1.ClientInterface) (*mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]){
-// 			// Add write tool functions here
-// 		}
-
-// 		for _, toolFunc := range writeTools {
-// 			tool, handler := toolFunc(cfg.PersesClient)
-// 			mcp.AddTool(cfg.MCPServer, tool, handler)
-// 		}
-// 	}
-
-// }
 
 func initializePersesClient(cfg Config) (v1.ClientInterface, error) {
 	restClient, err := config.NewRESTClient(config.RestConfigClient{
