@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net/http"
 	"os"
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/perses/mcp-server/pkg/tools"
@@ -63,72 +65,6 @@ type Server struct {
 	mcpServer *mcp.Server
 }
 
-func (s *Server) Run(ctx context.Context) error {
-
-	// Setup graceful shutdown
-	ctx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
-
-	s.logger.Info("Starting Perses MCP Server",
-		"version", s.cfg.Version,
-		"read_only", s.cfg.ReadOnly,
-		"transport", s.cfg.Transport,
-	)
-
-	s.registerTools()
-
-	errChan := make(chan error, 1)
-
-	go func() {
-		var runErr error
-
-		if strings.ToLower(s.cfg.Transport) == "http" {
-			// TODO:  Run the server with HTTP Streamable transport
-		} else {
-			runErr = s.mcpServer.Run(ctx, &mcp.StdioTransport{})
-		}
-		errChan <- runErr
-	}()
-
-	s.logger.Info("Perses MCP Server is running", "transport", s.cfg.Transport)
-
-	select {
-	case <-ctx.Done():
-		s.logger.Info("Shutting down signal received")
-		return nil
-	case err := <-errChan:
-		if err != nil {
-			s.logger.Error("Server stopped unexpectedly", "error", err)
-			return fmt.Errorf("server error: %w", err)
-		}
-		return nil
-	}
-}
-
-func (s *Server) registerTools() {
-
-	readOnlyTools := []func(v1.ClientInterface) (*mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]){
-		tools.ListNewProjects,
-	}
-
-	for _, toolFunc := range readOnlyTools {
-		tool, handler := toolFunc(s.persesClient)
-		mcp.AddTool(s.mcpServer, tool, handler)
-	}
-
-	if !s.cfg.ReadOnly {
-		writeTools := []func(v1.ClientInterface) (*mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]){
-			// Add write tool functions here
-		}
-
-		for _, toolFunc := range writeTools {
-			tool, handler := toolFunc(s.persesClient)
-			mcp.AddTool(s.mcpServer, tool, handler)
-		}
-	}
-
-}
-
 func NewServer(cfg Config) (*Server, error) {
 	var slogHandler slog.Handler
 	var logOutput io.Writer
@@ -174,6 +110,103 @@ func NewServer(cfg Config) (*Server, error) {
 		persesClient: persesClient,
 		mcpServer:    mcpServer,
 	}, nil
+}
+
+func (s *Server) Run(ctx context.Context) error {
+
+	// Setup graceful shutdown
+	ctx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	s.logger.Info("Starting Perses MCP Server",
+		"version", s.cfg.Version,
+		"read_only", s.cfg.ReadOnly,
+		"transport", s.cfg.Transport,
+	)
+
+	s.registerTools()
+
+	errChan := make(chan error, 1)
+
+	go func() {
+		var runErr error
+
+		if strings.ToLower(s.cfg.Transport) == "http" {
+			runErr = s.runHTTPTransport(ctx)
+		} else {
+			runErr = s.runStdioTransport(ctx)
+		}
+		errChan <- runErr
+	}()
+
+	s.logger.Info("Perses MCP Server is running", "transport", s.cfg.Transport)
+
+	select {
+	case <-ctx.Done():
+		s.logger.Info("Shutting down signal received")
+		return nil
+	case err := <-errChan:
+		if err != nil {
+			s.logger.Error("Server stopped unexpectedly", "error", err)
+			return fmt.Errorf("server error: %w", err)
+		}
+		return nil
+	}
+}
+
+func (s *Server) registerTools() {
+
+	readOnlyTools := []func(v1.ClientInterface) (*mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]){
+		tools.ListNewProjects,
+	}
+
+	for _, toolFunc := range readOnlyTools {
+		tool, handler := toolFunc(s.persesClient)
+		mcp.AddTool(s.mcpServer, tool, handler)
+	}
+
+	if !s.cfg.ReadOnly {
+		writeTools := []func(v1.ClientInterface) (*mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]){
+			// Add write tool functions here
+		}
+
+		for _, toolFunc := range writeTools {
+			tool, handler := toolFunc(s.persesClient)
+			mcp.AddTool(s.mcpServer, tool, handler)
+		}
+	}
+
+}
+
+func (s *Server) runStdioTransport(ctx context.Context) error {
+	s.logger.Info("Running MCP server with stdio transport")
+	return s.mcpServer.Run(ctx, &mcp.StdioTransport{})
+}
+
+func (s *Server) runHTTPTransport(ctx context.Context) error {
+	handler := mcp.NewStreamableHTTPHandler(func(req *http.Request) *mcp.Server {
+		return s.mcpServer
+	}, nil)
+
+	addr := ":" + s.cfg.Port
+	httpServer := &http.Server{Addr: addr, Handler: handler}
+
+	serverErr := make(chan error, 1)
+	go func() {
+		s.logger.Info("Listening on HTTP", "addr", addr)
+		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			serverErr <- err
+		}
+	}()
+
+	select {
+	case <-ctx.Done():
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		return httpServer.Shutdown(shutdownCtx)
+	case err := <-serverErr:
+		return err
+	}
 }
 
 func initializePersesClient(cfg Config) (v1.ClientInterface, error) {
