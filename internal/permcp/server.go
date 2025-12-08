@@ -168,6 +168,9 @@ func (s *Server) registerTools() {
 	projectByNameTool, projectByNameHandler := tools.GetProjectByName(s.persesClient)
 	mcp.AddTool(s.mcpServer, projectByNameTool, projectByNameHandler)
 
+	projectCreateTool, projectCreateHandler := tools.CreateProject(s.persesClient)
+	mcp.AddTool(s.mcpServer, projectCreateTool, projectCreateHandler)
+
 	if !s.cfg.ReadOnly {
 		writeTools := []func(v1.ClientInterface) (*mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]){
 			// Add write tool functions here
