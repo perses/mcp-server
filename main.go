@@ -91,8 +91,7 @@ func start(mcpServer *server.MCPServer) error {
 
 func addReadOnlyTools(mcpServer *server.MCPServer, persesClient apiClient.ClientInterface) {
 	// Project
-	mcpServer.AddTool(tools.ListProjects(persesClient))
-	mcpServer.AddTool(tools.GetProjectByName(persesClient))
+	//	mcpServer.AddTool(tools.GetProjectByName(persesClient))
 
 	// Dashboard
 	mcpServer.AddTool(tools.ListDashboards(persesClient))
@@ -127,8 +126,6 @@ func addReadOnlyTools(mcpServer *server.MCPServer, persesClient apiClient.Client
 }
 
 func addWriteTools(mcpServer *server.MCPServer, persesClient apiClient.ClientInterface) {
-	// Project
-	mcpServer.AddTool(tools.CreateProject(persesClient))
 
 	// Dashboard
 	mcpServer.AddTool(tools.CreateDashboard(persesClient))
