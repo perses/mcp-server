@@ -94,8 +94,6 @@ func addReadOnlyTools(mcpServer *server.MCPServer, persesClient apiClient.Client
 	//	mcpServer.AddTool(tools.GetProjectByName(persesClient))
 
 	// Dashboard
-	mcpServer.AddTool(tools.ListDashboards(persesClient))
-	mcpServer.AddTool(tools.GetDashboardByName(persesClient))
 
 	// Datasource
 	mcpServer.AddTool(tools.ListGlobalDatasources(persesClient))
