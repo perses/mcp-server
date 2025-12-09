@@ -156,20 +156,20 @@ func (s *Server) Run(ctx context.Context) error {
 
 func (s *Server) registerTools() {
 
-	readOnlyTools := []func(v1.ClientInterface) (*mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]){
-		tools.ListProjects,
-	}
-
-	for _, toolFunc := range readOnlyTools {
-		tool, handler := toolFunc(s.persesClient)
-		mcp.AddTool(s.mcpServer, tool, handler)
-	}
+	listProjectsTool, listProjectsHandler := tools.ListProjects(s.persesClient)
+	mcp.AddTool(s.mcpServer, listProjectsTool, listProjectsHandler)
 
 	projectByNameTool, projectByNameHandler := tools.GetProjectByName(s.persesClient)
 	mcp.AddTool(s.mcpServer, projectByNameTool, projectByNameHandler)
 
 	projectCreateTool, projectCreateHandler := tools.CreateProject(s.persesClient)
 	mcp.AddTool(s.mcpServer, projectCreateTool, projectCreateHandler)
+
+	dashboardListTool, dashboardListHandler := tools.ListDashboards(s.persesClient)
+	mcp.AddTool(s.mcpServer, dashboardListTool, dashboardListHandler)
+
+	dashboardByNameTool, dashboardByNameHandler := tools.GetDashboardByName(s.persesClient)
+	mcp.AddTool(s.mcpServer, dashboardByNameTool, dashboardByNameHandler)
 
 	if !s.cfg.ReadOnly {
 		writeTools := []func(v1.ClientInterface) (*mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]){
