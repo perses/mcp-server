@@ -114,6 +114,67 @@ func GetDashboardByName(client apiClient.ClientInterface) (*newMcp.Tool, newMcp.
 	return tool, handler
 }
 
+type CreateDashboardInput struct {
+	Project   string `json:"project" jsonschema:"Project name to create the dashboard in"`
+	Dashboard string `json:"dashboard" jsonschema:"Dashboard JSON as string"`
+}
+
+func CreateNewDashboard(client apiClient.ClientInterface) (*newMcp.Tool, newMcp.ToolHandlerFor[CreateDashboardInput, any]) {
+	tool := &newMcp.Tool{
+		Name:        "perses_create_dashboard",
+		Description: "Create a new dashboard in a specific project",
+		InputSchema: &jsonschema.Schema{
+			Type: "object",
+			Properties: map[string]*jsonschema.Schema{
+				"project": {
+					Type:        "string",
+					Description: "Project name",
+					MinLength:   jsonschema.Ptr(1),
+					MaxLength:   jsonschema.Ptr(75),
+					Pattern:     "^[a-zA-Z0-9_.-]+$",
+				},
+				"dashboard": {
+					Type:        "string",
+					Description: "Dashboard JSON as string",
+				},
+			},
+			Required: []string{"project", "dashboard"},
+		},
+		Annotations: &newMcp.ToolAnnotations{
+			DestructiveHint: jsonschema.Ptr(false),
+			IdempotentHint:  true,
+			OpenWorldHint:   jsonschema.Ptr(false),
+			ReadOnlyHint:    false,
+			Title:           "Creates a new dashboard in a specific project in Perses",
+		},
+	}
+	handler := func(ctx context.Context, _ *newMcp.CallToolRequest, input CreateDashboardInput) (*newMcp.CallToolResult, any, error) {
+
+		var dashboard v1.Dashboard
+		if err := json.Unmarshal([]byte(input.Dashboard), &dashboard); err != nil {
+			return nil, nil, fmt.Errorf("invalid dashboard JSON: %w", err)
+		}
+
+		createdDashboard, err := client.Dashboard(input.Project).Create(&dashboard)
+		if err != nil {
+			return nil, nil, fmt.Errorf("error creating dashboard in project '%s': %w", input.Project, err)
+		}
+
+		dashboardJSON, err := json.Marshal(createdDashboard)
+		if err != nil {
+			return nil, nil, fmt.Errorf("error marshalling created dashboard: %w", err)
+		}
+		return &newMcp.CallToolResult{
+			Content: []newMcp.Content{
+				&newMcp.TextContent{
+					Text: string(dashboardJSON),
+				},
+			},
+		}, nil, nil
+	}
+	return tool, handler
+}
+
 func CreateDashboard(client apiClient.ClientInterface) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("perses_create_dashboard",
 			mcp.WithDescription("Create a new dashboard in a specific project"),
