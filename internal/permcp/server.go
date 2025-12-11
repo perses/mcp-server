@@ -171,17 +171,14 @@ func (s *Server) registerTools() {
 	dashboardByNameTool, dashboardByNameHandler := tools.GetDashboardByName(s.persesClient)
 	mcp.AddTool(s.mcpServer, dashboardByNameTool, dashboardByNameHandler)
 
+	listPluginsTool, listPluginsToolHandler := tools.ListNewPlugins(s.persesClient)
+	mcp.AddTool(s.mcpServer, listPluginsTool, listPluginsToolHandler)
+
+	// Add write tools here
 	if !s.cfg.ReadOnly {
-		writeTools := []func(v1.ClientInterface) (*mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]){
-			// Add write tool functions here
-		}
-
-		for _, toolFunc := range writeTools {
-			tool, handler := toolFunc(s.persesClient)
-			mcp.AddTool(s.mcpServer, tool, handler)
-		}
+		dashboardCreateTool, dashboardCreateHandler := tools.CreateNewDashboard(s.persesClient)
+		mcp.AddTool(s.mcpServer, dashboardCreateTool, dashboardCreateHandler)
 	}
-
 }
 
 func (s *Server) runStdioTransport(ctx context.Context) error {
