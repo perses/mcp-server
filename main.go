@@ -102,7 +102,6 @@ func addReadOnlyTools(mcpServer *server.MCPServer, persesClient apiClient.Client
 	mcpServer.AddTool(tools.GetProjectDatasourceByName(persesClient))
 
 	// Roles and Role Bindings
-	mcpServer.AddTool(tools.ListGlobalRoles(persesClient))
 	mcpServer.AddTool(tools.GetGlobalRoleByName(persesClient))
 	mcpServer.AddTool(tools.ListGlobalRoleBindings(persesClient))
 	mcpServer.AddTool(tools.GetGlobalRoleBindingByName(persesClient))
