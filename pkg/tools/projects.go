@@ -12,9 +12,6 @@ import (
 	"github.com/perses/perses/pkg/model/api/v1/common"
 )
 
-type ListProjectsOutput struct {
-	Projects []*v1.Project `json:"projects"`
-}
 
 func ListProjects(client apiClient.ClientInterface) (*mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
 
@@ -30,12 +27,12 @@ func ListProjects(client apiClient.ClientInterface) (*mcp.Tool, mcp.ToolHandlerF
 	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input map[string]any) (*mcp.CallToolResult, any, error) {
 		projects, err := client.Project().List("")
 		if err != nil {
-			return nil, ListProjectsOutput{}, fmt.Errorf("error retrieving projects: %w", err)
+			return nil, nil, fmt.Errorf("error retrieving projects: %w", err)
 		}
 
 		text, err := json.Marshal(projects)
 		if err != nil {
-			return nil, ListProjectsOutput{}, fmt.Errorf("error marshalling projects: %w", err)
+			return nil, nil, fmt.Errorf("error marshalling projects: %w", err)
 		}
 
 		return &mcp.CallToolResult{
