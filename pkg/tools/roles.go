@@ -5,34 +5,44 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
+	newMcp "github.com/modelcontextprotocol/go-sdk/mcp"
 	apiClient "github.com/perses/perses/pkg/client/api/v1"
 )
 
-func ListGlobalRoles(client apiClient.ClientInterface) (tool mcp.Tool, handler server.ToolHandlerFunc) {
-	return mcp.NewTool("perses_list_global_roles",
-			mcp.WithDescription("List all Perses Global Roles"),
-			mcp.WithToolAnnotation(mcp.ToolAnnotation{
-				Title:           "Lists all global roles in Perses",
-				ReadOnlyHint:    ToBoolPtr(true),
-				DestructiveHint: ToBoolPtr(false),
-				IdempotentHint:  ToBoolPtr(true),
-				OpenWorldHint:   ToBoolPtr(false),
-			})),
-		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func ListNewGlobalRoles(client apiClient.ClientInterface) (newMcp.Tool, newMcp.ToolHandlerFor[map[string]any, any]) {
+	tool := newMcp.Tool{
+		Name: 			"perses_list_global_roles",
+		Description: 	"List all Perses Global Roles",
+		Annotations: &newMcp.ToolAnnotations{
+			Title: 				 "Lists all global roles in Perses",
+			ReadOnlyHint: true,
+			IdempotentHint: true,
+			OpenWorldHint: jsonschema.Ptr(false),
+		},
+	}
+	handler := func(ctx context.Context, _ *newMcp.CallToolRequest, input map[string]any) (*newMcp.CallToolResult, any, error) {
 
-			globalRoles, err := client.GlobalRole().List("")
-			if err != nil {
-				return nil, fmt.Errorf("error retrieving global roles: %w", err)
-			}
-
-			globalRolesJSON, err := json.Marshal(globalRoles)
-			if err != nil {
-				return nil, fmt.Errorf("error marshalling global roles: %w", err)
-			}
-			return mcp.NewToolResultText(string(globalRolesJSON)), nil
+		globalRoles, err := client.GlobalRole().List("")
+		if err != nil {
+			return nil, nil, fmt.Errorf("error retrieving global roles: %w", err)
 		}
+
+		globalRolesJSON, err := json.Marshal(globalRoles)
+		if err != nil {
+			return nil, nil, fmt.Errorf("error marshalling global roles: %w", err)
+		}
+		return &newMcp.CallToolResult{
+			Content: []newMcp.Content{
+				&newMcp.TextContent{
+					Text: string(globalRolesJSON),
+				},
+			},
+		}, nil, nil
+	}
+	return tool, handler
 }
 
 func GetGlobalRoleByName(client apiClient.ClientInterface) (tool mcp.Tool, handler server.ToolHandlerFunc) {

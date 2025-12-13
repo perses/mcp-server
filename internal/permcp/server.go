@@ -174,6 +174,9 @@ func (s *Server) registerTools() {
 	listPluginsTool, listPluginsToolHandler := tools.ListNewPlugins(s.persesClient)
 	mcp.AddTool(s.mcpServer, listPluginsTool, listPluginsToolHandler)
 
+	listGlobalRolesTool, listGlobalRolesHandler := tools.ListNewGlobalRoles(s.persesClient)
+	mcp.AddTool(s.mcpServer, &listGlobalRolesTool, listGlobalRolesHandler)
+
 	// Add write tools here
 	if !s.cfg.ReadOnly {
 		dashboardCreateTool, dashboardCreateHandler := tools.CreateNewDashboard(s.persesClient)
