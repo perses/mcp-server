@@ -174,8 +174,29 @@ func (s *Server) registerTools() {
 	listPluginsTool, listPluginsToolHandler := tools.ListNewPlugins(s.persesClient)
 	mcp.AddTool(s.mcpServer, listPluginsTool, listPluginsToolHandler)
 
-	listGlobalRolesTool, listGlobalRolesHandler := tools.ListNewGlobalRoles(s.persesClient)
+	listGlobalRolesTool, listGlobalRolesHandler := tools.ListGlobalRoles(s.persesClient)
 	mcp.AddTool(s.mcpServer, &listGlobalRolesTool, listGlobalRolesHandler)
+
+  getGlobalRoleTool, getGlobalRoleHandler := tools.GetGlobalRoleByName(s.persesClient)
+	mcp.AddTool(s.mcpServer, &getGlobalRoleTool, getGlobalRoleHandler)
+
+	listGlobalRoleBindingsTool, listGlobalRoleBindingsHandler := tools.ListGlobalRoleBindings(s.persesClient)
+	mcp.AddTool(s.mcpServer, &listGlobalRoleBindingsTool, listGlobalRoleBindingsHandler)
+
+	getGlobalRoleBindingTool, getGlobalRoleBindingHandler := tools.GetGlobalRoleBindingByName(s.persesClient)
+	mcp.AddTool(s.mcpServer, &getGlobalRoleBindingTool, getGlobalRoleBindingHandler)
+
+	listProjectRolesTool, listProjectRolesHandler := tools.ListProjectRoles(s.persesClient)
+	mcp.AddTool(s.mcpServer, &listProjectRolesTool, listProjectRolesHandler)
+
+	getProjectRoleTool, getProjectRoleHandler := tools.GetProjectRoleByName(s.persesClient)
+	mcp.AddTool(s.mcpServer, &getProjectRoleTool, getProjectRoleHandler)
+
+	listProjectRoleBindingsTool, listProjectRoleBindingsHandler := tools.ListProjectRoleBindings(s.persesClient)
+	mcp.AddTool(s.mcpServer, &listProjectRoleBindingsTool, listProjectRoleBindingsHandler)
+
+	getProjectRoleBindingTool, getProjectRoleBindingHandler := tools.GetProjectRoleBindingByName(s.persesClient)
+	mcp.AddTool(s.mcpServer, &getProjectRoleBindingTool, getProjectRoleBindingHandler)
 
 	// Add write tools here
 	if !s.cfg.ReadOnly {
