@@ -177,7 +177,7 @@ func (s *Server) registerTools() {
 	listGlobalRolesTool, listGlobalRolesHandler := tools.ListGlobalRoles(s.persesClient)
 	mcp.AddTool(s.mcpServer, &listGlobalRolesTool, listGlobalRolesHandler)
 
-  getGlobalRoleTool, getGlobalRoleHandler := tools.GetGlobalRoleByName(s.persesClient)
+	getGlobalRoleTool, getGlobalRoleHandler := tools.GetGlobalRoleByName(s.persesClient)
 	mcp.AddTool(s.mcpServer, &getGlobalRoleTool, getGlobalRoleHandler)
 
 	listGlobalRoleBindingsTool, listGlobalRoleBindingsHandler := tools.ListGlobalRoleBindings(s.persesClient)
@@ -198,10 +198,45 @@ func (s *Server) registerTools() {
 	getProjectRoleBindingTool, getProjectRoleBindingHandler := tools.GetProjectRoleBindingByName(s.persesClient)
 	mcp.AddTool(s.mcpServer, &getProjectRoleBindingTool, getProjectRoleBindingHandler)
 
+	// Datasources
+	listGlobalDatasourcesTool, listGlobalDatasourcesHandler := tools.ListGlobalDatasources(s.persesClient)
+	mcp.AddTool(s.mcpServer, &listGlobalDatasourcesTool, listGlobalDatasourcesHandler)
+
+	getGlobalDatasourceTool, getGlobalDatasourceHandler := tools.GetGlobalDatasourceByName(s.persesClient)
+	mcp.AddTool(s.mcpServer, &getGlobalDatasourceTool, getGlobalDatasourceHandler)
+
+	listProjectDatasourcesTool, listProjectDatasourcesHandler := tools.ListProjectDatasources(s.persesClient)
+	mcp.AddTool(s.mcpServer, &listProjectDatasourcesTool, listProjectDatasourcesHandler)
+
+	getProjectDatasourceTool, getProjectDatasourceHandler := tools.GetProjectDatasourceByName(s.persesClient)
+	mcp.AddTool(s.mcpServer, &getProjectDatasourceTool, getProjectDatasourceHandler)
+
+	// Variables
+	listGlobalVariablesTool, listGlobalVariablesHandler := tools.ListGlobalVariables(s.persesClient)
+	mcp.AddTool(s.mcpServer, &listGlobalVariablesTool, listGlobalVariablesHandler)
+
+	getGlobalVariableTool, getGlobalVariableHandler := tools.GetGlobalVariableByName(s.persesClient)
+	mcp.AddTool(s.mcpServer, &getGlobalVariableTool, getGlobalVariableHandler)
+
+	listProjectVariablesTool, listProjectVariablesHandler := tools.ListProjectVariables(s.persesClient)
+	mcp.AddTool(s.mcpServer, &listProjectVariablesTool, listProjectVariablesHandler)
+
+	getProjectVariableTool, getProjectVariableHandler := tools.GetProjectVariableByName(s.persesClient)
+	mcp.AddTool(s.mcpServer, &getProjectVariableTool, getProjectVariableHandler)
+
 	// Add write tools here
 	if !s.cfg.ReadOnly {
 		dashboardCreateTool, dashboardCreateHandler := tools.CreateNewDashboard(s.persesClient)
 		mcp.AddTool(s.mcpServer, dashboardCreateTool, dashboardCreateHandler)
+
+		createGlobalDatasourceTool, createGlobalDatasourceHandler := tools.CreateGlobalDatasource(s.persesClient)
+		mcp.AddTool(s.mcpServer, &createGlobalDatasourceTool, createGlobalDatasourceHandler)
+
+		updateGlobalDatasourceTool, updateGlobalDatasourceHandler := tools.UpdateGlobalDatasource(s.persesClient)
+		mcp.AddTool(s.mcpServer, &updateGlobalDatasourceTool, updateGlobalDatasourceHandler)
+
+		createProjectVariableTool, createProjectVariableHandler := tools.CreateProjectTextVariable(s.persesClient)
+		mcp.AddTool(s.mcpServer, &createProjectVariableTool, createProjectVariableHandler)
 	}
 }
 
