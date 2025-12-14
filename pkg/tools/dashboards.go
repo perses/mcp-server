@@ -6,9 +6,7 @@ import (
 	"fmt"
 
 	"github.com/google/jsonschema-go/jsonschema"
-	"github.com/mark3labs/mcp-go/mcp"
-	"github.com/mark3labs/mcp-go/server"
-	newMcp "github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	apiClient "github.com/perses/perses/pkg/client/api/v1"
 	v1 "github.com/perses/perses/pkg/model/api/v1"
 )
@@ -17,12 +15,11 @@ type ListNewDashboardsInput struct {
 	Project string `json:"project" jsonschema:"Project name to list dashboards from"`
 }
 
-func ListDashboards(client apiClient.ClientInterface) (*newMcp.Tool, newMcp.ToolHandlerFor[ListNewDashboardsInput, any]) {
-
-	tool := &newMcp.Tool{
+func ListDashboards(client apiClient.ClientInterface) (*mcp.Tool, mcp.ToolHandlerFor[ListNewDashboardsInput, any]) {
+	tool := &mcp.Tool{
 		Name:        "perses_list_dashboards",
 		Description: "List dashboards for a specific project",
-		Annotations: &newMcp.ToolAnnotations{
+		Annotations: &mcp.ToolAnnotations{
 			DestructiveHint: jsonschema.Ptr(false),
 			IdempotentHint:  true,
 			OpenWorldHint:   jsonschema.Ptr(false),
@@ -43,7 +40,8 @@ func ListDashboards(client apiClient.ClientInterface) (*newMcp.Tool, newMcp.Tool
 			Required: []string{"project"},
 		},
 	}
-	handler := func(ctx context.Context, _ *newMcp.CallToolRequest, input ListNewDashboardsInput) (result *newMcp.CallToolResult, output any, _ error) {
+
+	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input ListNewDashboardsInput) (result *mcp.CallToolResult, output any, _ error) {
 		response, err := client.Dashboard(input.Project).List("")
 		if err != nil {
 			return nil, nil, fmt.Errorf("error retrieving dashboards: %w", err)
@@ -54,9 +52,9 @@ func ListDashboards(client apiClient.ClientInterface) (*newMcp.Tool, newMcp.Tool
 			return nil, nil, fmt.Errorf("error marshalling dashboards: %w", err)
 		}
 
-		return &newMcp.CallToolResult{
-			Content: []newMcp.Content{
-				&newMcp.TextContent{
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
 					Text: string(text),
 				},
 			},
@@ -70,12 +68,11 @@ type GetDashboardByNameInput struct {
 	Name    string `json:"name" jsonschema:"Dashboard name to retrieve"`
 }
 
-func GetDashboardByName(client apiClient.ClientInterface) (*newMcp.Tool, newMcp.ToolHandlerFor[GetDashboardByNameInput, any]) {
-
-	tool := &newMcp.Tool{
+func GetDashboardByName(client apiClient.ClientInterface) (*mcp.Tool, mcp.ToolHandlerFor[GetDashboardByNameInput, any]) {
+	tool := &mcp.Tool{
 		Name:        "perses_get_dashboard_by_name",
 		Description: "Get a dashboard by name in a specific project",
-		Annotations: &newMcp.ToolAnnotations{
+		Annotations: &mcp.ToolAnnotations{
 			DestructiveHint: jsonschema.Ptr(false),
 			IdempotentHint:  true,
 			OpenWorldHint:   jsonschema.Ptr(false),
@@ -103,8 +100,8 @@ func GetDashboardByName(client apiClient.ClientInterface) (*newMcp.Tool, newMcp.
 			Required: []string{"project", "name"},
 		},
 	}
-	handler := func(ctx context.Context, _ *newMcp.CallToolRequest, input GetDashboardByNameInput) (result *newMcp.CallToolResult, output any, _ error) {
 
+	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input GetDashboardByNameInput) (result *mcp.CallToolResult, output any, _ error) {
 		response, err := client.Dashboard(input.Project).Get(input.Name)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error retrieving dashboard '%s' in project '%s': %w", input.Name, input.Project, err)
@@ -119,8 +116,8 @@ type CreateDashboardInput struct {
 	Dashboard string `json:"dashboard" jsonschema:"Dashboard JSON as string"`
 }
 
-func CreateNewDashboard(client apiClient.ClientInterface) (*newMcp.Tool, newMcp.ToolHandlerFor[CreateDashboardInput, any]) {
-	tool := &newMcp.Tool{
+func CreateNewDashboard(client apiClient.ClientInterface) (*mcp.Tool, mcp.ToolHandlerFor[CreateDashboardInput, any]) {
+	tool := &mcp.Tool{
 		Name:        "perses_create_dashboard",
 		Description: "Create a new dashboard in a specific project",
 		InputSchema: &jsonschema.Schema{
@@ -140,7 +137,7 @@ func CreateNewDashboard(client apiClient.ClientInterface) (*newMcp.Tool, newMcp.
 			},
 			Required: []string{"project", "dashboard"},
 		},
-		Annotations: &newMcp.ToolAnnotations{
+		Annotations: &mcp.ToolAnnotations{
 			DestructiveHint: jsonschema.Ptr(false),
 			IdempotentHint:  true,
 			OpenWorldHint:   jsonschema.Ptr(false),
@@ -148,8 +145,8 @@ func CreateNewDashboard(client apiClient.ClientInterface) (*newMcp.Tool, newMcp.
 			Title:           "Creates a new dashboard in a specific project in Perses",
 		},
 	}
-	handler := func(ctx context.Context, _ *newMcp.CallToolRequest, input CreateDashboardInput) (*newMcp.CallToolResult, any, error) {
 
+	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input CreateDashboardInput) (*mcp.CallToolResult, any, error) {
 		var dashboard v1.Dashboard
 		if err := json.Unmarshal([]byte(input.Dashboard), &dashboard); err != nil {
 			return nil, nil, fmt.Errorf("invalid dashboard JSON: %w", err)
@@ -164,56 +161,13 @@ func CreateNewDashboard(client apiClient.ClientInterface) (*newMcp.Tool, newMcp.
 		if err != nil {
 			return nil, nil, fmt.Errorf("error marshalling created dashboard: %w", err)
 		}
-		return &newMcp.CallToolResult{
-			Content: []newMcp.Content{
-				&newMcp.TextContent{
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
 					Text: string(dashboardJSON),
 				},
 			},
 		}, nil, nil
 	}
 	return tool, handler
-}
-
-func CreateDashboard(client apiClient.ClientInterface) (tool mcp.Tool, handler server.ToolHandlerFunc) {
-	return mcp.NewTool("perses_create_dashboard",
-			mcp.WithDescription("Create a new dashboard in a specific project"),
-			mcp.WithString("project", mcp.Required(),
-				mcp.Description("Project name")),
-			mcp.WithString("dashboard", mcp.Required(),
-				mcp.Description("Dashboard JSON as string")),
-			mcp.WithToolAnnotation(mcp.ToolAnnotation{
-				Title:           "Creates a new dashboard in a specific project in Perses",
-				ReadOnlyHint:    ToBoolPtr(false),
-				DestructiveHint: ToBoolPtr(false),
-				IdempotentHint:  ToBoolPtr(true),
-				OpenWorldHint:   ToBoolPtr(false),
-			})),
-		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			project, err := request.RequireString("project")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			dashboardStr, err := request.RequireString("dashboard")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-
-			var dashboard v1.Dashboard
-			if err := json.Unmarshal([]byte(dashboardStr), &dashboard); err != nil {
-				return nil, fmt.Errorf("invalid dashboard JSON: %w", err)
-			}
-
-			created, err := client.Dashboard(project).Create(&dashboard)
-			if err != nil {
-				return nil, fmt.Errorf("error creating dashboard in project '%s': %w", project, err)
-			}
-
-			resultJSON, err := json.Marshal(created)
-			if err != nil {
-				return nil, fmt.Errorf("error marshalling created dashboard: %w", err)
-			}
-
-			return mcp.NewToolResultText(string(resultJSON)), nil
-		}
 }
