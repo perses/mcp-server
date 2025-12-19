@@ -114,7 +114,6 @@ func NewServer(cfg Config) (*Server, error) {
 
 func (s *Server) Run(ctx context.Context) error {
 
-	// Setup graceful shutdown
 	ctx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
@@ -198,7 +197,6 @@ func (s *Server) registerTools() {
 	getProjectRoleBindingTool, getProjectRoleBindingHandler := tools.GetProjectRoleBindingByName(s.persesClient)
 	mcp.AddTool(s.mcpServer, &getProjectRoleBindingTool, getProjectRoleBindingHandler)
 
-	// Datasources
 	listGlobalDatasourcesTool, listGlobalDatasourcesHandler := tools.ListGlobalDatasources(s.persesClient)
 	mcp.AddTool(s.mcpServer, &listGlobalDatasourcesTool, listGlobalDatasourcesHandler)
 
