@@ -7,10 +7,8 @@ import (
 	"os"
 
 	"github.com/mark3labs/mcp-go/server"
-	"github.com/perses/mcp-server/pkg/tools"
-
-	apiClient "github.com/perses/perses/pkg/client/api/v1"
-	"github.com/perses/perses/pkg/client/config"
+	"github.com/perses/mcp-server/client"
+	persesConfig "github.com/perses/perses/pkg/client/config"
 	"github.com/perses/perses/pkg/model/api/v1/common"
 )
 
@@ -20,6 +18,7 @@ var (
 	logLevel        string
 	readOnly        bool
 	port            string
+	tokenURL        string
 )
 
 const PERSES_TOKEN = "PERSES_TOKEN"
@@ -30,6 +29,7 @@ func init() {
 	flag.StringVar(&transport, "transport", "stdio", "MCP protocol currently supports 'stdio' and 'http-streamable' transport mechanisms")
 	flag.StringVar(&port, "port", "8000", "Port to run the HTTP Streamable server on")
 	flag.BoolVar(&readOnly, "read-only", false, "Restrict the server to read-only operations")
+	flag.StringVar(&tokenURL, "token-url", "", "OAuth token endpoint URL")
 	flag.Parse()
 
 	// configure logging
@@ -45,10 +45,21 @@ func main() {
 	slog.Info("Log level set to", "level", logLevel)
 	slog.Info("Transport type set to", "type", transport)
 
-	// Initialize the Perses client
-	persesClient, err := initializePersesClient(persesServerURL)
+	// Building the REST config for the Perses client
+	restCfg, err := buildRestConfig()
+	if err != nil {
+		slog.Error("Failed to build Perses REST config", "error", err)
+		return
+	}
+
+	// Creating the Perses client
+	persesClient, err := client.NewPersesClient(client.HTTPClient{
+		RestConfigClient: restCfg,
+	})
 	if err != nil {
 		os.Exit(1)
+		slog.Error("Failed to create Perses client", "error", err)
+		return
 	}
 
 	mcpServer := server.NewMCPServer(
@@ -59,15 +70,11 @@ func main() {
 	)
 
 	if readOnly {
+		persesClient.AddReadOnlyTools(mcpServer)
 		slog.Info("Starting in READ-ONLY mode")
 	} else {
+		persesClient.AddWriteTools(mcpServer)
 		slog.Info("Starting in FULL-ACCESS mode")
-	}
-
-	addReadOnlyTools(mcpServer, persesClient)
-
-	if !readOnly {
-		addWriteTools(mcpServer, persesClient)
 	}
 
 	if err := start(mcpServer); err != nil {
@@ -89,80 +96,18 @@ func start(mcpServer *server.MCPServer) error {
 	}
 }
 
-func addReadOnlyTools(mcpServer *server.MCPServer, persesClient apiClient.ClientInterface) {
-	// Project
-	mcpServer.AddTool(tools.ListProjects(persesClient))
-	mcpServer.AddTool(tools.GetProjectByName(persesClient))
-
-	// Dashboard
-	mcpServer.AddTool(tools.ListDashboards(persesClient))
-	mcpServer.AddTool(tools.GetDashboardByName(persesClient))
-
-	// Datasource
-	mcpServer.AddTool(tools.ListGlobalDatasources(persesClient))
-	mcpServer.AddTool(tools.ListProjectDatasources(persesClient))
-	mcpServer.AddTool(tools.GetGlobalDatasourceByName(persesClient))
-	mcpServer.AddTool(tools.GetProjectDatasourceByName(persesClient))
-
-	// Roles and Role Bindings
-	mcpServer.AddTool(tools.ListGlobalRoles(persesClient))
-	mcpServer.AddTool(tools.GetGlobalRoleByName(persesClient))
-	mcpServer.AddTool(tools.ListGlobalRoleBindings(persesClient))
-	mcpServer.AddTool(tools.GetGlobalRoleBindingByName(persesClient))
-	mcpServer.AddTool(tools.ListProjectRoles(persesClient))
-	mcpServer.AddTool(tools.GetProjectRoleByName(persesClient))
-	mcpServer.AddTool(tools.ListProjectRoleBindings(persesClient))
-	mcpServer.AddTool(tools.GetProjectRoleBindingByName(persesClient))
-
-	// plugins
-	mcpServer.AddTool(tools.ListPlugins(persesClient))
-
-	//Variable
-	mcpServer.AddTool(tools.ListGlobalVariables(persesClient))
-	mcpServer.AddTool(tools.GetGlobalVariableByName(persesClient))
-	mcpServer.AddTool(tools.ListProjectVariables(persesClient))
-	mcpServer.AddTool(tools.GetProjectVariableByName(persesClient))
-
-	slog.Debug("Added read-only tools")
-}
-
-func addWriteTools(mcpServer *server.MCPServer, persesClient apiClient.ClientInterface) {
-	// Project
-	mcpServer.AddTool(tools.CreateProject(persesClient))
-
-	// Dashboard
-	mcpServer.AddTool(tools.CreateDashboard(persesClient))
-
-	// Datasource
-	mcpServer.AddTool(tools.CreateGlobalDatasource(persesClient))
-	mcpServer.AddTool(tools.UpdateGlobalDatasource(persesClient))
-
-	// Variable
-	mcpServer.AddTool(tools.CreateProjectTextVariable(persesClient))
-
-	slog.Debug("Added write tools")
-}
-
-func initializePersesClient(baseURL string) (apiClient.ClientInterface, error) {
-
-	bearerToken := os.Getenv(PERSES_TOKEN)
-	if bearerToken == "" {
-		slog.Error(PERSES_TOKEN + " environment variable is not set")
-		return nil, fmt.Errorf(PERSES_TOKEN + " environment variable is not set")
+func buildRestConfig() (persesConfig.RestConfigClient, error) {
+	cfg := persesConfig.RestConfigClient{
+		URL: common.MustParseURL(persesServerURL),
 	}
-
-	restClient, err := config.NewRESTClient(config.RestConfigClient{
-		URL: common.MustParseURL(baseURL),
-		Headers: map[string]string{
-			"Authorization": "Bearer " + bearerToken,
-		},
-	})
-	if err != nil {
-		return nil, fmt.Errorf("error creating Perses Client: %v", err)
+	if token := os.Getenv(PERSES_TOKEN); token != "" {
+		cfg.Headers = map[string]string{
+			"Authorization": "Bearer " + token,
+		}
+		return cfg, nil
+	} else {
+		return cfg, nil
 	}
-
-	client := apiClient.NewWithClient(restClient)
-	return client, nil
 }
 
 func getLogLevel(level string) slog.Level {
