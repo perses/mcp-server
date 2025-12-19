@@ -112,7 +112,7 @@ func CreateProject(client apiClient.ClientInterface) (*mcp.Tool, mcp.ToolHandler
 			DestructiveHint: jsonschema.Ptr(false),
 			IdempotentHint:  true,
 			OpenWorldHint:   jsonschema.Ptr(false),
-		},
+		},    
 		Description: "Create a new Perses Project",
 		InputSchema: &jsonschema.Schema{
 			Type: "object",
