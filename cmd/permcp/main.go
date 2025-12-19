@@ -70,12 +70,12 @@ func init() {
 	httpCmd.PersistentFlags().String("port", "8000", "Port to run the HTTP Streamable server on")
 
 	// Bind flags to viper
-	viper.BindPFlag("perses-server-url", rootCmd.PersistentFlags().Lookup("perses-server-url"))
-	viper.BindPFlag("log-level", rootCmd.PersistentFlags().Lookup("log-level"))
-	viper.BindPFlag("read-only", rootCmd.PersistentFlags().Lookup("read-only"))
-	viper.BindPFlag("log-file-path", rootCmd.PersistentFlags().Lookup("log-file-path"))
+	_ = viper.BindPFlag("perses-server-url", rootCmd.PersistentFlags().Lookup("perses-server-url"))
+	_ = viper.BindPFlag("log-level", rootCmd.PersistentFlags().Lookup("log-level"))
+	_ = viper.BindPFlag("read-only", rootCmd.PersistentFlags().Lookup("read-only"))
+	_ = viper.BindPFlag("log-file-path", rootCmd.PersistentFlags().Lookup("log-file-path"))
 
-	viper.BindPFlag("port", httpCmd.PersistentFlags().Lookup("port"))
+	_ = viper.BindPFlag("port", httpCmd.PersistentFlags().Lookup("port"))
 	rootCmd.AddCommand(stdioCmd)
 	rootCmd.AddCommand(httpCmd)
 }
