@@ -211,7 +211,6 @@ func (s *Server) registerTools() {
 	getProjectDatasourceTool, getProjectDatasourceHandler := tools.GetProjectDatasourceByName(s.persesClient)
 	mcp.AddTool(s.mcpServer, &getProjectDatasourceTool, getProjectDatasourceHandler)
 
-	// Variables
 	listGlobalVariablesTool, listGlobalVariablesHandler := tools.ListGlobalVariables(s.persesClient)
 	mcp.AddTool(s.mcpServer, &listGlobalVariablesTool, listGlobalVariablesHandler)
 
