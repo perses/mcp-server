@@ -12,7 +12,6 @@ import (
 	"github.com/perses/perses/pkg/model/api/v1/common"
 )
 
-
 func ListProjects(client apiClient.ClientInterface) (*mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
 
 	tool := &mcp.Tool{
@@ -112,7 +111,7 @@ func CreateProject(client apiClient.ClientInterface) (*mcp.Tool, mcp.ToolHandler
 			DestructiveHint: jsonschema.Ptr(false),
 			IdempotentHint:  true,
 			OpenWorldHint:   jsonschema.Ptr(false),
-		},    
+		},
 		Description: "Create a new Perses Project",
 		InputSchema: &jsonschema.Schema{
 			Type: "object",
