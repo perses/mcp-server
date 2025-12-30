@@ -6,6 +6,18 @@ GOCI ?= golangci-lint
 build:
 	go build -o bin/
 
+.PHONY: generate-goreleaser
+generate-goreleaser:
+	$(GO) run ./scripts/generate-goreleaser/generate-goreleaser.go
+
+## Cross build binaries for all platforms (Use "make build" in development)
+.PHONY: cross-build
+cross-build: generate-goreleaser ## Cross build binaries for all platforms (Use "make build" in development)
+	goreleaser release --snapshot --clean
+
+.PHONY: cross-release
+cross-release: generate-goreleaser
+	goreleaser release --clean
 
 .PHONY: checkstyle
 checkstyle:
