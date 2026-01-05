@@ -6,16 +6,20 @@ before:
     - go mod tidy
 
 builds:
-  - env:
-      - CGO_ENABLED=0
+  - id: "mcp-server"
+    binary: perses-mcp-server
     goos:
       - linux
       - windows
       - darwin
-    binary: perses-mcp-server
+    env:
+      - CGO_ENABLED=0
 
 archives:
-  - formats: [tar.gz]
+  - id: "default"
+    ids:
+      - "mcp-server"
+    formats: [tar.gz]
     # this name template makes the OS and Arch compatible with the results of `uname`.
     name_template: >-
       perses-{{ .ProjectName }}_
@@ -28,16 +32,18 @@ archives:
     format_overrides:
       - goos: windows
         formats: [zip]
+    files:
+      - LICENSE
+      - README.md
 
 changelog:
   use: github
 
 release:
-  draft: true
+  github:
+    owner: "perses"
+    name: "mcp-server"
+  ids:
+    - "default"
   prerelease: auto
-  name_template: "{{.Version}}"
-  footer: >-
-
-    ---
-
-    Released by [GoReleaser](https://github.com/goreleaser/goreleaser).
+  name_template: "{{ .Version }} / {{ .Env.DATE }}"
