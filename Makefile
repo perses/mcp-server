@@ -6,10 +6,6 @@ GOCI ?= golangci-lint
 build:
 	$(GO) build -o bin/perses-mcp-server ./cmd/permcp
 
-.PHONY: permcp
-permcp:
-	$(GO) build -o bin/permcp ./cmd/permcp
-
 .PHONY: generate-goreleaser
 generate-goreleaser:
 	$(GO) run ./scripts/generate-goreleaser/generate-goreleaser.go
