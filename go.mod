@@ -3,7 +3,7 @@ module github.com/perses/mcp-server
 go 1.25.5
 
 require (
-	github.com/mark3labs/mcp-go v0.43.0
+	github.com/mark3labs/mcp-go v0.43.2
 	github.com/perses/perses v0.53.0-beta.4
 )
 
