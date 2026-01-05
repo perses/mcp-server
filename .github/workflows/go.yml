@@ -50,7 +50,7 @@ jobs:
           enable_go: true
           enable_go_cache: false
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v9
+        uses: golangci/golangci-lint-action@v9.2.0
         with:
-          version: v2.1.1
+          version: v2.4.0
           args: --timeout 5m

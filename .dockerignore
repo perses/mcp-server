@@ -2,4 +2,5 @@
 .github
 .gitignore
 README.md
-makefile
+Makefile
+.goreleaser.yaml

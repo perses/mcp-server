@@ -1,30 +1,60 @@
-name: goreleaser
-
+name: ci
 on:
   push:
+    branches:
+      - main
     tags:
-      - "v*"
+      - v*
+  pull_request:
+  merge_group:
 
-permissions:
-  contents: write
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || github.ref_name != 'main' }}
 
 jobs:
-  goreleaser:
+  build:
+    name: "go and github release"
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      # This env is required for the docker manifest command to work
+      DOCKER_CLI_EXPERIMENTAL: "enabled"
     steps:
       - name: Checkout
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - name: Set up Go
-        uses: actions/setup-go@v6
+      - uses: perses/github-actions@v0.11.0
+      - uses: ./.github/perses-ci/actions/setup_environment
         with:
-          go-version: stable
-      - name: Run GoReleaser
+          enable_go: true
+      - # Add support for more platforms with QEMU (optional)
+        # https://github.com/docker/setup-qemu-action
+        name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        if: ${{ github.event_name == 'push' && (startsWith(github.ref_name, 'v') || github.ref_name == 'main') }}
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: install goreleaser
         uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser
-          version: "~> v2"
-          args: release --clean
+          install-only: true
+      - name: Build Go binaries and docker images
+        run: make cross-build
+      - name: Publish Release and binaries
+        ## This step will only run when a new tag is pushed.
+        ## It will build the Go binaries and the docker images and then publish:
+        ## - the GitHub release with the archive built
+        ## - docker images on the different docker registry selected
+        if: ${{ github.event_name == 'push' && startsWith(github.ref_name, 'v') }}
+        run: make cross-release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
