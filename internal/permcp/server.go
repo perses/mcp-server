@@ -154,87 +154,26 @@ func (s *Server) Run(ctx context.Context) error {
 }
 
 func (s *Server) registerTools() {
+	registry := tools.NewToolRegistry(s.persesClient)
+	allTools := registry.GetAllTools()
 
-	listProjectsTool, listProjectsHandler := tools.ListProjects(s.persesClient)
-	mcp.AddTool(s.mcpServer, listProjectsTool, listProjectsHandler)
+	registeredCount := 0
+	skippedCount := 0
 
-	projectByNameTool, projectByNameHandler := tools.GetProjectByName(s.persesClient)
-	mcp.AddTool(s.mcpServer, projectByNameTool, projectByNameHandler)
-
-	projectCreateTool, projectCreateHandler := tools.CreateProject(s.persesClient)
-	mcp.AddTool(s.mcpServer, projectCreateTool, projectCreateHandler)
-
-	dashboardListTool, dashboardListHandler := tools.ListDashboards(s.persesClient)
-	mcp.AddTool(s.mcpServer, dashboardListTool, dashboardListHandler)
-
-	dashboardByNameTool, dashboardByNameHandler := tools.GetDashboardByName(s.persesClient)
-	mcp.AddTool(s.mcpServer, dashboardByNameTool, dashboardByNameHandler)
-
-	listPluginsTool, listPluginsToolHandler := tools.ListNewPlugins(s.persesClient)
-	mcp.AddTool(s.mcpServer, listPluginsTool, listPluginsToolHandler)
-
-	listGlobalRolesTool, listGlobalRolesHandler := tools.ListGlobalRoles(s.persesClient)
-	mcp.AddTool(s.mcpServer, &listGlobalRolesTool, listGlobalRolesHandler)
-
-	getGlobalRoleTool, getGlobalRoleHandler := tools.GetGlobalRoleByName(s.persesClient)
-	mcp.AddTool(s.mcpServer, &getGlobalRoleTool, getGlobalRoleHandler)
-
-	listGlobalRoleBindingsTool, listGlobalRoleBindingsHandler := tools.ListGlobalRoleBindings(s.persesClient)
-	mcp.AddTool(s.mcpServer, &listGlobalRoleBindingsTool, listGlobalRoleBindingsHandler)
-
-	getGlobalRoleBindingTool, getGlobalRoleBindingHandler := tools.GetGlobalRoleBindingByName(s.persesClient)
-	mcp.AddTool(s.mcpServer, &getGlobalRoleBindingTool, getGlobalRoleBindingHandler)
-
-	listProjectRolesTool, listProjectRolesHandler := tools.ListProjectRoles(s.persesClient)
-	mcp.AddTool(s.mcpServer, &listProjectRolesTool, listProjectRolesHandler)
-
-	getProjectRoleTool, getProjectRoleHandler := tools.GetProjectRoleByName(s.persesClient)
-	mcp.AddTool(s.mcpServer, &getProjectRoleTool, getProjectRoleHandler)
-
-	listProjectRoleBindingsTool, listProjectRoleBindingsHandler := tools.ListProjectRoleBindings(s.persesClient)
-	mcp.AddTool(s.mcpServer, &listProjectRoleBindingsTool, listProjectRoleBindingsHandler)
-
-	getProjectRoleBindingTool, getProjectRoleBindingHandler := tools.GetProjectRoleBindingByName(s.persesClient)
-	mcp.AddTool(s.mcpServer, &getProjectRoleBindingTool, getProjectRoleBindingHandler)
-
-	listGlobalDatasourcesTool, listGlobalDatasourcesHandler := tools.ListGlobalDatasources(s.persesClient)
-	mcp.AddTool(s.mcpServer, &listGlobalDatasourcesTool, listGlobalDatasourcesHandler)
-
-	getGlobalDatasourceTool, getGlobalDatasourceHandler := tools.GetGlobalDatasourceByName(s.persesClient)
-	mcp.AddTool(s.mcpServer, &getGlobalDatasourceTool, getGlobalDatasourceHandler)
-
-	listProjectDatasourcesTool, listProjectDatasourcesHandler := tools.ListProjectDatasources(s.persesClient)
-	mcp.AddTool(s.mcpServer, &listProjectDatasourcesTool, listProjectDatasourcesHandler)
-
-	getProjectDatasourceTool, getProjectDatasourceHandler := tools.GetProjectDatasourceByName(s.persesClient)
-	mcp.AddTool(s.mcpServer, &getProjectDatasourceTool, getProjectDatasourceHandler)
-
-	listGlobalVariablesTool, listGlobalVariablesHandler := tools.ListGlobalVariables(s.persesClient)
-	mcp.AddTool(s.mcpServer, &listGlobalVariablesTool, listGlobalVariablesHandler)
-
-	getGlobalVariableTool, getGlobalVariableHandler := tools.GetGlobalVariableByName(s.persesClient)
-	mcp.AddTool(s.mcpServer, &getGlobalVariableTool, getGlobalVariableHandler)
-
-	listProjectVariablesTool, listProjectVariablesHandler := tools.ListProjectVariables(s.persesClient)
-	mcp.AddTool(s.mcpServer, &listProjectVariablesTool, listProjectVariablesHandler)
-
-	getProjectVariableTool, getProjectVariableHandler := tools.GetProjectVariableByName(s.persesClient)
-	mcp.AddTool(s.mcpServer, &getProjectVariableTool, getProjectVariableHandler)
-
-	// Add write tools here
-	if !s.cfg.ReadOnly {
-		dashboardCreateTool, dashboardCreateHandler := tools.CreateNewDashboard(s.persesClient)
-		mcp.AddTool(s.mcpServer, dashboardCreateTool, dashboardCreateHandler)
-
-		createGlobalDatasourceTool, createGlobalDatasourceHandler := tools.CreateGlobalDatasource(s.persesClient)
-		mcp.AddTool(s.mcpServer, &createGlobalDatasourceTool, createGlobalDatasourceHandler)
-
-		updateGlobalDatasourceTool, updateGlobalDatasourceHandler := tools.UpdateGlobalDatasource(s.persesClient)
-		mcp.AddTool(s.mcpServer, &updateGlobalDatasourceTool, updateGlobalDatasourceHandler)
-
-		createProjectVariableTool, createProjectVariableHandler := tools.CreateProjectTextVariable(s.persesClient)
-		mcp.AddTool(s.mcpServer, &createProjectVariableTool, createProjectVariableHandler)
+	for _, tool := range allTools {
+		if s.cfg.ReadOnly && tool.IsWriteTool {
+			s.logger.Debug("Skipping write tool in read-only mode", "tool", tool.MCPTool.Name)
+			skippedCount++
+			continue
+		}
+		tool.RegisterWith(s.mcpServer)
+		registeredCount++
 	}
+
+	s.logger.Info("Tools registered successfully",
+		"registered", registeredCount,
+		"skipped", skippedCount,
+		"total", len(allTools))
 }
 
 func (s *Server) runStdioTransport(ctx context.Context) error {
