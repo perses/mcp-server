@@ -98,9 +98,11 @@ You can easily access this file via the Claude Desktop app by navigating to `Cla
     "perses-mcp": {
       "command": "<ABSOLUTE_PATH_TO_PERSES_MCP_BINARY>",
       "args": [
+        "stdio",
         "--perses-server-url",
         "<PERSES_SERVER_URL>"
         // Add "--read-only" here for read-only mode
+        // Add "--log-file-path", "/path/to/logfile.log" for file logging
       ],
       "env": {
         "PERSES_TOKEN": "<PERSES_TOKEN>"
@@ -133,9 +135,11 @@ Add the following JSON code snippet to the VS Code MCP Config file. See [VS Code
     "perses-mcp": {
       "command": "<ABSOLUTE_PATH_TO_PERSES_MCP_BINARY>",
       "args": [
+        "stdio",
         "--perses-server-url",
         "http://localhost:8080"
         // Add "--read-only" here for read-only mode
+        // Add "--log-file-path", "/path/to/logfile.log" for file logging
       ],
       "env": {
         "PERSES_TOKEN": "${input:perses-token}"
@@ -165,7 +169,7 @@ export PERSES_TOKEN=<YOUR_PERSES_TOKEN>
 Run the following command to start the MCP server in Streamable HTTP mode:
 
 ```bash
-/path/to/mcp-server --transport streamable-http --perses-server-url <PERSES_SERVER_URL> --port 8000
+/path/to/mcp-server http --perses-server-url <PERSES_SERVER_URL> --port 8000
 ```
 
 <details>
@@ -184,17 +188,58 @@ Add the following JSON code snippet to the VS Code MCP Config file. See [VS Code
 ```
 </details>
 
-## Command-Line Flags
+## Command-Line Usage
 
-The Perses MCP Server supports several command-line flags to customize its behavior:
+The Perses MCP Server uses subcommands to specify the transport mode:
+
+```bash
+mcp-server <subcommand> [flags]
+```
+
+### Subcommands
+
+- `stdio` - Start the MCP server in STDIO mode (for Claude Desktop, VS Code, etc.)
+- `http` - Start the MCP server in HTTP Streamable mode (for remote/multi-client scenarios)
+
+### Global Flags
+
+These flags are available for both `stdio` and `http` subcommands:
 
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--perses-server-url` | `http://localhost:8080` | The Perses backend server URL |
 | `--log-level` | `info` | Log level (options: `debug`, `info`, `warn`, `error`) |
-| `--transport` | `stdio` | MCP protocol transport mechanism (options: `stdio`, `streamable-http`) |
-| `--port` | `8000` | Port to run the HTTP Streamable server on (only used with `streamable-http` transport) |
+| `--log-file-path` | `""` | Path to the log file (if empty, logs go to stderr) |
 | `--read-only` | `false` | Restrict the server to read-only operations |
+
+### HTTP-Specific Flags
+
+These flags are only available for the `http` subcommand:
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--port` | `8000` | Port to run the HTTP Streamable server on |
+
+### Environment Variables
+
+- `PERSES_TOKEN` (required) - Authentication token for the Perses server
+
+### Examples
+
+Start in STDIO mode with read-only access:
+```bash
+mcp-server stdio --perses-server-url http://localhost:8080 --read-only
+```
+
+Start in HTTP mode with debug logging:
+```bash
+mcp-server http --perses-server-url http://localhost:8080 --port 8000 --log-level debug
+```
+
+Start with file-based logging:
+```bash
+mcp-server stdio --perses-server-url http://localhost:8080 --log-file-path /var/log/mcp-server.log
+```
 
 ## Local Development
 

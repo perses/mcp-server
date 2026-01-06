@@ -5,32 +5,42 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/mark3labs/mcp-go/mcp"
-	"github.com/mark3labs/mcp-go/server"
+	"github.com/google/jsonschema-go/jsonschema"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	apiClient "github.com/perses/perses/pkg/client/api/v1"
 )
 
-func ListPlugins(client apiClient.ClientInterface) (tool mcp.Tool, handler server.ToolHandlerFunc) {
-	return mcp.NewTool("perses_list_plugins",
-			mcp.WithDescription("List all Perses Plugins"),
-			mcp.WithToolAnnotation(mcp.ToolAnnotation{
-				Title:           "Lists all plugins in Perses",
-				ReadOnlyHint:    ToBoolPtr(true),
-				DestructiveHint: ToBoolPtr(false),
-				IdempotentHint:  ToBoolPtr(true),
-				OpenWorldHint:   ToBoolPtr(false),
-			})),
-		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func ListNewPlugins(client apiClient.ClientInterface) (*mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
+	tool := &mcp.Tool{
+		Name:        "perses_list_plugins",
+		Description: "List all Perses Plugins",
+		Annotations: &mcp.ToolAnnotations{
+			Title:           "Lists all plugins in Perses",
+			ReadOnlyHint:    true,
+			DestructiveHint: jsonschema.Ptr(false),
+			IdempotentHint:  true,
+			OpenWorldHint:   jsonschema.Ptr(false),
+		},
+	}
 
-			plugins, err := client.Plugin().List()
-			if err != nil {
-				return nil, fmt.Errorf("error retrieving plugins: %w", err)
-			}
-
-			pluginsJSON, err := json.Marshal(plugins)
-			if err != nil {
-				return nil, fmt.Errorf("error marshalling plugins: %w", err)
-			}
-			return mcp.NewToolResultText(string(pluginsJSON)), nil
+	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input map[string]any) (*mcp.CallToolResult, any, error) {
+		plugins, err := client.Plugin().List()
+		if err != nil {
+			return nil, nil, fmt.Errorf("error retrieving plugins: %w", err)
 		}
+
+		pluginsJSON, err := json.Marshal(plugins)
+		if err != nil {
+			return nil, nil, fmt.Errorf("error marshalling plugins: %w", err)
+		}
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: string(pluginsJSON),
+				},
+			},
+		}, nil, nil
+	}
+
+	return tool, handler
 }
