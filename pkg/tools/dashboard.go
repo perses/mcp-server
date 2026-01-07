@@ -1,3 +1,16 @@
+// Copyright 2025 The Perses Authors
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package tools
 
 import (
@@ -11,11 +24,37 @@ import (
 	v1 "github.com/perses/perses/pkg/model/api/v1"
 )
 
-type ListNewDashboardsInput struct {
+type DashboardInterface interface {
+	List() *Tool
+	Get() *Tool
+	Create() *Tool
+	GetTools() []*Tool
+}
+
+type dashboard struct {
+	DashboardInterface
+	client apiClient.ClientInterface
+}
+
+func newDashboard(client apiClient.ClientInterface) DashboardInterface {
+	return &dashboard{
+		client: client,
+	}
+}
+
+func (d *dashboard) GetTools() []*Tool {
+	return []*Tool{
+		d.List(),
+		d.Get(),
+		d.Create(),
+	}
+}
+
+type ListDashboardsInput struct {
 	Project string `json:"project" jsonschema:"Project name to list dashboards from"`
 }
 
-func ListDashboards(client apiClient.ClientInterface) (*mcp.Tool, mcp.ToolHandlerFor[ListNewDashboardsInput, any]) {
+func (d *dashboard) List() *Tool {
 	tool := &mcp.Tool{
 		Name:        "perses_list_dashboards",
 		Description: "List dashboards for a specific project",
@@ -41,8 +80,8 @@ func ListDashboards(client apiClient.ClientInterface) (*mcp.Tool, mcp.ToolHandle
 		},
 	}
 
-	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input ListNewDashboardsInput) (result *mcp.CallToolResult, output any, _ error) {
-		response, err := client.Dashboard(input.Project).List("")
+	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input ListDashboardsInput) (result *mcp.CallToolResult, output any, _ error) {
+		response, err := d.client.Dashboard(input.Project).List("")
 		if err != nil {
 			return nil, nil, fmt.Errorf("error retrieving dashboards: %w", err)
 		}
@@ -60,7 +99,13 @@ func ListDashboards(client apiClient.ClientInterface) (*mcp.Tool, mcp.ToolHandle
 			},
 		}, nil, nil
 	}
-	return tool, handler
+
+	return &Tool{
+		MCPTool:      tool,
+		IsWriteTool:  false,
+		ResourceType: "dashboard",
+		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, tool, handler) },
+	}
 }
 
 type GetDashboardByNameInput struct {
@@ -68,7 +113,7 @@ type GetDashboardByNameInput struct {
 	Name    string `json:"name" jsonschema:"Dashboard name to retrieve"`
 }
 
-func GetDashboardByName(client apiClient.ClientInterface) (*mcp.Tool, mcp.ToolHandlerFor[GetDashboardByNameInput, any]) {
+func (d *dashboard) Get() *Tool {
 	tool := &mcp.Tool{
 		Name:        "perses_get_dashboard_by_name",
 		Description: "Get a dashboard by name in a specific project",
@@ -102,13 +147,19 @@ func GetDashboardByName(client apiClient.ClientInterface) (*mcp.Tool, mcp.ToolHa
 	}
 
 	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input GetDashboardByNameInput) (result *mcp.CallToolResult, output any, _ error) {
-		response, err := client.Dashboard(input.Project).Get(input.Name)
+		response, err := d.client.Dashboard(input.Project).Get(input.Name)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error retrieving dashboard '%s' in project '%s': %w", input.Name, input.Project, err)
 		}
 		return nil, response, nil
 	}
-	return tool, handler
+
+	return &Tool{
+		MCPTool:      tool,
+		IsWriteTool:  false,
+		ResourceType: "dashboard",
+		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, tool, handler) },
+	}
 }
 
 type CreateDashboardInput struct {
@@ -116,7 +167,7 @@ type CreateDashboardInput struct {
 	Dashboard string `json:"dashboard" jsonschema:"Dashboard JSON as string"`
 }
 
-func CreateNewDashboard(client apiClient.ClientInterface) (*mcp.Tool, mcp.ToolHandlerFor[CreateDashboardInput, any]) {
+func (d *dashboard) Create() *Tool {
 	tool := &mcp.Tool{
 		Name:        "perses_create_dashboard",
 		Description: "Create a new dashboard in a specific project",
@@ -147,12 +198,12 @@ func CreateNewDashboard(client apiClient.ClientInterface) (*mcp.Tool, mcp.ToolHa
 	}
 
 	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input CreateDashboardInput) (*mcp.CallToolResult, any, error) {
-		var dashboard v1.Dashboard
-		if err := json.Unmarshal([]byte(input.Dashboard), &dashboard); err != nil {
+		var dashboardObj v1.Dashboard
+		if err := json.Unmarshal([]byte(input.Dashboard), &dashboardObj); err != nil {
 			return nil, nil, fmt.Errorf("invalid dashboard JSON: %w", err)
 		}
 
-		createdDashboard, err := client.Dashboard(input.Project).Create(&dashboard)
+		createdDashboard, err := d.client.Dashboard(input.Project).Create(&dashboardObj)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error creating dashboard in project '%s': %w", input.Project, err)
 		}
@@ -169,5 +220,11 @@ func CreateNewDashboard(client apiClient.ClientInterface) (*mcp.Tool, mcp.ToolHa
 			},
 		}, nil, nil
 	}
-	return tool, handler
+
+	return &Tool{
+		MCPTool:      tool,
+		IsWriteTool:  true,
+		ResourceType: "dashboard",
+		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, tool, handler) },
+	}
 }

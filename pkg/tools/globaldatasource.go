@@ -1,3 +1,16 @@
+// Copyright 2025 The Perses Authors
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package tools
 
 import (
@@ -14,7 +27,35 @@ import (
 	"github.com/perses/perses/pkg/model/api/v1/datasource/http"
 )
 
-func ListGlobalDatasources(client apiClient.ClientInterface) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
+type GlobalDatasourceInterface interface {
+	List() *Tool
+	Get() *Tool
+	Create() *Tool
+	Update() *Tool
+	GetTools() []*Tool
+}
+
+type globalDatasource struct {
+	GlobalDatasourceInterface
+	client apiClient.ClientInterface
+}
+
+func newGlobalDatasource(client apiClient.ClientInterface) GlobalDatasourceInterface {
+	return &globalDatasource{
+		client: client,
+	}
+}
+
+func (g *globalDatasource) GetTools() []*Tool {
+	return []*Tool{
+		g.List(),
+		g.Get(),
+		g.Create(),
+		g.Update(),
+	}
+}
+
+func (g *globalDatasource) List() *Tool {
 	tool := mcp.Tool{
 		Name:        "perses_list_global_datasources",
 		Description: "List all Perses Global Datasources",
@@ -28,7 +69,7 @@ func ListGlobalDatasources(client apiClient.ClientInterface) (mcp.Tool, mcp.Tool
 	}
 
 	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input map[string]any) (*mcp.CallToolResult, any, error) {
-		globalDatasources, err := client.GlobalDatasource().List("")
+		globalDatasources, err := g.client.GlobalDatasource().List("")
 		if err != nil {
 			return nil, nil, fmt.Errorf("error retrieving global datasources: %w", err)
 		}
@@ -45,14 +86,20 @@ func ListGlobalDatasources(client apiClient.ClientInterface) (mcp.Tool, mcp.Tool
 			},
 		}, nil, nil
 	}
-	return tool, handler
+
+	return &Tool{
+		MCPTool:      &tool,
+		IsWriteTool:  false,
+		ResourceType: "globaldatasource",
+		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, &tool, handler) },
+	}
 }
 
 type GetGlobalDatasourceByNameInput struct {
 	Name string `json:"name" jsonschema:"Global Datasource name"`
 }
 
-func GetGlobalDatasourceByName(client apiClient.ClientInterface) (mcp.Tool, mcp.ToolHandlerFor[GetGlobalDatasourceByNameInput, any]) {
+func (g *globalDatasource) Get() *Tool {
 	tool := mcp.Tool{
 		Name:        "perses_get_global_datasource_by_name",
 		Description: "Get a global datasource by name",
@@ -79,7 +126,7 @@ func GetGlobalDatasourceByName(client apiClient.ClientInterface) (mcp.Tool, mcp.
 	}
 
 	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input GetGlobalDatasourceByNameInput) (*mcp.CallToolResult, any, error) {
-		globalDatasource, err := client.GlobalDatasource().Get(input.Name)
+		globalDatasource, err := g.client.GlobalDatasource().Get(input.Name)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error retrieving global datasource '%s': %w", input.Name, err)
 		}
@@ -96,117 +143,13 @@ func GetGlobalDatasourceByName(client apiClient.ClientInterface) (mcp.Tool, mcp.
 			},
 		}, nil, nil
 	}
-	return tool, handler
-}
 
-type ListProjectDatasourcesInput struct {
-	Project string `json:"project" jsonschema:"Project name"`
-}
-
-func ListProjectDatasources(client apiClient.ClientInterface) (mcp.Tool, mcp.ToolHandlerFor[ListProjectDatasourcesInput, any]) {
-	tool := mcp.Tool{
-		Name:        "perses_list_project_datasources",
-		Description: "List Datasources for a specific project",
-		Annotations: &mcp.ToolAnnotations{
-			Title:           "Lists datasources for a specific project in Perses",
-			ReadOnlyHint:    true,
-			DestructiveHint: jsonschema.Ptr(false),
-			IdempotentHint:  true,
-			OpenWorldHint:   jsonschema.Ptr(false),
-		},
-		InputSchema: &jsonschema.Schema{
-			Type: "object",
-			Properties: map[string]*jsonschema.Schema{
-				"project": {
-					Type:        "string",
-					Description: "Project name",
-					MinLength:   jsonschema.Ptr(1),
-					MaxLength:   jsonschema.Ptr(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
-				},
-			},
-			Required: []string{"project"},
-		},
+	return &Tool{
+		MCPTool:      &tool,
+		IsWriteTool:  false,
+		ResourceType: "globaldatasource",
+		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, &tool, handler) },
 	}
-
-	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input ListProjectDatasourcesInput) (*mcp.CallToolResult, any, error) {
-		datasources, err := client.Datasource(input.Project).List("")
-		if err != nil {
-			return nil, nil, fmt.Errorf("error retrieving datasources in project '%s': %w", input.Project, err)
-		}
-
-		datasourcesJSON, err := json.Marshal(datasources)
-		if err != nil {
-			return nil, nil, fmt.Errorf("error marshalling datasources: %w", err)
-		}
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{
-					Text: string(datasourcesJSON),
-				},
-			},
-		}, nil, nil
-	}
-	return tool, handler
-}
-
-type GetProjectDatasourceByNameInput struct {
-	Project string `json:"project" jsonschema:"Project name"`
-	Name    string `json:"name" jsonschema:"Datasource name"`
-}
-
-func GetProjectDatasourceByName(client apiClient.ClientInterface) (mcp.Tool, mcp.ToolHandlerFor[GetProjectDatasourceByNameInput, any]) {
-	tool := mcp.Tool{
-		Name:        "perses_get_project_datasource_by_name",
-		Description: "Get a datasource by name in a specific project",
-		Annotations: &mcp.ToolAnnotations{
-			Title:           "Gets a datasource by name in a specific project in Perses",
-			ReadOnlyHint:    true,
-			DestructiveHint: jsonschema.Ptr(false),
-			IdempotentHint:  true,
-			OpenWorldHint:   jsonschema.Ptr(false),
-		},
-		InputSchema: &jsonschema.Schema{
-			Type: "object",
-			Properties: map[string]*jsonschema.Schema{
-				"project": {
-					Type:        "string",
-					Description: "Project name",
-					MinLength:   jsonschema.Ptr(1),
-					MaxLength:   jsonschema.Ptr(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
-				},
-				"name": {
-					Type:        "string",
-					Description: "Datasource name",
-					MinLength:   jsonschema.Ptr(1),
-					MaxLength:   jsonschema.Ptr(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
-				},
-			},
-			Required: []string{"project", "name"},
-		},
-	}
-
-	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input GetProjectDatasourceByNameInput) (*mcp.CallToolResult, any, error) {
-		datasource, err := client.Datasource(input.Project).Get(input.Name)
-		if err != nil {
-			return nil, nil, fmt.Errorf("error retrieving datasource '%s' in project '%s': %w", input.Name, input.Project, err)
-		}
-
-		datasourceJSON, err := json.Marshal(datasource)
-		if err != nil {
-			return nil, nil, fmt.Errorf("error marshalling datasource: %w", err)
-		}
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{
-					Text: string(datasourceJSON),
-				},
-			},
-		}, nil, nil
-	}
-	return tool, handler
 }
 
 type CreateGlobalDatasourceInput struct {
@@ -217,7 +160,7 @@ type CreateGlobalDatasourceInput struct {
 	ProxyType   string `json:"proxy_type,omitempty" jsonschema:"Proxy type: HTTPProxy for server-side proxy, direct for browser direct access (optional, defaults to HTTPProxy)"`
 }
 
-func CreateGlobalDatasource(client apiClient.ClientInterface) (mcp.Tool, mcp.ToolHandlerFor[CreateGlobalDatasourceInput, any]) {
+func (g *globalDatasource) Create() *Tool {
 	tool := mcp.Tool{
 		Name:        "perses_create_global_datasource",
 		Description: "Create a new Perses Global Datasource",
@@ -314,7 +257,7 @@ func CreateGlobalDatasource(client apiClient.ClientInterface) (mcp.Tool, mcp.Too
 			},
 		}
 
-		response, err := client.GlobalDatasource().Create(newGlobalDatasource)
+		response, err := g.client.GlobalDatasource().Create(newGlobalDatasource)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error creating global datasource '%s': %w", input.Name, err)
 		}
@@ -331,7 +274,13 @@ func CreateGlobalDatasource(client apiClient.ClientInterface) (mcp.Tool, mcp.Too
 			},
 		}, nil, nil
 	}
-	return tool, handler
+
+	return &Tool{
+		MCPTool:      &tool,
+		IsWriteTool:  true,
+		ResourceType: "globaldatasource",
+		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, &tool, handler) },
+	}
 }
 
 type UpdateGlobalDatasourceInput struct {
@@ -342,7 +291,7 @@ type UpdateGlobalDatasourceInput struct {
 	ProxyType   string `json:"proxy_type,omitempty" jsonschema:"Proxy type: HTTPProxy for server-side proxy, direct for browser direct access (optional, defaults to HTTPProxy)"`
 }
 
-func UpdateGlobalDatasource(client apiClient.ClientInterface) (mcp.Tool, mcp.ToolHandlerFor[UpdateGlobalDatasourceInput, any]) {
+func (g *globalDatasource) Update() *Tool {
 	tool := mcp.Tool{
 		Name:        "perses_update_global_datasource",
 		Description: "Update an existing Perses Global Datasource",
@@ -438,7 +387,7 @@ func UpdateGlobalDatasource(client apiClient.ClientInterface) (mcp.Tool, mcp.Too
 			},
 		}
 
-		response, err := client.GlobalDatasource().Update(updatedGlobalDatasource)
+		response, err := g.client.GlobalDatasource().Update(updatedGlobalDatasource)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error updating global datasource '%s': %w", input.Name, err)
 		}
@@ -455,5 +404,11 @@ func UpdateGlobalDatasource(client apiClient.ClientInterface) (mcp.Tool, mcp.Too
 			},
 		}, nil, nil
 	}
-	return tool, handler
+
+	return &Tool{
+		MCPTool:      &tool,
+		IsWriteTool:  true,
+		ResourceType: "globaldatasource",
+		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, &tool, handler) },
+	}
 }

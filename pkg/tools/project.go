@@ -1,10 +1,21 @@
+// Copyright 2025 The Perses Authors
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 package tools
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
-
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	apiClient "github.com/perses/perses/pkg/client/api/v1"
@@ -12,28 +23,48 @@ import (
 	"github.com/perses/perses/pkg/model/api/v1/common"
 )
 
-func ListProjects(client apiClient.ClientInterface) (*mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
+type ProjectInterface interface {
+	List() *Tool
+	Get() *Tool
+	Create() *Tool
+	GetTools() []*Tool
+}
+type project struct {
+	ProjectInterface
+	client apiClient.ClientInterface
+}
 
+func newProject(client apiClient.ClientInterface) ProjectInterface {
+	return &project{
+		client: client,
+	}
+}
+func (p *project) GetTools() []*Tool {
+	return []*Tool{
+		p.List(),
+		p.Get(),
+		p.Create(),
+	}
+}
+func (p *project) List() *Tool {
 	tool := &mcp.Tool{
 		Name:        "perses_list_projects",
 		Description: "List all Perses projects",
 		Annotations: &mcp.ToolAnnotations{
-			ReadOnlyHint:   true,
-			IdempotentHint: true,
+			ReadOnlyHint:    true,
+			IdempotentHint:  true,
+			DestructiveHint: jsonschema.Ptr(false),
 		},
 	}
-
 	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input map[string]any) (*mcp.CallToolResult, any, error) {
-		projects, err := client.Project().List("")
+		projects, err := p.client.Project().List("")
 		if err != nil {
 			return nil, nil, fmt.Errorf("error retrieving projects: %w", err)
 		}
-
 		text, err := json.Marshal(projects)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error marshalling projects: %w", err)
 		}
-
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{
 				&mcp.TextContent{
@@ -42,15 +73,21 @@ func ListProjects(client apiClient.ClientInterface) (*mcp.Tool, mcp.ToolHandlerF
 			},
 		}, nil, nil
 	}
-
-	return tool, handler
+	return &Tool{
+		MCPTool:      tool,
+		IsWriteTool:  false,
+		ResourceType: "project",
+		RegisterWith: func(server *mcp.Server) {
+			mcp.AddTool(server, tool, handler)
+		},
+	}
 }
 
 type GetProjectByNameInput struct {
 	Project string `json:"project" jsonschema:"Project name to retrieve"`
 }
 
-func GetProjectByName(client apiClient.ClientInterface) (*mcp.Tool, mcp.ToolHandlerFor[GetProjectByNameInput, any]) {
+func (p *project) Get() *Tool {
 	tool := &mcp.Tool{
 		Name:        "perses_get_project_by_name",
 		Description: "Get a project by name in Perses",
@@ -71,20 +108,16 @@ func GetProjectByName(client apiClient.ClientInterface) (*mcp.Tool, mcp.ToolHand
 			DestructiveHint: jsonschema.Ptr(false),
 		},
 	}
-
 	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input GetProjectByNameInput) (
 		*mcp.CallToolResult, any, error) {
-
-		response, err := client.Project().Get(input.Project)
+		response, err := p.client.Project().Get(input.Project)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error retrieving project '%s': %w", input.Project, err)
 		}
-
 		text, err := json.Marshal(response)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error marshalling project '%s': %w", input.Project, err)
 		}
-
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{
 				&mcp.TextContent{
@@ -93,8 +126,14 @@ func GetProjectByName(client apiClient.ClientInterface) (*mcp.Tool, mcp.ToolHand
 			},
 		}, nil, nil
 	}
-
-	return tool, handler
+	return &Tool{
+		MCPTool:      tool,
+		IsWriteTool:  false,
+		ResourceType: "project",
+		RegisterWith: func(server *mcp.Server) {
+			mcp.AddTool(server, tool, handler)
+		},
+	}
 }
 
 type CreateProjectInput struct {
@@ -103,7 +142,7 @@ type CreateProjectInput struct {
 	Description string `json:"description" jsonschema:"Description for the project"`
 }
 
-func CreateProject(client apiClient.ClientInterface) (*mcp.Tool, mcp.ToolHandlerFor[CreateProjectInput, any]) {
+func (p *project) Create() *Tool {
 	tool := &mcp.Tool{
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Creates a new project in Perses",
@@ -140,7 +179,6 @@ func CreateProject(client apiClient.ClientInterface) (*mcp.Tool, mcp.ToolHandler
 		},
 		Name: "perses_create_project",
 	}
-
 	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input CreateProjectInput) (*mcp.CallToolResult, any, error) {
 		newProjectRequest := &v1.Project{
 			Kind: "Project",
@@ -154,18 +192,14 @@ func CreateProject(client apiClient.ClientInterface) (*mcp.Tool, mcp.ToolHandler
 				},
 			},
 		}
-
-		response, err := client.Project().Create(newProjectRequest)
-
+		response, err := p.client.Project().Create(newProjectRequest)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error creating project '%s': %w", input.Project, err)
 		}
-
 		text, err := json.Marshal(response)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error marshalling created project '%s': %w", input.Project, err)
 		}
-
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{
 				&mcp.TextContent{
@@ -174,5 +208,12 @@ func CreateProject(client apiClient.ClientInterface) (*mcp.Tool, mcp.ToolHandler
 			},
 		}, nil, nil
 	}
-	return tool, handler
+	return &Tool{
+		MCPTool:      tool,
+		IsWriteTool:  true,
+		ResourceType: "project",
+		RegisterWith: func(server *mcp.Server) {
+			mcp.AddTool(server, tool, handler)
+		},
+	}
 }
