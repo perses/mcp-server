@@ -19,6 +19,8 @@ import "github.com/modelcontextprotocol/go-sdk/mcp"
 type Tool struct {
 	MCPTool     *mcp.Tool
 	IsWriteTool bool
+	// ResourceType identifies which toolset this tool belongs to (e.g., "dashboard", "project", "globaldatasource")
+	ResourceType string
 	// RegisterWith registers this tool with the given MCP server
 	// This function encapsulates the typed handler registration
 	RegisterWith func(server *mcp.Server)

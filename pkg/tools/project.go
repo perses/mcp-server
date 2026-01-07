@@ -11,6 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 package tools
+
 import (
 	"context"
 	"encoding/json"
@@ -21,6 +22,7 @@ import (
 	v1 "github.com/perses/perses/pkg/model/api/v1"
 	"github.com/perses/perses/pkg/model/api/v1/common"
 )
+
 type ProjectInterface interface {
 	List() *Tool
 	Get() *Tool
@@ -31,6 +33,7 @@ type project struct {
 	ProjectInterface
 	client apiClient.ClientInterface
 }
+
 func newProject(client apiClient.ClientInterface) ProjectInterface {
 	return &project{
 		client: client,
@@ -71,17 +74,19 @@ func (p *project) List() *Tool {
 		}, nil, nil
 	}
 	return &Tool{
-		MCPTool:     tool,
-		IsWriteTool: false,
+		MCPTool:      tool,
+		IsWriteTool:  false,
+		ResourceType: "project",
 		RegisterWith: func(server *mcp.Server) {
 			mcp.AddTool(server, tool, handler)
 		},
-	
 	}
 }
+
 type GetProjectByNameInput struct {
 	Project string `json:"project" jsonschema:"Project name to retrieve"`
 }
+
 func (p *project) Get() *Tool {
 	tool := &mcp.Tool{
 		Name:        "perses_get_project_by_name",
@@ -122,19 +127,21 @@ func (p *project) Get() *Tool {
 		}, nil, nil
 	}
 	return &Tool{
-		MCPTool:     tool,
-		IsWriteTool: false,
+		MCPTool:      tool,
+		IsWriteTool:  false,
+		ResourceType: "project",
 		RegisterWith: func(server *mcp.Server) {
 			mcp.AddTool(server, tool, handler)
 		},
-	
 	}
 }
+
 type CreateProjectInput struct {
 	Project     string `json:"project" jsonschema:"Name of the project to create"`
 	DisplayName string `json:"displayName" jsonschema:"Display name for the project"`
 	Description string `json:"description" jsonschema:"Description for the project"`
 }
+
 func (p *project) Create() *Tool {
 	tool := &mcp.Tool{
 		Annotations: &mcp.ToolAnnotations{
@@ -202,11 +209,11 @@ func (p *project) Create() *Tool {
 		}, nil, nil
 	}
 	return &Tool{
-		MCPTool:     tool,
-		IsWriteTool: false,
+		MCPTool:      tool,
+		IsWriteTool:  true,
+		ResourceType: "project",
 		RegisterWith: func(server *mcp.Server) {
 			mcp.AddTool(server, tool, handler)
 		},
-	
 	}
 }

@@ -43,6 +43,25 @@ type Config struct {
 
 	// Port to run the HTTP Streamable server on
 	Port string
+
+	// AllowedResources is a list of resources to register.
+	// If empty, all resources are registered.
+	AllowedResources []string
+}
+
+// ValidResources contains all valid resource names
+var ValidResources = []string{
+	"dashboard",
+	"project",
+	"datasource",
+	"globaldatasource",
+	"role",
+	"globalrole",
+	"rolebinding",
+	"globalrolebinding",
+	"variable",
+	"globalvariable",
+	"plugin",
 }
 
 func Serve(ctx context.Context, cfg Config) error {
@@ -66,6 +85,13 @@ type Server struct {
 }
 
 func NewServer(cfg Config) (*Server, error) {
+	// Validate resources if provided
+	if len(cfg.AllowedResources) > 0 {
+		if err := validateResources(cfg.AllowedResources); err != nil {
+			return nil, err
+		}
+	}
+
 	var slogHandler slog.Handler
 	var logOutput io.Writer
 
@@ -157,22 +183,43 @@ func (s *Server) registerTools() {
 	registry := tools.NewToolRegistry(s.persesClient)
 	allTools := registry.GetAllTools()
 
+	// Build allowed resources set for filtering
+	allowedResources := make(map[string]bool)
+	for _, rs := range s.cfg.AllowedResources {
+		allowedResources[rs] = true
+	}
+	filterByResource := len(allowedResources) > 0
+
 	registeredCount := 0
-	skippedCount := 0
+	skippedReadOnly := 0
+	skippedResource := 0
 
 	for _, tool := range allTools {
-		if s.cfg.ReadOnly && tool.IsWriteTool {
-			s.logger.Debug("Skipping write tool in read-only mode", "tool", tool.MCPTool.Name)
-			skippedCount++
+		// Skip tools not in allowed resources (if filtering is enabled)
+		if filterByResource && !allowedResources[strings.ToLower(tool.ResourceType)] {
+			s.logger.Debug("Skipping tool which is not in allowed resources",
+				"tool", tool.MCPTool.Name,
+				"resourceType", tool.ResourceType)
+			skippedResource++
 			continue
 		}
+
+		// Skip write tools in read-only mode
+		if s.cfg.ReadOnly && tool.IsWriteTool {
+			s.logger.Debug("Skipping write tool in read-only mode",
+				"tool", tool.MCPTool.Name)
+			skippedReadOnly++
+			continue
+		}
+
 		tool.RegisterWith(s.mcpServer)
 		registeredCount++
 	}
 
 	s.logger.Info("Tools registered successfully",
 		"registered", registeredCount,
-		"skipped", skippedCount,
+		"skipped_readonly", skippedReadOnly,
+		"skipped_resource", skippedResource,
 		"total", len(allTools))
 }
 
@@ -220,6 +267,27 @@ func initializePersesClient(cfg Config) (v1.ClientInterface, error) {
 
 	persesClient := v1.NewWithClient(restClient)
 	return persesClient, nil
+}
+
+func validateResources(resources []string) error {
+	validSet := make(map[string]bool)
+	for _, v := range ValidResources {
+		validSet[v] = true
+	}
+
+	var invalid []string
+	for _, rs := range resources {
+		if !validSet[rs] {
+			invalid = append(invalid, rs)
+		}
+	}
+
+	if len(invalid) > 0 {
+		return fmt.Errorf("invalid resource(s): %s. Valid resources are: %s",
+			strings.Join(invalid, ", "),
+			strings.Join(ValidResources, ", "))
+	}
+	return nil
 }
 
 func logLevel(level string) slog.Level {
