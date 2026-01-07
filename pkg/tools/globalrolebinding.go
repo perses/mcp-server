@@ -80,9 +80,10 @@ func (g *globalRoleBinding) List() *Tool {
 	}
 
 	return &Tool{
-		MCPTool:     &tool,
+		MCPTool:      &tool,
+		IsWriteTool:  false,
+		ResourceType: "globalrolebinding",
 		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, &tool, handler) },
-		IsWriteTool: false,
 	}
 }
 
@@ -136,8 +137,9 @@ func (g *globalRoleBinding) Get() *Tool {
 	}
 
 	return &Tool{
-		MCPTool:     &tool,
+		MCPTool:      &tool,
+		IsWriteTool:  false,
+		ResourceType: "globalrolebinding",
 		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, &tool, handler) },
-		IsWriteTool: false,
 	}
 }

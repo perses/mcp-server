@@ -103,6 +103,7 @@ You can easily access this file via the Claude Desktop app by navigating to `Cla
         "<PERSES_SERVER_URL>"
         // Add "--read-only" here for read-only mode
         // Add "--log-file-path", "/path/to/logfile.log" for file logging
+        // Add "--resources", "project,dashboard" to register only specific resources
       ],
       "env": {
         "PERSES_TOKEN": "<PERSES_TOKEN>"
@@ -140,6 +141,7 @@ Add the following JSON code snippet to the VS Code MCP Config file. See [VS Code
         "http://localhost:8080"
         // Add "--read-only" here for read-only mode
         // Add "--log-file-path", "/path/to/logfile.log" for file logging
+        // Add "--resources", "project,dashboard" to register only specific resources
       ],
       "env": {
         "PERSES_TOKEN": "${input:perses-token}"
@@ -211,6 +213,25 @@ These flags are available for both `stdio` and `http` subcommands:
 | `--log-level` | `info` | Log level (options: `debug`, `info`, `warn`, `error`) |
 | `--log-file-path` | `""` | Path to the log file (if empty, logs go to stderr) |
 | `--read-only` | `false` | Restrict the server to read-only operations |
+| `--resources` | `""` | Comma-separated list of resources to register. If not specified, all resources are registered. |
+
+#### Available Resources
+
+The `--resources` flag accepts the following resource names (case-insensitive):
+
+| Resource | Description |
+|---------|-------------|
+| `dashboard` | Dashboard management tools |
+| `project` | Project management tools |
+| `datasource` | Project-level datasource tools |
+| `globaldatasource` | Global datasource tools |
+| `role` | Project-level role tools |
+| `globalrole` | Global role tools |
+| `rolebinding` | Project-level role binding tools |
+| `globalrolebinding` | Global role binding tools |
+| `variable` | Project-level variable tools |
+| `globalvariable` | Global variable tools |
+| `plugin` | Plugin tools |
 
 ### HTTP-Specific Flags
 
@@ -239,6 +260,16 @@ mcp-server http --perses-server-url http://localhost:8080 --port 8000 --log-leve
 Start with file-based logging:
 ```bash
 mcp-server stdio --perses-server-url http://localhost:8080 --log-file-path /var/log/mcp-server.log
+```
+
+Start with only specific resources (e.g., project, dashboard, and globaldatasource):
+```bash
+mcp-server stdio --perses-server-url http://localhost:8080 --resources project,dashboard,globaldatasource
+```
+
+Combine resources with read-only mode (only read operations for selected resources):
+```bash
+mcp-server stdio --perses-server-url http://localhost:8080 --resources dashboard,project --read-only
 ```
 
 ## Local Development

@@ -78,8 +78,9 @@ func (p *plugin) List() *Tool {
 	}
 
 	return &Tool{
-		MCPTool:     &tool,
+		MCPTool:      &tool,
+		IsWriteTool:  false,
+		ResourceType: "plugin",
 		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, &tool, handler) },
-		IsWriteTool: false,
 	}
 }

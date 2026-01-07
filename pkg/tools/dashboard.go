@@ -101,9 +101,10 @@ func (d *dashboard) List() *Tool {
 	}
 
 	return &Tool{
-		MCPTool:     tool,
+		MCPTool:      tool,
+		IsWriteTool:  false,
+		ResourceType: "dashboard",
 		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, tool, handler) },
-		IsWriteTool: false,
 	}
 }
 
@@ -154,9 +155,10 @@ func (d *dashboard) Get() *Tool {
 	}
 
 	return &Tool{
-		MCPTool:     tool,
+		MCPTool:      tool,
+		IsWriteTool:  false,
+		ResourceType: "dashboard",
 		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, tool, handler) },
-		IsWriteTool: false,
 	}
 }
 
@@ -220,8 +222,9 @@ func (d *dashboard) Create() *Tool {
 	}
 
 	return &Tool{
-		MCPTool:     tool,
+		MCPTool:      tool,
+		IsWriteTool:  true,
+		ResourceType: "dashboard",
 		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, tool, handler) },
-		IsWriteTool: true,
 	}
 }
