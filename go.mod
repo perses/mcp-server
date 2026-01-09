@@ -3,12 +3,8 @@ module github.com/perses/mcp-server
 go 1.25.5
 
 require (
-	github.com/google/jsonschema-go v0.4.2
-	github.com/modelcontextprotocol/go-sdk v1.2.0
-	github.com/perses/common v0.29.1
-	github.com/perses/perses v0.53.0-beta.4
-	github.com/spf13/cobra v1.10.2
-	github.com/spf13/viper v1.20.1
+	github.com/mark3labs/mcp-go v0.43.2
+	github.com/perses/perses v0.53.0-rc.0
 )
 
 require (
