@@ -99,7 +99,7 @@ func (r *projectRoleBinding) List() *Tool {
 	return &Tool{
 		MCPTool:      &tool,
 		IsWriteTool:  false,
-		ResourceType: "rolebinding",
+		ResourceType: RoleBindingResource,
 		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, &tool, handler) },
 	}
 }
@@ -164,7 +164,7 @@ func (r *projectRoleBinding) Get() *Tool {
 	return &Tool{
 		MCPTool:      &tool,
 		IsWriteTool:  false,
-		ResourceType: "rolebinding",
+		ResourceType: RoleBindingResource,
 		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, &tool, handler) },
 	}
 }

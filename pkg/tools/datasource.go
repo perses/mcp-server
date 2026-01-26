@@ -99,7 +99,7 @@ func (d *projectDatasource) List() *Tool {
 	return &Tool{
 		MCPTool:      &tool,
 		IsWriteTool:  false,
-		ResourceType: "datasource",
+		ResourceType: DatasourceResource,
 		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, &tool, handler) },
 	}
 }
@@ -164,7 +164,7 @@ func (d *projectDatasource) Get() *Tool {
 	return &Tool{
 		MCPTool:      &tool,
 		IsWriteTool:  false,
-		ResourceType: "datasource",
+		ResourceType: DatasourceResource,
 		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, &tool, handler) },
 	}
 }

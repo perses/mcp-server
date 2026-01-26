@@ -97,7 +97,7 @@ func (r *projectRole) List() *Tool {
 	return &Tool{
 		MCPTool:      &tool,
 		IsWriteTool:  false,
-		ResourceType: "role",
+		ResourceType: RoleResource,
 		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, &tool, handler) },
 	}
 }
@@ -162,7 +162,7 @@ func (r *projectRole) Get() *Tool {
 	return &Tool{
 		MCPTool:      &tool,
 		IsWriteTool:  false,
-		ResourceType: "role",
+		ResourceType: RoleResource,
 		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, &tool, handler) },
 	}
 }

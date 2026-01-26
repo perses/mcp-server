@@ -90,7 +90,7 @@ func (g *globalDatasource) List() *Tool {
 	return &Tool{
 		MCPTool:      &tool,
 		IsWriteTool:  false,
-		ResourceType: "globaldatasource",
+		ResourceType: GlobalDatasourceResource,
 		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, &tool, handler) },
 	}
 }
@@ -147,7 +147,7 @@ func (g *globalDatasource) Get() *Tool {
 	return &Tool{
 		MCPTool:      &tool,
 		IsWriteTool:  false,
-		ResourceType: "globaldatasource",
+		ResourceType: GlobalDatasourceResource,
 		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, &tool, handler) },
 	}
 }
@@ -278,7 +278,7 @@ func (g *globalDatasource) Create() *Tool {
 	return &Tool{
 		MCPTool:      &tool,
 		IsWriteTool:  true,
-		ResourceType: "globaldatasource",
+		ResourceType: GlobalDatasourceResource,
 		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, &tool, handler) },
 	}
 }
@@ -408,7 +408,7 @@ func (g *globalDatasource) Update() *Tool {
 	return &Tool{
 		MCPTool:      &tool,
 		IsWriteTool:  true,
-		ResourceType: "globaldatasource",
+		ResourceType: GlobalDatasourceResource,
 		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, &tool, handler) },
 	}
 }

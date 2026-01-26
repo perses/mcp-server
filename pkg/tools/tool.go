@@ -15,12 +15,27 @@ package tools
 
 import "github.com/modelcontextprotocol/go-sdk/mcp"
 
+type Resource string
+
+const (
+    DashboardResource       Resource = "dashboard"
+    DatasourceResource      Resource = "datasource"
+    ProjectResource         Resource = "project"
+    GlobalDatasourceResource Resource = "globaldatasource"
+    RoleResource            Resource = "role"
+    GlobalRoleResource      Resource = "globalrole"
+    RoleBindingResource     Resource = "rolebinding"
+    GlobalRoleBindingResource Resource = "globalrolebinding"
+    VariableResource        Resource = "variable"
+    GlobalVariableResource  Resource = "globalvariable"
+    PluginResource          Resource = "plugin"
+)
 // Tool represents an MCP tool with metadata about write access requirements
 type Tool struct {
 	MCPTool     *mcp.Tool
 	IsWriteTool bool
 	// ResourceType identifies which toolset this tool belongs to (e.g., "dashboard", "project", "globaldatasource")
-	ResourceType string
+	ResourceType Resource
 	// RegisterWith registers this tool with the given MCP server
 	// This function encapsulates the typed handler registration
 	RegisterWith func(server *mcp.Server)

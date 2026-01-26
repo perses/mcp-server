@@ -103,7 +103,7 @@ func (v *projectVariable) List() *Tool {
 	return &Tool{
 		MCPTool:      &tool,
 		IsWriteTool:  false,
-		ResourceType: "variable",
+		ResourceType: VariableResource,
 		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, &tool, handler) },
 	}
 }
@@ -168,7 +168,7 @@ func (v *projectVariable) Get() *Tool {
 	return &Tool{
 		MCPTool:      &tool,
 		IsWriteTool:  false,
-		ResourceType: "variable",
+		ResourceType: VariableResource,
 		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, &tool, handler) },
 	}
 }
@@ -252,7 +252,7 @@ func (v *projectVariable) Create() *Tool {
 	return &Tool{
 		MCPTool:      &tool,
 		IsWriteTool:  true,
-		ResourceType: "variable",
+		ResourceType: VariableResource,
 		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, &tool, handler) },
 	}
 }

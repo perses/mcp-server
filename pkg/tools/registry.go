@@ -18,7 +18,6 @@ import apiClient "github.com/perses/perses/pkg/client/api/v1"
 // ToolRegistryInterface provides access to all resource tool interfaces
 type ToolRegistryInterface interface {
 	Dashboard() DashboardInterface
-	Project() ProjectInterface
 	Datasource() DatasourceInterface
 	GlobalDatasource() GlobalDatasourceInterface
 	Role() RoleInterface
@@ -47,10 +46,6 @@ func NewToolRegistry(client apiClient.ClientInterface) ToolRegistryInterface {
 
 func (r *toolRegistry) Dashboard() DashboardInterface {
 	return newDashboard(r.client)
-}
-
-func (r *toolRegistry) Project() ProjectInterface {
-	return newProject(r.client)
 }
 
 func (r *toolRegistry) Datasource() DatasourceInterface {
@@ -94,7 +89,6 @@ func (r *toolRegistry) GetAllTools() []*Tool {
 	var allTools []*Tool
 
 	allTools = append(allTools, r.Dashboard().GetTools()...)
-	allTools = append(allTools, r.Project().GetTools()...)
 	allTools = append(allTools, r.Datasource().GetTools()...)
 	allTools = append(allTools, r.GlobalDatasource().GetTools()...)
 	allTools = append(allTools, r.Role().GetTools()...)
