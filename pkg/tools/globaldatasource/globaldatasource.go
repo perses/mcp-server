@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package tools
+package globaldatasource
 
 import (
 	"context"
@@ -20,6 +20,8 @@ import (
 
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/perses/mcp-server/pkg/tools"
+	"github.com/perses/mcp-server/pkg/tools/resource"
 	apiClient "github.com/perses/perses/pkg/client/api/v1"
 	v1 "github.com/perses/perses/pkg/model/api/v1"
 	"github.com/perses/perses/pkg/model/api/v1/common"
@@ -27,27 +29,18 @@ import (
 	"github.com/perses/perses/pkg/model/api/v1/datasource/http"
 )
 
-type GlobalDatasourceInterface interface {
-	List() *Tool
-	Get() *Tool
-	Create() *Tool
-	Update() *Tool
-	GetTools() []*Tool
-}
-
 type globalDatasource struct {
-	GlobalDatasourceInterface
 	client apiClient.ClientInterface
 }
 
-func newGlobalDatasource(client apiClient.ClientInterface) GlobalDatasourceInterface {
+func NewGlobalDatasource(client apiClient.ClientInterface) resource.Resource {
 	return &globalDatasource{
 		client: client,
 	}
 }
 
-func (g *globalDatasource) GetTools() []*Tool {
-	return []*Tool{
+func (g *globalDatasource) GetTools() []*tools.Tool {
+	return []*tools.Tool{
 		g.List(),
 		g.Get(),
 		g.Create(),
@@ -55,8 +48,8 @@ func (g *globalDatasource) GetTools() []*Tool {
 	}
 }
 
-func (g *globalDatasource) List() *Tool {
-	tool := mcp.Tool{
+func (g *globalDatasource) List() *tools.Tool {
+	tool := &mcp.Tool{
 		Name:        "perses_list_global_datasources",
 		Description: "List all Perses Global Datasources",
 		Annotations: &mcp.ToolAnnotations{
@@ -87,11 +80,11 @@ func (g *globalDatasource) List() *Tool {
 		}, nil, nil
 	}
 
-	return &Tool{
-		MCPTool:      &tool,
+	return &tools.Tool{
+		MCPTool:      tool,
 		IsWriteTool:  false,
-		ResourceType: GlobalDatasourceResource,
-		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, &tool, handler) },
+		ResourceType: tools.GlobalDatasourceResource,
+		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, tool, handler) },
 	}
 }
 
@@ -99,8 +92,8 @@ type GetGlobalDatasourceByNameInput struct {
 	Name string `json:"name" jsonschema:"Global Datasource name"`
 }
 
-func (g *globalDatasource) Get() *Tool {
-	tool := mcp.Tool{
+func (g *globalDatasource) Get() *tools.Tool {
+	tool := &mcp.Tool{
 		Name:        "perses_get_global_datasource_by_name",
 		Description: "Get a global datasource by name",
 		Annotations: &mcp.ToolAnnotations{
@@ -144,11 +137,11 @@ func (g *globalDatasource) Get() *Tool {
 		}, nil, nil
 	}
 
-	return &Tool{
-		MCPTool:      &tool,
+	return &tools.Tool{
+		MCPTool:      tool,
 		IsWriteTool:  false,
-		ResourceType: GlobalDatasourceResource,
-		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, &tool, handler) },
+		ResourceType: tools.GlobalDatasourceResource,
+		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, tool, handler) },
 	}
 }
 
@@ -160,8 +153,8 @@ type CreateGlobalDatasourceInput struct {
 	ProxyType   string `json:"proxy_type,omitempty" jsonschema:"Proxy type: HTTPProxy for server-side proxy, direct for browser direct access (optional, defaults to HTTPProxy)"`
 }
 
-func (g *globalDatasource) Create() *Tool {
-	tool := mcp.Tool{
+func (g *globalDatasource) Create() *tools.Tool {
+	tool := &mcp.Tool{
 		Name:        "perses_create_global_datasource",
 		Description: "Create a new Perses Global Datasource",
 		Annotations: &mcp.ToolAnnotations{
@@ -275,11 +268,11 @@ func (g *globalDatasource) Create() *Tool {
 		}, nil, nil
 	}
 
-	return &Tool{
-		MCPTool:      &tool,
+	return &tools.Tool{
+		MCPTool:      tool,
 		IsWriteTool:  true,
-		ResourceType: GlobalDatasourceResource,
-		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, &tool, handler) },
+		ResourceType: tools.GlobalDatasourceResource,
+		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, tool, handler) },
 	}
 }
 
@@ -291,8 +284,8 @@ type UpdateGlobalDatasourceInput struct {
 	ProxyType   string `json:"proxy_type,omitempty" jsonschema:"Proxy type: HTTPProxy for server-side proxy, direct for browser direct access (optional, defaults to HTTPProxy)"`
 }
 
-func (g *globalDatasource) Update() *Tool {
-	tool := mcp.Tool{
+func (g *globalDatasource) Update() *tools.Tool {
+	tool := &mcp.Tool{
 		Name:        "perses_update_global_datasource",
 		Description: "Update an existing Perses Global Datasource",
 		Annotations: &mcp.ToolAnnotations{
@@ -405,10 +398,15 @@ func (g *globalDatasource) Update() *Tool {
 		}, nil, nil
 	}
 
-	return &Tool{
-		MCPTool:      &tool,
+	return &tools.Tool{
+		MCPTool:      tool,
 		IsWriteTool:  true,
-		ResourceType: GlobalDatasourceResource,
-		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, &tool, handler) },
+		ResourceType: tools.GlobalDatasourceResource,
+		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, tool, handler) },
 	}
+}
+
+// Delete is not yet implemented for global datasource
+func (g *globalDatasource) Delete() *tools.Tool {
+	return nil
 }

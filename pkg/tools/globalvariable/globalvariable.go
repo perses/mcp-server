@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package tools
+package globalvariable
 
 import (
 	"context"
@@ -20,35 +20,30 @@ import (
 
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/perses/mcp-server/pkg/tools"
+	"github.com/perses/mcp-server/pkg/tools/resource"
 	apiClient "github.com/perses/perses/pkg/client/api/v1"
 )
 
-type GlobalVariableInterface interface {
-	List() *Tool
-	Get() *Tool
-	GetTools() []*Tool
-}
-
 type globalVariable struct {
-	GlobalVariableInterface
 	client apiClient.ClientInterface
 }
 
-func newGlobalVariable(client apiClient.ClientInterface) GlobalVariableInterface {
+func NewGlobalVariable(client apiClient.ClientInterface) resource.Resource {
 	return &globalVariable{
 		client: client,
 	}
 }
 
-func (g *globalVariable) GetTools() []*Tool {
-	return []*Tool{
+func (g *globalVariable) GetTools() []*tools.Tool {
+	return []*tools.Tool{
 		g.List(),
 		g.Get(),
 	}
 }
 
-func (g *globalVariable) List() *Tool {
-	tool := mcp.Tool{
+func (g *globalVariable) List() *tools.Tool {
+	tool := &mcp.Tool{
 		Name:        "perses_list_global_variables",
 		Description: "List all Global Variables",
 		Annotations: &mcp.ToolAnnotations{
@@ -79,11 +74,11 @@ func (g *globalVariable) List() *Tool {
 		}, nil, nil
 	}
 
-	return &Tool{
-		MCPTool:      &tool,
+	return &tools.Tool{
+		MCPTool:      tool,
 		IsWriteTool:  false,
-		ResourceType: GlobalVariableResource,
-		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, &tool, handler) },
+		ResourceType: tools.GlobalVariableResource,
+		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, tool, handler) },
 	}
 }
 
@@ -91,8 +86,8 @@ type GetGlobalVariableByNameInput struct {
 	Name string `json:"name" jsonschema:"Global Variable name"`
 }
 
-func (g *globalVariable) Get() *Tool {
-	tool := mcp.Tool{
+func (g *globalVariable) Get() *tools.Tool {
+	tool := &mcp.Tool{
 		Name:        "perses_get_global_variable_by_name",
 		Description: "Get a global variable by name",
 		Annotations: &mcp.ToolAnnotations{
@@ -136,10 +131,25 @@ func (g *globalVariable) Get() *Tool {
 		}, nil, nil
 	}
 
-	return &Tool{
-		MCPTool:      &tool,
+	return &tools.Tool{
+		MCPTool:      tool,
 		IsWriteTool:  false,
-		ResourceType: GlobalVariableResource,
-		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, &tool, handler) },
+		ResourceType: tools.GlobalVariableResource,
+		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, tool, handler) },
 	}
+}
+
+// Create is not yet implemented for global variable
+func (g *globalVariable) Create() *tools.Tool {
+	return nil
+}
+
+// Update is not yet implemented for global variable
+func (g *globalVariable) Update() *tools.Tool {
+	return nil
+}
+
+// Delete is not yet implemented for global variable
+func (g *globalVariable) Delete() *tools.Tool {
+	return nil
 }

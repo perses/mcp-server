@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package tools
+package variable
 
 import (
 	"context"
@@ -20,31 +20,25 @@ import (
 
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/perses/mcp-server/pkg/tools"
+	"github.com/perses/mcp-server/pkg/tools/resource"
 	apiClient "github.com/perses/perses/pkg/client/api/v1"
 	v1 "github.com/perses/perses/pkg/model/api/v1"
 	"github.com/perses/perses/pkg/model/api/v1/variable"
 )
 
-type VariableInterface interface {
-	List() *Tool
-	Get() *Tool
-	Create() *Tool
-	GetTools() []*Tool
-}
-
 type projectVariable struct {
-	VariableInterface
 	client apiClient.ClientInterface
 }
 
-func newVariable(client apiClient.ClientInterface) VariableInterface {
+func NewVariable(client apiClient.ClientInterface) resource.Resource {
 	return &projectVariable{
 		client: client,
 	}
 }
 
-func (v *projectVariable) GetTools() []*Tool {
-	return []*Tool{
+func (v *projectVariable) GetTools() []*tools.Tool {
+	return []*tools.Tool{
 		v.List(),
 		v.Get(),
 		v.Create(),
@@ -55,8 +49,8 @@ type ListProjectVariablesInput struct {
 	Project string `json:"project" jsonschema:"Project name"`
 }
 
-func (v *projectVariable) List() *Tool {
-	tool := mcp.Tool{
+func (v *projectVariable) List() *tools.Tool {
+	tool := &mcp.Tool{
 		Name:        "perses_list_project_variables",
 		Description: "List variables for a specific project",
 		Annotations: &mcp.ToolAnnotations{
@@ -100,11 +94,11 @@ func (v *projectVariable) List() *Tool {
 		}, nil, nil
 	}
 
-	return &Tool{
-		MCPTool:      &tool,
+	return &tools.Tool{
+		MCPTool:      tool,
 		IsWriteTool:  false,
-		ResourceType: VariableResource,
-		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, &tool, handler) },
+		ResourceType: tools.VariableResource,
+		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, tool, handler) },
 	}
 }
 
@@ -113,8 +107,8 @@ type GetProjectVariableByNameInput struct {
 	Name    string `json:"name" jsonschema:"Variable name"`
 }
 
-func (v *projectVariable) Get() *Tool {
-	tool := mcp.Tool{
+func (v *projectVariable) Get() *tools.Tool {
+	tool := &mcp.Tool{
 		Name:        "perses_get_project_variable_by_name",
 		Description: "Get a variable by name in a specific project",
 		Annotations: &mcp.ToolAnnotations{
@@ -165,11 +159,11 @@ func (v *projectVariable) Get() *Tool {
 		}, nil, nil
 	}
 
-	return &Tool{
-		MCPTool:      &tool,
+	return &tools.Tool{
+		MCPTool:      tool,
 		IsWriteTool:  false,
-		ResourceType: VariableResource,
-		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, &tool, handler) },
+		ResourceType: tools.VariableResource,
+		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, tool, handler) },
 	}
 }
 
@@ -178,8 +172,8 @@ type CreateProjectVariableInput struct {
 	Project string `json:"project" jsonschema:"Project name"`
 }
 
-func (v *projectVariable) Create() *Tool {
-	tool := mcp.Tool{
+func (v *projectVariable) Create() *tools.Tool {
+	tool := &mcp.Tool{
 		Name:        "perses_create_project_variable",
 		Description: "Create a project level variable",
 		Annotations: &mcp.ToolAnnotations{
@@ -249,10 +243,20 @@ func (v *projectVariable) Create() *Tool {
 		}, nil, nil
 	}
 
-	return &Tool{
-		MCPTool:      &tool,
+	return &tools.Tool{
+		MCPTool:      tool,
 		IsWriteTool:  true,
-		ResourceType: VariableResource,
-		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, &tool, handler) },
+		ResourceType: tools.VariableResource,
+		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, tool, handler) },
 	}
+}
+
+// Update is not yet implemented for project variable
+func (v *projectVariable) Update() *tools.Tool {
+	return nil
+}
+
+// Delete is not yet implemented for project variable
+func (v *projectVariable) Delete() *tools.Tool {
+	return nil
 }

@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package tools
+package role
 
 import (
 	"context"
@@ -20,43 +20,38 @@ import (
 
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/perses/mcp-server/pkg/tools"
+	"github.com/perses/mcp-server/pkg/tools/resource"
 	apiClient "github.com/perses/perses/pkg/client/api/v1"
 )
 
-type DatasourceInterface interface {
-	List() *Tool
-	Get() *Tool
-	GetTools() []*Tool
-}
-
-type projectDatasource struct {
-	DatasourceInterface
+type role struct {
 	client apiClient.ClientInterface
 }
 
-func newDatasource(client apiClient.ClientInterface) DatasourceInterface {
-	return &projectDatasource{
+func NewRole(client apiClient.ClientInterface) resource.Resource {
+	return &role{
 		client: client,
 	}
 }
 
-func (d *projectDatasource) GetTools() []*Tool {
-	return []*Tool{
-		d.List(),
-		d.Get(),
+func (r *role) GetTools() []*tools.Tool {
+	return []*tools.Tool{
+		r.List(),
+		r.Get(),
 	}
 }
 
-type ListProjectDatasourcesInput struct {
+type ProjectRoleInput struct {
 	Project string `json:"project" jsonschema:"Project name"`
 }
 
-func (d *projectDatasource) List() *Tool {
-	tool := mcp.Tool{
-		Name:        "perses_list_project_datasources",
-		Description: "List Datasources for a specific project",
+func (r *role) List() *tools.Tool {
+	tool := &mcp.Tool{
+		Name:        "perses_list_project_roles",
+		Description: "List Roles for a specific project",
 		Annotations: &mcp.ToolAnnotations{
-			Title:           "Lists datasources for a specific project in Perses",
+			Title:           "Lists roles for a specific project in Perses",
 			ReadOnlyHint:    true,
 			DestructiveHint: jsonschema.Ptr(false),
 			IdempotentHint:  true,
@@ -69,52 +64,50 @@ func (d *projectDatasource) List() *Tool {
 					Type:        "string",
 					Description: "Project name",
 					MinLength:   jsonschema.Ptr(1),
-					MaxLength:   jsonschema.Ptr(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
 				},
 			},
 			Required: []string{"project"},
 		},
 	}
 
-	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input ListProjectDatasourcesInput) (*mcp.CallToolResult, any, error) {
-		datasources, err := d.client.Datasource(input.Project).List("")
+	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input ProjectRoleInput) (*mcp.CallToolResult, any, error) {
+		roles, err := r.client.Role(input.Project).List("")
 		if err != nil {
-			return nil, nil, fmt.Errorf("error retrieving datasources in project '%s': %w", input.Project, err)
+			return nil, nil, fmt.Errorf("error retrieving roles in project '%s': %w", input.Project, err)
 		}
 
-		datasourcesJSON, err := json.Marshal(datasources)
+		rolesJSON, err := json.Marshal(roles)
 		if err != nil {
-			return nil, nil, fmt.Errorf("error marshalling datasources: %w", err)
+			return nil, nil, fmt.Errorf("error marshalling roles: %w", err)
 		}
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{
 				&mcp.TextContent{
-					Text: string(datasourcesJSON),
+					Text: string(rolesJSON),
 				},
 			},
 		}, nil, nil
 	}
 
-	return &Tool{
-		MCPTool:      &tool,
+	return &tools.Tool{
+		MCPTool:      tool,
 		IsWriteTool:  false,
-		ResourceType: DatasourceResource,
-		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, &tool, handler) },
+		ResourceType: tools.RoleResource,
+		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, tool, handler) },
 	}
 }
 
-type GetProjectDatasourceByNameInput struct {
+type GetProjectRoleByNameInput struct {
 	Project string `json:"project" jsonschema:"Project name"`
-	Name    string `json:"name" jsonschema:"Datasource name"`
+	Name    string `json:"name" jsonschema:"Role name"`
 }
 
-func (d *projectDatasource) Get() *Tool {
-	tool := mcp.Tool{
-		Name:        "perses_get_project_datasource_by_name",
-		Description: "Get a datasource by name in a specific project",
+func (r *role) Get() *tools.Tool {
+	tool := &mcp.Tool{
+		Name:        "perses_get_project_role_by_name",
+		Description: "Get a role by name in a specific project",
 		Annotations: &mcp.ToolAnnotations{
-			Title:           "Gets a datasource by name in a specific project in Perses",
+			Title:           "Gets a role by name in a specific project in Perses",
 			ReadOnlyHint:    true,
 			DestructiveHint: jsonschema.Ptr(false),
 			IdempotentHint:  true,
@@ -132,7 +125,7 @@ func (d *projectDatasource) Get() *Tool {
 				},
 				"name": {
 					Type:        "string",
-					Description: "Datasource name",
+					Description: "Role name",
 					MinLength:   jsonschema.Ptr(1),
 					MaxLength:   jsonschema.Ptr(75),
 					Pattern:     "^[a-zA-Z0-9_.-]+$",
@@ -142,29 +135,44 @@ func (d *projectDatasource) Get() *Tool {
 		},
 	}
 
-	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input GetProjectDatasourceByNameInput) (*mcp.CallToolResult, any, error) {
-		datasource, err := d.client.Datasource(input.Project).Get(input.Name)
+	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input GetProjectRoleByNameInput) (*mcp.CallToolResult, any, error) {
+		role, err := r.client.Role(input.Project).Get(input.Name)
 		if err != nil {
-			return nil, nil, fmt.Errorf("error retrieving datasource '%s' in project '%s': %w", input.Name, input.Project, err)
+			return nil, nil, fmt.Errorf("error retrieving role '%s' in project '%s': %w", input.Name, input.Project, err)
 		}
 
-		datasourceJSON, err := json.Marshal(datasource)
+		roleJSON, err := json.Marshal(role)
 		if err != nil {
-			return nil, nil, fmt.Errorf("error marshalling datasource: %w", err)
+			return nil, nil, fmt.Errorf("error marshalling role: %w", err)
 		}
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{
 				&mcp.TextContent{
-					Text: string(datasourceJSON),
+					Text: string(roleJSON),
 				},
 			},
 		}, nil, nil
 	}
 
-	return &Tool{
-		MCPTool:      &tool,
+	return &tools.Tool{
+		MCPTool:      tool,
 		IsWriteTool:  false,
-		ResourceType: DatasourceResource,
-		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, &tool, handler) },
+		ResourceType: tools.RoleResource,
+		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, tool, handler) },
 	}
+}
+
+// Create is not yet implemented for project role
+func (r *role) Create() *tools.Tool {
+	return nil
+}
+
+// Update is not yet implemented for project role
+func (r *role) Update() *tools.Tool {
+	return nil
+}
+
+// Delete is not yet implemented for project role
+func (r *role) Delete() *tools.Tool {
+	return nil
 }

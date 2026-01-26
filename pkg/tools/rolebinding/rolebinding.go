@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package tools
+package rolebinding
 
 import (
 	"context"
@@ -20,28 +20,23 @@ import (
 
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/perses/mcp-server/pkg/tools"
+	"github.com/perses/mcp-server/pkg/tools/resource"
 	apiClient "github.com/perses/perses/pkg/client/api/v1"
 )
 
-type RoleBindingInterface interface {
-	List() *Tool
-	Get() *Tool
-	GetTools() []*Tool
-}
-
-type projectRoleBinding struct {
-	RoleBindingInterface
+type roleBinding struct {
 	client apiClient.ClientInterface
 }
 
-func newRoleBinding(client apiClient.ClientInterface) RoleBindingInterface {
-	return &projectRoleBinding{
+func NewRoleBinding(client apiClient.ClientInterface) resource.Resource {
+	return &roleBinding{
 		client: client,
 	}
 }
 
-func (r *projectRoleBinding) GetTools() []*Tool {
-	return []*Tool{
+func (r *roleBinding) GetTools() []*tools.Tool {
+	return []*tools.Tool{
 		r.List(),
 		r.Get(),
 	}
@@ -51,8 +46,8 @@ type ProjectRoleBindingInput struct {
 	Project string `json:"project" jsonschema:"Project name"`
 }
 
-func (r *projectRoleBinding) List() *Tool {
-	tool := mcp.Tool{
+func (r *roleBinding) List() *tools.Tool {
+	tool := &mcp.Tool{
 		Name:        "perses_list_project_role_bindings",
 		Description: "List Role Bindings for a specific project",
 		Annotations: &mcp.ToolAnnotations{
@@ -96,11 +91,11 @@ func (r *projectRoleBinding) List() *Tool {
 		}, nil, nil
 	}
 
-	return &Tool{
-		MCPTool:      &tool,
+	return &tools.Tool{
+		MCPTool:      tool,
 		IsWriteTool:  false,
-		ResourceType: RoleBindingResource,
-		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, &tool, handler) },
+		ResourceType: tools.RoleBindingResource,
+		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, tool, handler) },
 	}
 }
 
@@ -109,8 +104,8 @@ type GetProjectRoleBindingByNameInput struct {
 	Name    string `json:"name" jsonschema:"Role Binding name"`
 }
 
-func (r *projectRoleBinding) Get() *Tool {
-	tool := mcp.Tool{
+func (r *roleBinding) Get() *tools.Tool {
+	tool := &mcp.Tool{
 		Name:        "perses_get_project_role_binding_by_name",
 		Description: "Get a role binding by name in a specific project",
 		Annotations: &mcp.ToolAnnotations{
@@ -161,10 +156,25 @@ func (r *projectRoleBinding) Get() *Tool {
 		}, nil, nil
 	}
 
-	return &Tool{
-		MCPTool:      &tool,
+	return &tools.Tool{
+		MCPTool:      tool,
 		IsWriteTool:  false,
-		ResourceType: RoleBindingResource,
-		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, &tool, handler) },
+		ResourceType: tools.RoleBindingResource,
+		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, tool, handler) },
 	}
+}
+
+// Create is not yet implemented for project role binding
+func (r *roleBinding) Create() *tools.Tool {
+	return nil
+}
+
+// Update is not yet implemented for project role binding
+func (r *roleBinding) Update() *tools.Tool {
+	return nil
+}
+
+// Delete is not yet implemented for project role binding
+func (r *roleBinding) Delete() *tools.Tool {
+	return nil
 }

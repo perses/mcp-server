@@ -14,8 +14,18 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/perses/mcp-server/pkg/tools"
+	"github.com/perses/mcp-server/pkg/tools/dashboard"
+	"github.com/perses/mcp-server/pkg/tools/datasource"
+	"github.com/perses/mcp-server/pkg/tools/globaldatasource"
+	"github.com/perses/mcp-server/pkg/tools/globalrole"
+	"github.com/perses/mcp-server/pkg/tools/globalrolebinding"
+	"github.com/perses/mcp-server/pkg/tools/globalvariable"
+	"github.com/perses/mcp-server/pkg/tools/plugin"
 	"github.com/perses/mcp-server/pkg/tools/project"
 	"github.com/perses/mcp-server/pkg/tools/resource"
+	"github.com/perses/mcp-server/pkg/tools/role"
+	"github.com/perses/mcp-server/pkg/tools/rolebinding"
+	"github.com/perses/mcp-server/pkg/tools/variable"
 	v1 "github.com/perses/perses/pkg/client/api/v1"
 	"github.com/perses/perses/pkg/client/config"
 	"github.com/perses/perses/pkg/model/api/v1/common"
@@ -182,20 +192,25 @@ func (s *Server) Run(ctx context.Context) error {
 }
 
 func (s *Server) registerTools() {
-	// New pattern: directly create resources from their packages
+
 	resources := []resource.Resource{
 		project.NewProject(s.persesClient),
+		dashboard.NewDashboard(s.persesClient),
+		datasource.NewDatasource(s.persesClient),
+		globaldatasource.NewGlobalDatasource(s.persesClient),
+		role.NewRole(s.persesClient),
+		globalrole.NewGlobalRole(s.persesClient),
+		rolebinding.NewRoleBinding(s.persesClient),
+		globalrolebinding.NewGlobalRoleBinding(s.persesClient),
+		variable.NewVariable(s.persesClient),
+		globalvariable.NewGlobalVariable(s.persesClient),
+		plugin.NewPlugin(s.persesClient),
 	}
 
-	// Collect tools from new-style resources
 	var allTools []*tools.Tool
 	for _, r := range resources {
 		allTools = append(allTools, r.GetTools()...)
 	}
-
-	// Temporary: still use registry for remaining resources (excludes project)
-	registry := tools.NewToolRegistry(s.persesClient)
-	allTools = append(allTools, registry.GetAllTools()...)
 
 	// Build allowed resources set for filtering
 	allowedResources := make(map[string]bool)

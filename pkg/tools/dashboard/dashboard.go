@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package tools
+package dashboard
 
 import (
 	"context"
@@ -20,30 +20,24 @@ import (
 
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/perses/mcp-server/pkg/tools"
+	"github.com/perses/mcp-server/pkg/tools/resource"
 	apiClient "github.com/perses/perses/pkg/client/api/v1"
 	v1 "github.com/perses/perses/pkg/model/api/v1"
 )
 
-type DashboardInterface interface {
-	List() *Tool
-	Get() *Tool
-	Create() *Tool
-	GetTools() []*Tool
-}
-
 type dashboard struct {
-	DashboardInterface
 	client apiClient.ClientInterface
 }
 
-func newDashboard(client apiClient.ClientInterface) DashboardInterface {
+func NewDashboard(client apiClient.ClientInterface) resource.Resource {
 	return &dashboard{
 		client: client,
 	}
 }
 
-func (d *dashboard) GetTools() []*Tool {
-	return []*Tool{
+func (d *dashboard) GetTools() []*tools.Tool {
+	return []*tools.Tool{
 		d.List(),
 		d.Get(),
 		d.Create(),
@@ -54,7 +48,7 @@ type ListDashboardsInput struct {
 	Project string `json:"project" jsonschema:"Project name to list dashboards from"`
 }
 
-func (d *dashboard) List() *Tool {
+func (d *dashboard) List() *tools.Tool {
 	tool := &mcp.Tool{
 		Name:        "perses_list_dashboards",
 		Description: "List dashboards for a specific project",
@@ -100,10 +94,10 @@ func (d *dashboard) List() *Tool {
 		}, nil, nil
 	}
 
-	return &Tool{
+	return &tools.Tool{
 		MCPTool:      tool,
 		IsWriteTool:  false,
-		ResourceType: DashboardResource,
+		ResourceType: tools.DashboardResource,
 		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, tool, handler) },
 	}
 }
@@ -113,7 +107,7 @@ type GetDashboardByNameInput struct {
 	Name    string `json:"name" jsonschema:"Dashboard name to retrieve"`
 }
 
-func (d *dashboard) Get() *Tool {
+func (d *dashboard) Get() *tools.Tool {
 	tool := &mcp.Tool{
 		Name:        "perses_get_dashboard_by_name",
 		Description: "Get a dashboard by name in a specific project",
@@ -154,10 +148,10 @@ func (d *dashboard) Get() *Tool {
 		return nil, response, nil
 	}
 
-	return &Tool{
+	return &tools.Tool{
 		MCPTool:      tool,
 		IsWriteTool:  false,
-		ResourceType: DashboardResource,
+		ResourceType: tools.DashboardResource,
 		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, tool, handler) },
 	}
 }
@@ -167,7 +161,7 @@ type CreateDashboardInput struct {
 	Dashboard string `json:"dashboard" jsonschema:"Dashboard JSON as string"`
 }
 
-func (d *dashboard) Create() *Tool {
+func (d *dashboard) Create() *tools.Tool {
 	tool := &mcp.Tool{
 		Name:        "perses_create_dashboard",
 		Description: "Create a new dashboard in a specific project",
@@ -221,10 +215,20 @@ func (d *dashboard) Create() *Tool {
 		}, nil, nil
 	}
 
-	return &Tool{
+	return &tools.Tool{
 		MCPTool:      tool,
 		IsWriteTool:  true,
-		ResourceType: DashboardResource,
+		ResourceType: tools.DashboardResource,
 		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, tool, handler) },
 	}
+}
+
+// Update is not yet implemented for dashboard
+func (d *dashboard) Update() *tools.Tool {
+	return nil
+}
+
+// Delete is not yet implemented for dashboard
+func (d *dashboard) Delete() *tools.Tool {
+	return nil
 }

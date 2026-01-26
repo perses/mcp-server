@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package tools
+package globalrole
 
 import (
 	"context"
@@ -20,35 +20,30 @@ import (
 
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/perses/mcp-server/pkg/tools"
+	"github.com/perses/mcp-server/pkg/tools/resource"
 	apiClient "github.com/perses/perses/pkg/client/api/v1"
 )
 
-type GlobalRoleInterface interface {
-	List() *Tool
-	Get() *Tool
-	GetTools() []*Tool
-}
-
 type globalRole struct {
-	GlobalRoleInterface
 	client apiClient.ClientInterface
 }
 
-func newGlobalRole(client apiClient.ClientInterface) GlobalRoleInterface {
+func NewGlobalRole(client apiClient.ClientInterface) resource.Resource {
 	return &globalRole{
 		client: client,
 	}
 }
 
-func (g *globalRole) GetTools() []*Tool {
-	return []*Tool{
+func (g *globalRole) GetTools() []*tools.Tool {
+	return []*tools.Tool{
 		g.List(),
 		g.Get(),
 	}
 }
 
-func (g *globalRole) List() *Tool {
-	tool := mcp.Tool{
+func (g *globalRole) List() *tools.Tool {
+	tool := &mcp.Tool{
 		Name:        "perses_list_global_roles",
 		Description: "List all Perses Global Roles",
 		Annotations: &mcp.ToolAnnotations{
@@ -79,11 +74,11 @@ func (g *globalRole) List() *Tool {
 		}, nil, nil
 	}
 
-	return &Tool{
-		MCPTool:      &tool,
+	return &tools.Tool{
+		MCPTool:      tool,
 		IsWriteTool:  false,
-		ResourceType: GlobalRoleResource,
-		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, &tool, handler) },
+		ResourceType: tools.GlobalRoleResource,
+		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, tool, handler) },
 	}
 }
 
@@ -91,8 +86,8 @@ type GetGlobalRoleByNameInput struct {
 	Name string `json:"name" jsonschema:"Global Role name"`
 }
 
-func (g *globalRole) Get() *Tool {
-	tool := mcp.Tool{
+func (g *globalRole) Get() *tools.Tool {
+	tool := &mcp.Tool{
 		Name:        "perses_get_global_role_by_name",
 		Description: "Get a global role by name",
 		Annotations: &mcp.ToolAnnotations{
@@ -136,10 +131,25 @@ func (g *globalRole) Get() *Tool {
 		}, nil, nil
 	}
 
-	return &Tool{
-		MCPTool:      &tool,
+	return &tools.Tool{
+		MCPTool:      tool,
 		IsWriteTool:  false,
-		ResourceType: GlobalRoleResource,
-		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, &tool, handler) },
+		ResourceType: tools.GlobalRoleResource,
+		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, tool, handler) },
 	}
+}
+
+// Create is not yet implemented for global role
+func (g *globalRole) Create() *tools.Tool {
+	return nil
+}
+
+// Update is not yet implemented for global role
+func (g *globalRole) Update() *tools.Tool {
+	return nil
+}
+
+// Delete is not yet implemented for global role
+func (g *globalRole) Delete() *tools.Tool {
+	return nil
 }

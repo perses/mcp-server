@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package tools
+package globalrolebinding
 
 import (
 	"context"
@@ -20,35 +20,30 @@ import (
 
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/perses/mcp-server/pkg/tools"
+	"github.com/perses/mcp-server/pkg/tools/resource"
 	apiClient "github.com/perses/perses/pkg/client/api/v1"
 )
 
-type GlobalRoleBindingInterface interface {
-	List() *Tool
-	Get() *Tool
-	GetTools() []*Tool
-}
-
 type globalRoleBinding struct {
-	GlobalRoleBindingInterface
 	client apiClient.ClientInterface
 }
 
-func newGlobalRoleBinding(client apiClient.ClientInterface) GlobalRoleBindingInterface {
+func NewGlobalRoleBinding(client apiClient.ClientInterface) resource.Resource {
 	return &globalRoleBinding{
 		client: client,
 	}
 }
 
-func (g *globalRoleBinding) GetTools() []*Tool {
-	return []*Tool{
+func (g *globalRoleBinding) GetTools() []*tools.Tool {
+	return []*tools.Tool{
 		g.List(),
 		g.Get(),
 	}
 }
 
-func (g *globalRoleBinding) List() *Tool {
-	tool := mcp.Tool{
+func (g *globalRoleBinding) List() *tools.Tool {
+	tool := &mcp.Tool{
 		Name:        "perses_list_global_role_bindings",
 		Description: "List all Perses Global Role Bindings",
 		Annotations: &mcp.ToolAnnotations{
@@ -79,11 +74,11 @@ func (g *globalRoleBinding) List() *Tool {
 		}, nil, nil
 	}
 
-	return &Tool{
-		MCPTool:      &tool,
+	return &tools.Tool{
+		MCPTool:      tool,
 		IsWriteTool:  false,
-		ResourceType: GlobalRoleResource,
-		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, &tool, handler) },
+		ResourceType: tools.GlobalRoleBindingResource,
+		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, tool, handler) },
 	}
 }
 
@@ -91,8 +86,8 @@ type GetGlobalRoleBindingByNameInput struct {
 	Name string `json:"name" jsonschema:"Global Role Binding name"`
 }
 
-func (g *globalRoleBinding) Get() *Tool {
-	tool := mcp.Tool{
+func (g *globalRoleBinding) Get() *tools.Tool {
+	tool := &mcp.Tool{
 		Name:        "perses_get_global_role_binding_by_name",
 		Description: "Get a global role binding by name",
 		Annotations: &mcp.ToolAnnotations{
@@ -136,10 +131,25 @@ func (g *globalRoleBinding) Get() *Tool {
 		}, nil, nil
 	}
 
-	return &Tool{
-		MCPTool:      &tool,
+	return &tools.Tool{
+		MCPTool:      tool,
 		IsWriteTool:  false,
-		ResourceType: GlobalRoleResource,
-		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, &tool, handler) },
+		ResourceType: tools.GlobalRoleBindingResource,
+		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, tool, handler) },
 	}
+}
+
+// Create is not yet implemented for global role binding
+func (g *globalRoleBinding) Create() *tools.Tool {
+	return nil
+}
+
+// Update is not yet implemented for global role binding
+func (g *globalRoleBinding) Update() *tools.Tool {
+	return nil
+}
+
+// Delete is not yet implemented for global role binding
+func (g *globalRoleBinding) Delete() *tools.Tool {
+	return nil
 }

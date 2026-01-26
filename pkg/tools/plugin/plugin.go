@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package tools
+package plugin
 
 import (
 	"context"
@@ -20,33 +20,29 @@ import (
 
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/perses/mcp-server/pkg/tools"
+	"github.com/perses/mcp-server/pkg/tools/resource"
 	apiClient "github.com/perses/perses/pkg/client/api/v1"
 )
 
-type PluginInterface interface {
-	List() *Tool
-	GetTools() []*Tool
-}
-
 type plugin struct {
-	PluginInterface
 	client apiClient.ClientInterface
 }
 
-func newPlugin(client apiClient.ClientInterface) PluginInterface {
+func NewPlugin(client apiClient.ClientInterface) resource.Resource {
 	return &plugin{
 		client: client,
 	}
 }
 
-func (p *plugin) GetTools() []*Tool {
-	return []*Tool{
+func (p *plugin) GetTools() []*tools.Tool {
+	return []*tools.Tool{
 		p.List(),
 	}
 }
 
-func (p *plugin) List() *Tool {
-	tool := mcp.Tool{
+func (p *plugin) List() *tools.Tool {
+	tool := &mcp.Tool{
 		Name:        "perses_list_plugins",
 		Description: "List all Perses Plugins",
 		Annotations: &mcp.ToolAnnotations{
@@ -77,10 +73,30 @@ func (p *plugin) List() *Tool {
 		}, nil, nil
 	}
 
-	return &Tool{
-		MCPTool:      &tool,
+	return &tools.Tool{
+		MCPTool:      tool,
 		IsWriteTool:  false,
-		ResourceType: PluginResource,
-		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, &tool, handler) },
+		ResourceType: tools.PluginResource,
+		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, tool, handler) },
 	}
+}
+
+// Get is not yet implemented for plugin
+func (p *plugin) Get() *tools.Tool {
+	return nil
+}
+
+// Create is not yet implemented for plugin
+func (p *plugin) Create() *tools.Tool {
+	return nil
+}
+
+// Update is not yet implemented for plugin
+func (p *plugin) Update() *tools.Tool {
+	return nil
+}
+
+// Delete is not yet implemented for plugin
+func (p *plugin) Delete() *tools.Tool {
+	return nil
 }
