@@ -14,6 +14,8 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/perses/mcp-server/pkg/tools"
+	"github.com/perses/mcp-server/pkg/tools/project"
+	"github.com/perses/mcp-server/pkg/tools/resource"
 	v1 "github.com/perses/perses/pkg/client/api/v1"
 	"github.com/perses/perses/pkg/client/config"
 	"github.com/perses/perses/pkg/model/api/v1/common"
@@ -180,15 +182,26 @@ func (s *Server) Run(ctx context.Context) error {
 }
 
 func (s *Server) registerTools() {
+	// New pattern: directly create resources from their packages
+	resources := []resource.Resource{
+		project.NewProject(s.persesClient),
+	}
+
+	// Collect tools from new-style resources
+	var allTools []*tools.Tool
+	for _, r := range resources {
+		allTools = append(allTools, r.GetTools()...)
+	}
+
+	// Temporary: still use registry for remaining resources (excludes project)
 	registry := tools.NewToolRegistry(s.persesClient)
-	allTools := registry.GetAllTools()
+	allTools = append(allTools, registry.GetAllTools()...)
 
 	// Build allowed resources set for filtering
 	allowedResources := make(map[string]bool)
 	for _, rs := range s.cfg.AllowedResources {
 		allowedResources[rs] = true
 	}
-	filterByResource := len(allowedResources) > 0
 
 	registeredCount := 0
 	skippedReadOnly := 0
@@ -196,7 +209,7 @@ func (s *Server) registerTools() {
 
 	for _, tool := range allTools {
 		// Skip tools not in allowed resources (if filtering is enabled)
-		if filterByResource && !allowedResources[strings.ToLower(tool.ResourceType)] {
+		if len(allowedResources) > 0 && !allowedResources[string(tool.ResourceType)] {
 			s.logger.Debug("Skipping tool which is not in allowed resources",
 				"tool", tool.MCPTool.Name,
 				"resourceType", tool.ResourceType)
