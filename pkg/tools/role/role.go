@@ -23,6 +23,8 @@ import (
 	"github.com/perses/mcp-server/pkg/tools"
 	"github.com/perses/mcp-server/pkg/tools/resource"
 	apiClient "github.com/perses/perses/pkg/client/api/v1"
+	v1 "github.com/perses/perses/pkg/model/api/v1"
+	roleModel "github.com/perses/perses/pkg/model/api/v1/role"
 )
 
 type role struct {
@@ -39,6 +41,9 @@ func (r *role) GetTools() []*tools.Tool {
 	return []*tools.Tool{
 		r.List(),
 		r.Get(),
+		r.Create(),
+		r.Update(),
+		r.Delete(),
 	}
 }
 
@@ -162,17 +167,283 @@ func (r *role) Get() *tools.Tool {
 	}
 }
 
-// Create is not yet implemented for project role
+type CreateProjectRoleInput struct {
+	Project string   `json:"project" jsonschema:"Project name"`
+	Name    string   `json:"name" jsonschema:"Role name"`
+	Actions []string `json:"actions" jsonschema:"List of actions (e.g., read, create, update, delete)"`
+	Scopes  []string `json:"scopes" jsonschema:"List of scopes (resource kinds the role applies to, must not be global scopes)"`
+}
+
 func (r *role) Create() *tools.Tool {
-	return nil
+	tool := &mcp.Tool{
+		Name:        "perses_create_project_role",
+		Description: "Create a project role with specified permissions",
+		InputSchema: &jsonschema.Schema{
+			Type: "object",
+			Properties: map[string]*jsonschema.Schema{
+				"project": {
+					Type:        "string",
+					Description: "Project name",
+					MinLength:   jsonschema.Ptr(1),
+					MaxLength:   jsonschema.Ptr(75),
+					Pattern:     "^[a-zA-Z0-9_.-]+$",
+				},
+				"name": {
+					Type:        "string",
+					Description: "Role name",
+					MinLength:   jsonschema.Ptr(1),
+					MaxLength:   jsonschema.Ptr(75),
+					Pattern:     "^[a-zA-Z0-9_.-]+$",
+				},
+				"actions": {
+					Type:        "array",
+					Description: "List of actions (e.g., read, create, update, delete)",
+					Items: &jsonschema.Schema{
+						Type: "string",
+					},
+				},
+				"scopes": {
+					Type:        "array",
+					Description: "List of scopes (resource kinds the role applies to, must not be global scopes)",
+					Items: &jsonschema.Schema{
+						Type: "string",
+					},
+				},
+			},
+			Required: []string{"project", "name", "actions", "scopes"},
+		},
+		Annotations: &mcp.ToolAnnotations{
+			DestructiveHint: jsonschema.Ptr(false),
+			IdempotentHint:  true,
+			OpenWorldHint:   jsonschema.Ptr(false),
+			ReadOnlyHint:    false,
+			Title:           "Creates a project role in Perses",
+		},
+	}
+
+	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input CreateProjectRoleInput) (*mcp.CallToolResult, any, error) {
+		actions := make([]roleModel.Action, len(input.Actions))
+		for i, a := range input.Actions {
+			actions[i] = roleModel.Action(a)
+		}
+		scopes := make([]roleModel.Scope, len(input.Scopes))
+		for i, s := range input.Scopes {
+			scopes[i] = roleModel.Scope(s)
+		}
+
+		roleObj := &v1.Role{
+			Kind: v1.KindRole,
+			Metadata: v1.ProjectMetadata{
+				Metadata: v1.Metadata{
+					Name: input.Name,
+				},
+				ProjectMetadataWrapper: v1.ProjectMetadataWrapper{
+					Project: input.Project,
+				},
+			},
+			Spec: v1.RoleSpec{
+				Permissions: []roleModel.Permission{
+					{
+						Actions: actions,
+						Scopes:  scopes,
+					},
+				},
+			},
+		}
+
+		result, err := r.client.Role(input.Project).Create(roleObj)
+		if err != nil {
+			return nil, nil, fmt.Errorf("error creating role '%s' in project '%s': %w", input.Name, input.Project, err)
+		}
+
+		resultJSON, err := json.Marshal(result)
+		if err != nil {
+			return nil, nil, fmt.Errorf("error marshalling created role: %w", err)
+		}
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: string(resultJSON),
+				},
+			},
+		}, nil, nil
+	}
+
+	return &tools.Tool{
+		MCPTool:      tool,
+		IsWriteTool:  true,
+		ResourceType: tools.RoleResource,
+		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, tool, handler) },
+	}
 }
 
-// Update is not yet implemented for project role
+type UpdateProjectRoleInput struct {
+	Project string   `json:"project" jsonschema:"Project name"`
+	Name    string   `json:"name" jsonschema:"Role name"`
+	Actions []string `json:"actions" jsonschema:"List of actions (e.g., read, create, update, delete)"`
+	Scopes  []string `json:"scopes" jsonschema:"List of scopes (resource kinds the role applies to, must not be global scopes)"`
+}
+
 func (r *role) Update() *tools.Tool {
-	return nil
+	tool := &mcp.Tool{
+		Name:        "perses_update_project_role",
+		Description: "Update an existing project role with specified permissions",
+		InputSchema: &jsonschema.Schema{
+			Type: "object",
+			Properties: map[string]*jsonschema.Schema{
+				"project": {
+					Type:        "string",
+					Description: "Project name",
+					MinLength:   jsonschema.Ptr(1),
+					MaxLength:   jsonschema.Ptr(75),
+					Pattern:     "^[a-zA-Z0-9_.-]+$",
+				},
+				"name": {
+					Type:        "string",
+					Description: "Role name",
+					MinLength:   jsonschema.Ptr(1),
+					MaxLength:   jsonschema.Ptr(75),
+					Pattern:     "^[a-zA-Z0-9_.-]+$",
+				},
+				"actions": {
+					Type:        "array",
+					Description: "List of actions (e.g., read, create, update, delete)",
+					Items: &jsonschema.Schema{
+						Type: "string",
+					},
+				},
+				"scopes": {
+					Type:        "array",
+					Description: "List of scopes (resource kinds the role applies to, must not be global scopes)",
+					Items: &jsonschema.Schema{
+						Type: "string",
+					},
+				},
+			},
+			Required: []string{"project", "name", "actions", "scopes"},
+		},
+		Annotations: &mcp.ToolAnnotations{
+			DestructiveHint: jsonschema.Ptr(false),
+			IdempotentHint:  true,
+			OpenWorldHint:   jsonschema.Ptr(false),
+			ReadOnlyHint:    false,
+			Title:           "Updates an existing project role in Perses",
+		},
+	}
+
+	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input UpdateProjectRoleInput) (*mcp.CallToolResult, any, error) {
+		actions := make([]roleModel.Action, len(input.Actions))
+		for i, a := range input.Actions {
+			actions[i] = roleModel.Action(a)
+		}
+		scopes := make([]roleModel.Scope, len(input.Scopes))
+		for i, s := range input.Scopes {
+			scopes[i] = roleModel.Scope(s)
+		}
+
+		roleObj := &v1.Role{
+			Kind: v1.KindRole,
+			Metadata: v1.ProjectMetadata{
+				Metadata: v1.Metadata{
+					Name: input.Name,
+				},
+				ProjectMetadataWrapper: v1.ProjectMetadataWrapper{
+					Project: input.Project,
+				},
+			},
+			Spec: v1.RoleSpec{
+				Permissions: []roleModel.Permission{
+					{
+						Actions: actions,
+						Scopes:  scopes,
+					},
+				},
+			},
+		}
+
+		result, err := r.client.Role(input.Project).Update(roleObj)
+		if err != nil {
+			return nil, nil, fmt.Errorf("error updating role '%s' in project '%s': %w", input.Name, input.Project, err)
+		}
+
+		resultJSON, err := json.Marshal(result)
+		if err != nil {
+			return nil, nil, fmt.Errorf("error marshalling updated role: %w", err)
+		}
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: string(resultJSON),
+				},
+			},
+		}, nil, nil
+	}
+
+	return &tools.Tool{
+		MCPTool:      tool,
+		IsWriteTool:  true,
+		ResourceType: tools.RoleResource,
+		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, tool, handler) },
+	}
 }
 
-// Delete is not yet implemented for project role
+type DeleteProjectRoleInput struct {
+	Project string `json:"project" jsonschema:"Project name"`
+	Name    string `json:"name" jsonschema:"Role name to delete"`
+}
+
 func (r *role) Delete() *tools.Tool {
-	return nil
+	tool := &mcp.Tool{
+		Name:        "perses_delete_project_role",
+		Description: "Delete a project role",
+		InputSchema: &jsonschema.Schema{
+			Type: "object",
+			Properties: map[string]*jsonschema.Schema{
+				"project": {
+					Type:        "string",
+					Description: "Project name",
+					MinLength:   jsonschema.Ptr(1),
+					MaxLength:   jsonschema.Ptr(75),
+					Pattern:     "^[a-zA-Z0-9_.-]+$",
+				},
+				"name": {
+					Type:        "string",
+					Description: "Role name",
+					MinLength:   jsonschema.Ptr(1),
+					MaxLength:   jsonschema.Ptr(75),
+					Pattern:     "^[a-zA-Z0-9_.-]+$",
+				},
+			},
+			Required: []string{"project", "name"},
+		},
+		Annotations: &mcp.ToolAnnotations{
+			DestructiveHint: jsonschema.Ptr(true),
+			IdempotentHint:  true,
+			OpenWorldHint:   jsonschema.Ptr(false),
+			ReadOnlyHint:    false,
+			Title:           "Deletes a project role in Perses",
+		},
+	}
+
+	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input DeleteProjectRoleInput) (*mcp.CallToolResult, any, error) {
+		err := r.client.Role(input.Project).Delete(input.Name)
+		if err != nil {
+			return nil, nil, fmt.Errorf("error deleting role '%s' in project '%s': %w", input.Name, input.Project, err)
+		}
+
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: fmt.Sprintf("Role '%s' deleted successfully from project '%s'", input.Name, input.Project),
+				},
+			},
+		}, nil, nil
+	}
+
+	return &tools.Tool{
+		MCPTool:      tool,
+		IsWriteTool:  true,
+		ResourceType: tools.RoleResource,
+		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, tool, handler) },
+	}
 }

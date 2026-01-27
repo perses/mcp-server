@@ -23,6 +23,8 @@ import (
 	"github.com/perses/mcp-server/pkg/tools"
 	"github.com/perses/mcp-server/pkg/tools/resource"
 	apiClient "github.com/perses/perses/pkg/client/api/v1"
+	v1 "github.com/perses/perses/pkg/model/api/v1"
+	"github.com/perses/perses/pkg/model/api/v1/role"
 )
 
 type globalRole struct {
@@ -39,6 +41,9 @@ func (g *globalRole) GetTools() []*tools.Tool {
 	return []*tools.Tool{
 		g.List(),
 		g.Get(),
+		g.Create(),
+		g.Update(),
+		g.Delete(),
 	}
 }
 
@@ -139,17 +144,249 @@ func (g *globalRole) Get() *tools.Tool {
 	}
 }
 
-// Create is not yet implemented for global role
+type CreateGlobalRoleInput struct {
+	Name    string   `json:"name" jsonschema:"Global Role name"`
+	Actions []string `json:"actions" jsonschema:"List of actions (e.g., read, create, update, delete)"`
+	Scopes  []string `json:"scopes" jsonschema:"List of scopes (resource kinds the role applies to)"`
+}
+
 func (g *globalRole) Create() *tools.Tool {
-	return nil
+	tool := &mcp.Tool{
+		Name:        "perses_create_global_role",
+		Description: "Create a global role with specified permissions",
+		InputSchema: &jsonschema.Schema{
+			Type: "object",
+			Properties: map[string]*jsonschema.Schema{
+				"name": {
+					Type:        "string",
+					Description: "Global Role name",
+					MinLength:   jsonschema.Ptr(1),
+					MaxLength:   jsonschema.Ptr(75),
+					Pattern:     "^[a-zA-Z0-9_.-]+$",
+				},
+				"actions": {
+					Type:        "array",
+					Description: "List of actions (e.g., read, create, update, delete)",
+					Items: &jsonschema.Schema{
+						Type: "string",
+					},
+				},
+				"scopes": {
+					Type:        "array",
+					Description: "List of scopes (resource kinds the role applies to)",
+					Items: &jsonschema.Schema{
+						Type: "string",
+					},
+				},
+			},
+			Required: []string{"name", "actions", "scopes"},
+		},
+		Annotations: &mcp.ToolAnnotations{
+			DestructiveHint: jsonschema.Ptr(false),
+			IdempotentHint:  true,
+			OpenWorldHint:   jsonschema.Ptr(false),
+			ReadOnlyHint:    false,
+			Title:           "Creates a global role in Perses",
+		},
+	}
+
+	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input CreateGlobalRoleInput) (*mcp.CallToolResult, any, error) {
+		actions := make([]role.Action, len(input.Actions))
+		for i, a := range input.Actions {
+			actions[i] = role.Action(a)
+		}
+		scopes := make([]role.Scope, len(input.Scopes))
+		for i, s := range input.Scopes {
+			scopes[i] = role.Scope(s)
+		}
+
+		globalRoleObj := &v1.GlobalRole{
+			Kind: v1.KindGlobalRole,
+			Metadata: v1.Metadata{
+				Name: input.Name,
+			},
+			Spec: v1.RoleSpec{
+				Permissions: []role.Permission{
+					{
+						Actions: actions,
+						Scopes:  scopes,
+					},
+				},
+			},
+		}
+
+		result, err := g.client.GlobalRole().Create(globalRoleObj)
+		if err != nil {
+			return nil, nil, fmt.Errorf("error creating global role '%s': %w", input.Name, err)
+		}
+
+		resultJSON, err := json.Marshal(result)
+		if err != nil {
+			return nil, nil, fmt.Errorf("error marshalling created global role: %w", err)
+		}
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: string(resultJSON),
+				},
+			},
+		}, nil, nil
+	}
+
+	return &tools.Tool{
+		MCPTool:      tool,
+		IsWriteTool:  true,
+		ResourceType: tools.GlobalRoleResource,
+		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, tool, handler) },
+	}
 }
 
-// Update is not yet implemented for global role
+type UpdateGlobalRoleInput struct {
+	Name    string   `json:"name" jsonschema:"Global Role name"`
+	Actions []string `json:"actions" jsonschema:"List of actions (e.g., read, create, update, delete)"`
+	Scopes  []string `json:"scopes" jsonschema:"List of scopes (resource kinds the role applies to)"`
+}
+
 func (g *globalRole) Update() *tools.Tool {
-	return nil
+	tool := &mcp.Tool{
+		Name:        "perses_update_global_role",
+		Description: "Update an existing global role with specified permissions",
+		InputSchema: &jsonschema.Schema{
+			Type: "object",
+			Properties: map[string]*jsonschema.Schema{
+				"name": {
+					Type:        "string",
+					Description: "Global Role name",
+					MinLength:   jsonschema.Ptr(1),
+					MaxLength:   jsonschema.Ptr(75),
+					Pattern:     "^[a-zA-Z0-9_.-]+$",
+				},
+				"actions": {
+					Type:        "array",
+					Description: "List of actions (e.g., read, create, update, delete)",
+					Items: &jsonschema.Schema{
+						Type: "string",
+					},
+				},
+				"scopes": {
+					Type:        "array",
+					Description: "List of scopes (resource kinds the role applies to)",
+					Items: &jsonschema.Schema{
+						Type: "string",
+					},
+				},
+			},
+			Required: []string{"name", "actions", "scopes"},
+		},
+		Annotations: &mcp.ToolAnnotations{
+			DestructiveHint: jsonschema.Ptr(false),
+			IdempotentHint:  true,
+			OpenWorldHint:   jsonschema.Ptr(false),
+			ReadOnlyHint:    false,
+			Title:           "Updates an existing global role in Perses",
+		},
+	}
+
+	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input UpdateGlobalRoleInput) (*mcp.CallToolResult, any, error) {
+		actions := make([]role.Action, len(input.Actions))
+		for i, a := range input.Actions {
+			actions[i] = role.Action(a)
+		}
+		scopes := make([]role.Scope, len(input.Scopes))
+		for i, s := range input.Scopes {
+			scopes[i] = role.Scope(s)
+		}
+
+		globalRoleObj := &v1.GlobalRole{
+			Kind: v1.KindGlobalRole,
+			Metadata: v1.Metadata{
+				Name: input.Name,
+			},
+			Spec: v1.RoleSpec{
+				Permissions: []role.Permission{
+					{
+						Actions: actions,
+						Scopes:  scopes,
+					},
+				},
+			},
+		}
+
+		result, err := g.client.GlobalRole().Update(globalRoleObj)
+		if err != nil {
+			return nil, nil, fmt.Errorf("error updating global role '%s': %w", input.Name, err)
+		}
+
+		resultJSON, err := json.Marshal(result)
+		if err != nil {
+			return nil, nil, fmt.Errorf("error marshalling updated global role: %w", err)
+		}
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: string(resultJSON),
+				},
+			},
+		}, nil, nil
+	}
+
+	return &tools.Tool{
+		MCPTool:      tool,
+		IsWriteTool:  true,
+		ResourceType: tools.GlobalRoleResource,
+		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, tool, handler) },
+	}
 }
 
-// Delete is not yet implemented for global role
+type DeleteGlobalRoleInput struct {
+	Name string `json:"name" jsonschema:"Global Role name to delete"`
+}
+
 func (g *globalRole) Delete() *tools.Tool {
-	return nil
+	tool := &mcp.Tool{
+		Name:        "perses_delete_global_role",
+		Description: "Delete a global role",
+		InputSchema: &jsonschema.Schema{
+			Type: "object",
+			Properties: map[string]*jsonschema.Schema{
+				"name": {
+					Type:        "string",
+					Description: "Global Role name",
+					MinLength:   jsonschema.Ptr(1),
+					MaxLength:   jsonschema.Ptr(75),
+					Pattern:     "^[a-zA-Z0-9_.-]+$",
+				},
+			},
+			Required: []string{"name"},
+		},
+		Annotations: &mcp.ToolAnnotations{
+			DestructiveHint: jsonschema.Ptr(true),
+			IdempotentHint:  true,
+			OpenWorldHint:   jsonschema.Ptr(false),
+			ReadOnlyHint:    false,
+			Title:           "Deletes a global role in Perses",
+		},
+	}
+
+	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input DeleteGlobalRoleInput) (*mcp.CallToolResult, any, error) {
+		err := g.client.GlobalRole().Delete(input.Name)
+		if err != nil {
+			return nil, nil, fmt.Errorf("error deleting global role '%s': %w", input.Name, err)
+		}
+
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: fmt.Sprintf("Global role '%s' deleted successfully", input.Name),
+				},
+			},
+		}, nil, nil
+	}
+
+	return &tools.Tool{
+		MCPTool:      tool,
+		IsWriteTool:  true,
+		ResourceType: tools.GlobalRoleResource,
+		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, tool, handler) },
+	}
 }

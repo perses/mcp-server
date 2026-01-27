@@ -41,6 +41,8 @@ func (d *dashboard) GetTools() []*tools.Tool {
 		d.List(),
 		d.Get(),
 		d.Create(),
+		d.Update(),
+		d.Delete(),
 	}
 }
 
@@ -223,12 +225,130 @@ func (d *dashboard) Create() *tools.Tool {
 	}
 }
 
-// Update is not yet implemented for dashboard
-func (d *dashboard) Update() *tools.Tool {
-	return nil
+type UpdateDashboardInput struct {
+	Project   string `json:"project" jsonschema:"Project name to update the dashboard in"`
+	Dashboard string `json:"dashboard" jsonschema:"Dashboard JSON as string"`
 }
 
-// Delete is not yet implemented for dashboard
+func (d *dashboard) Update() *tools.Tool {
+	tool := &mcp.Tool{
+		Name:        "perses_update_dashboard",
+		Description: "Update an existing dashboard in a specific project",
+		InputSchema: &jsonschema.Schema{
+			Type: "object",
+			Properties: map[string]*jsonschema.Schema{
+				"project": {
+					Type:        "string",
+					Description: "Project name",
+					MinLength:   jsonschema.Ptr(1),
+					MaxLength:   jsonschema.Ptr(75),
+					Pattern:     "^[a-zA-Z0-9_.-]+$",
+				},
+				"dashboard": {
+					Type:        "string",
+					Description: "Dashboard JSON as string",
+				},
+			},
+			Required: []string{"project", "dashboard"},
+		},
+		Annotations: &mcp.ToolAnnotations{
+			DestructiveHint: jsonschema.Ptr(false),
+			IdempotentHint:  true,
+			OpenWorldHint:   jsonschema.Ptr(false),
+			ReadOnlyHint:    false,
+			Title:           "Updates an existing dashboard in a specific project in Perses",
+		},
+	}
+
+	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input UpdateDashboardInput) (*mcp.CallToolResult, any, error) {
+		var dashboardObj v1.Dashboard
+		if err := json.Unmarshal([]byte(input.Dashboard), &dashboardObj); err != nil {
+			return nil, nil, fmt.Errorf("invalid dashboard JSON: %w", err)
+		}
+
+		updatedDashboard, err := d.client.Dashboard(input.Project).Update(&dashboardObj)
+		if err != nil {
+			return nil, nil, fmt.Errorf("error updating dashboard in project '%s': %w", input.Project, err)
+		}
+
+		dashboardJSON, err := json.Marshal(updatedDashboard)
+		if err != nil {
+			return nil, nil, fmt.Errorf("error marshalling updated dashboard: %w", err)
+		}
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: string(dashboardJSON),
+				},
+			},
+		}, nil, nil
+	}
+
+	return &tools.Tool{
+		MCPTool:      tool,
+		IsWriteTool:  true,
+		ResourceType: tools.DashboardResource,
+		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, tool, handler) },
+	}
+}
+
+type DeleteDashboardInput struct {
+	Project string `json:"project" jsonschema:"Project name"`
+	Name    string `json:"name" jsonschema:"Dashboard name to delete"`
+}
+
 func (d *dashboard) Delete() *tools.Tool {
-	return nil
+	tool := &mcp.Tool{
+		Name:        "perses_delete_dashboard",
+		Description: "Delete a dashboard from a specific project",
+		InputSchema: &jsonschema.Schema{
+			Type: "object",
+			Properties: map[string]*jsonschema.Schema{
+				"project": {
+					Type:        "string",
+					Description: "Project name",
+					MinLength:   jsonschema.Ptr(1),
+					MaxLength:   jsonschema.Ptr(75),
+					Pattern:     "^[a-zA-Z0-9_.-]+$",
+				},
+				"name": {
+					Type:        "string",
+					Description: "Dashboard name",
+					MinLength:   jsonschema.Ptr(1),
+					MaxLength:   jsonschema.Ptr(75),
+					Pattern:     "^[a-zA-Z0-9_.-]+$",
+				},
+			},
+			Required: []string{"project", "name"},
+		},
+		Annotations: &mcp.ToolAnnotations{
+			DestructiveHint: jsonschema.Ptr(true),
+			IdempotentHint:  true,
+			OpenWorldHint:   jsonschema.Ptr(false),
+			ReadOnlyHint:    false,
+			Title:           "Deletes a dashboard from a specific project in Perses",
+		},
+	}
+
+	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input DeleteDashboardInput) (*mcp.CallToolResult, any, error) {
+		err := d.client.Dashboard(input.Project).Delete(input.Name)
+		if err != nil {
+			return nil, nil, fmt.Errorf("error deleting dashboard '%s' in project '%s': %w", input.Name, input.Project, err)
+		}
+
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: fmt.Sprintf("Dashboard '%s' deleted successfully from project '%s'", input.Name, input.Project),
+				},
+			},
+		}, nil, nil
+	}
+
+	return &tools.Tool{
+		MCPTool:      tool,
+		IsWriteTool:  true,
+		ResourceType: tools.DashboardResource,
+		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, tool, handler) },
+	}
 }

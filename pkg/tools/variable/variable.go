@@ -42,6 +42,8 @@ func (v *projectVariable) GetTools() []*tools.Tool {
 		v.List(),
 		v.Get(),
 		v.Create(),
+		v.Update(),
+		v.Delete(),
 	}
 }
 
@@ -251,12 +253,152 @@ func (v *projectVariable) Create() *tools.Tool {
 	}
 }
 
-// Update is not yet implemented for project variable
-func (v *projectVariable) Update() *tools.Tool {
-	return nil
+type UpdateProjectVariableInput struct {
+	Name    string `json:"name" jsonschema:"Variable name"`
+	Project string `json:"project" jsonschema:"Project name"`
+	Value   string `json:"value" jsonschema:"Variable value (for TextVariable)"`
 }
 
-// Delete is not yet implemented for project variable
+func (v *projectVariable) Update() *tools.Tool {
+	tool := &mcp.Tool{
+		Name:        "perses_update_project_variable",
+		Description: "Update an existing project level variable (TextVariable type)",
+		Annotations: &mcp.ToolAnnotations{
+			Title:           "Updates a project level variable in Perses",
+			ReadOnlyHint:    false,
+			DestructiveHint: jsonschema.Ptr(false),
+			IdempotentHint:  true,
+			OpenWorldHint:   jsonschema.Ptr(false),
+		},
+		InputSchema: &jsonschema.Schema{
+			Type: "object",
+			Properties: map[string]*jsonschema.Schema{
+				"name": {
+					Type:        "string",
+					Description: "Variable name",
+					MinLength:   jsonschema.Ptr(1),
+					MaxLength:   jsonschema.Ptr(75),
+					Pattern:     "^[a-zA-Z0-9_.-]+$",
+				},
+				"project": {
+					Type:        "string",
+					Description: "Project name",
+					MinLength:   jsonschema.Ptr(1),
+					MaxLength:   jsonschema.Ptr(75),
+					Pattern:     "^[a-zA-Z0-9_.-]+$",
+				},
+				"value": {
+					Type:        "string",
+					Description: "Variable value",
+				},
+			},
+			Required: []string{"name", "project", "value"},
+		},
+	}
+
+	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input UpdateProjectVariableInput) (*mcp.CallToolResult, any, error) {
+		projectVar := &v1.Variable{
+			Kind: v1.KindVariable,
+			Metadata: v1.ProjectMetadata{
+				Metadata: v1.Metadata{
+					Name: input.Name,
+				},
+				ProjectMetadataWrapper: v1.ProjectMetadataWrapper{
+					Project: input.Project,
+				},
+			},
+			Spec: v1.VariableSpec{
+				Kind: variable.KindText,
+				Spec: &variable.TextSpec{
+					Value: input.Value,
+				},
+			},
+		}
+
+		result, err := v.client.Variable(input.Project).Update(projectVar)
+		if err != nil {
+			return nil, nil, fmt.Errorf("error updating variable '%s' in project '%s': %w", input.Name, input.Project, err)
+		}
+
+		resultJSON, err := json.Marshal(result)
+		if err != nil {
+			return nil, nil, fmt.Errorf("error marshalling updated variable: %w", err)
+		}
+
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: string(resultJSON),
+				},
+			},
+		}, nil, nil
+	}
+
+	return &tools.Tool{
+		MCPTool:      tool,
+		IsWriteTool:  true,
+		ResourceType: tools.VariableResource,
+		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, tool, handler) },
+	}
+}
+
+type DeleteProjectVariableInput struct {
+	Name    string `json:"name" jsonschema:"Variable name to delete"`
+	Project string `json:"project" jsonschema:"Project name"`
+}
+
 func (v *projectVariable) Delete() *tools.Tool {
-	return nil
+	tool := &mcp.Tool{
+		Name:        "perses_delete_project_variable",
+		Description: "Delete a project level variable",
+		Annotations: &mcp.ToolAnnotations{
+			Title:           "Deletes a project level variable in Perses",
+			ReadOnlyHint:    false,
+			DestructiveHint: jsonschema.Ptr(true),
+			IdempotentHint:  true,
+			OpenWorldHint:   jsonschema.Ptr(false),
+		},
+		InputSchema: &jsonschema.Schema{
+			Type: "object",
+			Properties: map[string]*jsonschema.Schema{
+				"name": {
+					Type:        "string",
+					Description: "Variable name",
+					MinLength:   jsonschema.Ptr(1),
+					MaxLength:   jsonschema.Ptr(75),
+					Pattern:     "^[a-zA-Z0-9_.-]+$",
+				},
+				"project": {
+					Type:        "string",
+					Description: "Project name",
+					MinLength:   jsonschema.Ptr(1),
+					MaxLength:   jsonschema.Ptr(75),
+					Pattern:     "^[a-zA-Z0-9_.-]+$",
+				},
+			},
+			Required: []string{"name", "project"},
+		},
+	}
+
+	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input DeleteProjectVariableInput) (*mcp.CallToolResult, any, error) {
+		err := v.client.Variable(input.Project).Delete(input.Name)
+		if err != nil {
+			return nil, nil, fmt.Errorf("error deleting variable '%s' in project '%s': %w", input.Name, input.Project, err)
+		}
+
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: fmt.Sprintf("Variable '%s' deleted successfully from project '%s'", input.Name, input.Project),
+				},
+			},
+		}, nil, nil
+	}
+
+	return &tools.Tool{
+		MCPTool:      tool,
+		IsWriteTool:  true,
+		ResourceType: tools.VariableResource,
+		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, tool, handler) },
+	}
 }

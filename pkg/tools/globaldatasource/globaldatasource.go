@@ -45,6 +45,7 @@ func (g *globalDatasource) GetTools() []*tools.Tool {
 		g.Get(),
 		g.Create(),
 		g.Update(),
+		g.Delete(),
 	}
 }
 
@@ -406,7 +407,55 @@ func (g *globalDatasource) Update() *tools.Tool {
 	}
 }
 
-// Delete is not yet implemented for global datasource
+type DeleteGlobalDatasourceInput struct {
+	Name string `json:"name" jsonschema:"Global Datasource name to delete"`
+}
+
 func (g *globalDatasource) Delete() *tools.Tool {
-	return nil
+	tool := &mcp.Tool{
+		Name:        "perses_delete_global_datasource",
+		Description: "Delete a global datasource",
+		Annotations: &mcp.ToolAnnotations{
+			Title:           "Deletes a global datasource in Perses",
+			ReadOnlyHint:    false,
+			DestructiveHint: jsonschema.Ptr(true),
+			IdempotentHint:  true,
+			OpenWorldHint:   jsonschema.Ptr(false),
+		},
+		InputSchema: &jsonschema.Schema{
+			Type: "object",
+			Properties: map[string]*jsonschema.Schema{
+				"name": {
+					Type:        "string",
+					Description: "Global Datasource name",
+					MinLength:   jsonschema.Ptr(1),
+					MaxLength:   jsonschema.Ptr(75),
+					Pattern:     "^[a-zA-Z0-9_.-]+$",
+				},
+			},
+			Required: []string{"name"},
+		},
+	}
+
+	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input DeleteGlobalDatasourceInput) (*mcp.CallToolResult, any, error) {
+		err := g.client.GlobalDatasource().Delete(input.Name)
+		if err != nil {
+			return nil, nil, fmt.Errorf("error deleting global datasource '%s': %w", input.Name, err)
+		}
+
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: fmt.Sprintf("Global datasource '%s' deleted successfully", input.Name),
+				},
+			},
+		}, nil, nil
+	}
+
+	return &tools.Tool{
+		MCPTool:      tool,
+		IsWriteTool:  true,
+		ResourceType: tools.GlobalDatasourceResource,
+		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, tool, handler) },
+	}
 }

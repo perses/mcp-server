@@ -23,6 +23,8 @@ import (
 	"github.com/perses/mcp-server/pkg/tools"
 	"github.com/perses/mcp-server/pkg/tools/resource"
 	apiClient "github.com/perses/perses/pkg/client/api/v1"
+	v1 "github.com/perses/perses/pkg/model/api/v1"
+	"github.com/perses/perses/pkg/model/api/v1/variable"
 )
 
 type globalVariable struct {
@@ -39,6 +41,9 @@ func (g *globalVariable) GetTools() []*tools.Tool {
 	return []*tools.Tool{
 		g.List(),
 		g.Get(),
+		g.Create(),
+		g.Update(),
+		g.Delete(),
 	}
 }
 
@@ -139,17 +144,205 @@ func (g *globalVariable) Get() *tools.Tool {
 	}
 }
 
-// Create is not yet implemented for global variable
+type CreateGlobalVariableInput struct {
+	Name  string `json:"name" jsonschema:"Global Variable name"`
+	Value string `json:"value" jsonschema:"Variable value (for TextVariable)"`
+}
+
 func (g *globalVariable) Create() *tools.Tool {
-	return nil
+	tool := &mcp.Tool{
+		Name:        "perses_create_global_variable",
+		Description: "Create a global variable (TextVariable type)",
+		InputSchema: &jsonschema.Schema{
+			Type: "object",
+			Properties: map[string]*jsonschema.Schema{
+				"name": {
+					Type:        "string",
+					Description: "Global Variable name",
+					MinLength:   jsonschema.Ptr(1),
+					MaxLength:   jsonschema.Ptr(75),
+					Pattern:     "^[a-zA-Z0-9_.-]+$",
+				},
+				"value": {
+					Type:        "string",
+					Description: "Variable value",
+				},
+			},
+			Required: []string{"name", "value"},
+		},
+		Annotations: &mcp.ToolAnnotations{
+			DestructiveHint: jsonschema.Ptr(false),
+			IdempotentHint:  true,
+			OpenWorldHint:   jsonschema.Ptr(false),
+			ReadOnlyHint:    false,
+			Title:           "Creates a global variable in Perses",
+		},
+	}
+
+	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input CreateGlobalVariableInput) (*mcp.CallToolResult, any, error) {
+		globalVar := &v1.GlobalVariable{
+			Kind: v1.KindGlobalVariable,
+			Metadata: v1.Metadata{
+				Name: input.Name,
+			},
+			Spec: v1.VariableSpec{
+				Kind: variable.KindText,
+				Spec: &variable.TextSpec{
+					Value: input.Value,
+				},
+			},
+		}
+
+		result, err := g.client.GlobalVariable().Create(globalVar)
+		if err != nil {
+			return nil, nil, fmt.Errorf("error creating global variable '%s': %w", input.Name, err)
+		}
+
+		resultJSON, err := json.Marshal(result)
+		if err != nil {
+			return nil, nil, fmt.Errorf("error marshalling created global variable: %w", err)
+		}
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: string(resultJSON),
+				},
+			},
+		}, nil, nil
+	}
+
+	return &tools.Tool{
+		MCPTool:      tool,
+		IsWriteTool:  true,
+		ResourceType: tools.GlobalVariableResource,
+		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, tool, handler) },
+	}
 }
 
-// Update is not yet implemented for global variable
+type UpdateGlobalVariableInput struct {
+	Name  string `json:"name" jsonschema:"Global Variable name"`
+	Value string `json:"value" jsonschema:"Variable value (for TextVariable)"`
+}
+
 func (g *globalVariable) Update() *tools.Tool {
-	return nil
+	tool := &mcp.Tool{
+		Name:        "perses_update_global_variable",
+		Description: "Update an existing global variable (TextVariable type)",
+		InputSchema: &jsonschema.Schema{
+			Type: "object",
+			Properties: map[string]*jsonschema.Schema{
+				"name": {
+					Type:        "string",
+					Description: "Global Variable name",
+					MinLength:   jsonschema.Ptr(1),
+					MaxLength:   jsonschema.Ptr(75),
+					Pattern:     "^[a-zA-Z0-9_.-]+$",
+				},
+				"value": {
+					Type:        "string",
+					Description: "Variable value",
+				},
+			},
+			Required: []string{"name", "value"},
+		},
+		Annotations: &mcp.ToolAnnotations{
+			DestructiveHint: jsonschema.Ptr(false),
+			IdempotentHint:  true,
+			OpenWorldHint:   jsonschema.Ptr(false),
+			ReadOnlyHint:    false,
+			Title:           "Updates an existing global variable in Perses",
+		},
+	}
+
+	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input UpdateGlobalVariableInput) (*mcp.CallToolResult, any, error) {
+		globalVar := &v1.GlobalVariable{
+			Kind: v1.KindGlobalVariable,
+			Metadata: v1.Metadata{
+				Name: input.Name,
+			},
+			Spec: v1.VariableSpec{
+				Kind: variable.KindText,
+				Spec: &variable.TextSpec{
+					Value: input.Value,
+				},
+			},
+		}
+
+		result, err := g.client.GlobalVariable().Update(globalVar)
+		if err != nil {
+			return nil, nil, fmt.Errorf("error updating global variable '%s': %w", input.Name, err)
+		}
+
+		resultJSON, err := json.Marshal(result)
+		if err != nil {
+			return nil, nil, fmt.Errorf("error marshalling updated global variable: %w", err)
+		}
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: string(resultJSON),
+				},
+			},
+		}, nil, nil
+	}
+
+	return &tools.Tool{
+		MCPTool:      tool,
+		IsWriteTool:  true,
+		ResourceType: tools.GlobalVariableResource,
+		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, tool, handler) },
+	}
 }
 
-// Delete is not yet implemented for global variable
+type DeleteGlobalVariableInput struct {
+	Name string `json:"name" jsonschema:"Global Variable name to delete"`
+}
+
 func (g *globalVariable) Delete() *tools.Tool {
-	return nil
+	tool := &mcp.Tool{
+		Name:        "perses_delete_global_variable",
+		Description: "Delete a global variable",
+		InputSchema: &jsonschema.Schema{
+			Type: "object",
+			Properties: map[string]*jsonschema.Schema{
+				"name": {
+					Type:        "string",
+					Description: "Global Variable name",
+					MinLength:   jsonschema.Ptr(1),
+					MaxLength:   jsonschema.Ptr(75),
+					Pattern:     "^[a-zA-Z0-9_.-]+$",
+				},
+			},
+			Required: []string{"name"},
+		},
+		Annotations: &mcp.ToolAnnotations{
+			DestructiveHint: jsonschema.Ptr(true),
+			IdempotentHint:  true,
+			OpenWorldHint:   jsonschema.Ptr(false),
+			ReadOnlyHint:    false,
+			Title:           "Deletes a global variable in Perses",
+		},
+	}
+
+	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input DeleteGlobalVariableInput) (*mcp.CallToolResult, any, error) {
+		err := g.client.GlobalVariable().Delete(input.Name)
+		if err != nil {
+			return nil, nil, fmt.Errorf("error deleting global variable '%s': %w", input.Name, err)
+		}
+
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: fmt.Sprintf("Global variable '%s' deleted successfully", input.Name),
+				},
+			},
+		}, nil, nil
+	}
+
+	return &tools.Tool{
+		MCPTool:      tool,
+		IsWriteTool:  true,
+		ResourceType: tools.GlobalVariableResource,
+		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, tool, handler) },
+	}
 }

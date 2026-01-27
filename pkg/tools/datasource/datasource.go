@@ -23,6 +23,7 @@ import (
 	"github.com/perses/mcp-server/pkg/tools"
 	"github.com/perses/mcp-server/pkg/tools/resource"
 	apiClient "github.com/perses/perses/pkg/client/api/v1"
+	v1 "github.com/perses/perses/pkg/model/api/v1"
 )
 
 type datasource struct {
@@ -39,6 +40,9 @@ func (d *datasource) GetTools() []*tools.Tool {
 	return []*tools.Tool{
 		d.List(),
 		d.Get(),
+		d.Create(),
+		d.Update(),
+		d.Delete(),
 	}
 }
 
@@ -164,17 +168,197 @@ func (d *datasource) Get() *tools.Tool {
 	}
 }
 
-// Create is not yet implemented for project datasource
+type CreateDatasourceInput struct {
+	Project    string `json:"project" jsonschema:"Project name to create the datasource in"`
+	Datasource string `json:"datasource" jsonschema:"Datasource JSON as string"`
+}
+
 func (d *datasource) Create() *tools.Tool {
-	return nil
+	tool := &mcp.Tool{
+		Name:        "perses_create_project_datasource",
+		Description: "Create a new datasource in a specific project",
+		InputSchema: &jsonschema.Schema{
+			Type: "object",
+			Properties: map[string]*jsonschema.Schema{
+				"project": {
+					Type:        "string",
+					Description: "Project name",
+					MinLength:   jsonschema.Ptr(1),
+					MaxLength:   jsonschema.Ptr(75),
+					Pattern:     "^[a-zA-Z0-9_.-]+$",
+				},
+				"datasource": {
+					Type:        "string",
+					Description: "Datasource JSON as string",
+				},
+			},
+			Required: []string{"project", "datasource"},
+		},
+		Annotations: &mcp.ToolAnnotations{
+			DestructiveHint: jsonschema.Ptr(false),
+			IdempotentHint:  true,
+			OpenWorldHint:   jsonschema.Ptr(false),
+			ReadOnlyHint:    false,
+			Title:           "Creates a new datasource in a specific project in Perses",
+		},
+	}
+
+	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input CreateDatasourceInput) (*mcp.CallToolResult, any, error) {
+		var datasourceObj v1.Datasource
+		if err := json.Unmarshal([]byte(input.Datasource), &datasourceObj); err != nil {
+			return nil, nil, fmt.Errorf("invalid datasource JSON: %w", err)
+		}
+
+		createdDatasource, err := d.client.Datasource(input.Project).Create(&datasourceObj)
+		if err != nil {
+			return nil, nil, fmt.Errorf("error creating datasource in project '%s': %w", input.Project, err)
+		}
+
+		datasourceJSON, err := json.Marshal(createdDatasource)
+		if err != nil {
+			return nil, nil, fmt.Errorf("error marshalling created datasource: %w", err)
+		}
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: string(datasourceJSON),
+				},
+			},
+		}, nil, nil
+	}
+
+	return &tools.Tool{
+		MCPTool:      tool,
+		IsWriteTool:  true,
+		ResourceType: tools.DatasourceResource,
+		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, tool, handler) },
+	}
 }
 
-// Update is not yet implemented for project datasource
+type UpdateDatasourceInput struct {
+	Project    string `json:"project" jsonschema:"Project name to update the datasource in"`
+	Datasource string `json:"datasource" jsonschema:"Datasource JSON as string"`
+}
+
 func (d *datasource) Update() *tools.Tool {
-	return nil
+	tool := &mcp.Tool{
+		Name:        "perses_update_project_datasource",
+		Description: "Update an existing datasource in a specific project",
+		InputSchema: &jsonschema.Schema{
+			Type: "object",
+			Properties: map[string]*jsonschema.Schema{
+				"project": {
+					Type:        "string",
+					Description: "Project name",
+					MinLength:   jsonschema.Ptr(1),
+					MaxLength:   jsonschema.Ptr(75),
+					Pattern:     "^[a-zA-Z0-9_.-]+$",
+				},
+				"datasource": {
+					Type:        "string",
+					Description: "Datasource JSON as string",
+				},
+			},
+			Required: []string{"project", "datasource"},
+		},
+		Annotations: &mcp.ToolAnnotations{
+			DestructiveHint: jsonschema.Ptr(false),
+			IdempotentHint:  true,
+			OpenWorldHint:   jsonschema.Ptr(false),
+			ReadOnlyHint:    false,
+			Title:           "Updates an existing datasource in a specific project in Perses",
+		},
+	}
+
+	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input UpdateDatasourceInput) (*mcp.CallToolResult, any, error) {
+		var datasourceObj v1.Datasource
+		if err := json.Unmarshal([]byte(input.Datasource), &datasourceObj); err != nil {
+			return nil, nil, fmt.Errorf("invalid datasource JSON: %w", err)
+		}
+
+		updatedDatasource, err := d.client.Datasource(input.Project).Update(&datasourceObj)
+		if err != nil {
+			return nil, nil, fmt.Errorf("error updating datasource in project '%s': %w", input.Project, err)
+		}
+
+		datasourceJSON, err := json.Marshal(updatedDatasource)
+		if err != nil {
+			return nil, nil, fmt.Errorf("error marshalling updated datasource: %w", err)
+		}
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: string(datasourceJSON),
+				},
+			},
+		}, nil, nil
+	}
+
+	return &tools.Tool{
+		MCPTool:      tool,
+		IsWriteTool:  true,
+		ResourceType: tools.DatasourceResource,
+		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, tool, handler) },
+	}
 }
 
-// Delete is not yet implemented for project datasource
+type DeleteDatasourceInput struct {
+	Project string `json:"project" jsonschema:"Project name"`
+	Name    string `json:"name" jsonschema:"Datasource name to delete"`
+}
+
 func (d *datasource) Delete() *tools.Tool {
-	return nil
+	tool := &mcp.Tool{
+		Name:        "perses_delete_project_datasource",
+		Description: "Delete a datasource from a specific project",
+		InputSchema: &jsonschema.Schema{
+			Type: "object",
+			Properties: map[string]*jsonschema.Schema{
+				"project": {
+					Type:        "string",
+					Description: "Project name",
+					MinLength:   jsonschema.Ptr(1),
+					MaxLength:   jsonschema.Ptr(75),
+					Pattern:     "^[a-zA-Z0-9_.-]+$",
+				},
+				"name": {
+					Type:        "string",
+					Description: "Datasource name",
+					MinLength:   jsonschema.Ptr(1),
+					MaxLength:   jsonschema.Ptr(75),
+					Pattern:     "^[a-zA-Z0-9_.-]+$",
+				},
+			},
+			Required: []string{"project", "name"},
+		},
+		Annotations: &mcp.ToolAnnotations{
+			DestructiveHint: jsonschema.Ptr(true),
+			IdempotentHint:  true,
+			OpenWorldHint:   jsonschema.Ptr(false),
+			ReadOnlyHint:    false,
+			Title:           "Deletes a datasource from a specific project in Perses",
+		},
+	}
+
+	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input DeleteDatasourceInput) (*mcp.CallToolResult, any, error) {
+		err := d.client.Datasource(input.Project).Delete(input.Name)
+		if err != nil {
+			return nil, nil, fmt.Errorf("error deleting datasource '%s' in project '%s': %w", input.Name, input.Project, err)
+		}
+
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: fmt.Sprintf("Datasource '%s' deleted successfully from project '%s'", input.Name, input.Project),
+				},
+			},
+		}, nil, nil
+	}
+
+	return &tools.Tool{
+		MCPTool:      tool,
+		IsWriteTool:  true,
+		ResourceType: tools.DatasourceResource,
+		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, tool, handler) },
+	}
 }
