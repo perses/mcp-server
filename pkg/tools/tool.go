@@ -18,18 +18,19 @@ import "github.com/modelcontextprotocol/go-sdk/mcp"
 type Resource string
 
 const (
-    DashboardResource       Resource = "dashboard"
-    DatasourceResource      Resource = "datasource"
-    ProjectResource         Resource = "project"
-    GlobalDatasourceResource Resource = "globaldatasource"
-    RoleResource            Resource = "role"
-    GlobalRoleResource      Resource = "globalrole"
-    RoleBindingResource     Resource = "rolebinding"
-    GlobalRoleBindingResource Resource = "globalrolebinding"
-    VariableResource        Resource = "variable"
-    GlobalVariableResource  Resource = "globalvariable"
-    PluginResource          Resource = "plugin"
+	DashboardResource         Resource = "dashboard"
+	DatasourceResource        Resource = "datasource"
+	ProjectResource           Resource = "project"
+	GlobalDatasourceResource  Resource = "globaldatasource"
+	RoleResource              Resource = "role"
+	GlobalRoleResource        Resource = "globalrole"
+	RoleBindingResource       Resource = "rolebinding"
+	GlobalRoleBindingResource Resource = "globalrolebinding"
+	VariableResource          Resource = "variable"
+	GlobalVariableResource    Resource = "globalvariable"
+	PluginResource            Resource = "plugin"
 )
+
 // Tool represents an MCP tool with metadata about write access requirements
 type Tool struct {
 	MCPTool     *mcp.Tool

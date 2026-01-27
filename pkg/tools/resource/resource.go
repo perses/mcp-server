@@ -2,8 +2,6 @@ package resource
 
 import "github.com/perses/mcp-server/pkg/tools"
 
-
-
 type Resource interface {
 	Create() *tools.Tool
 	Update() *tools.Tool
@@ -12,4 +10,3 @@ type Resource interface {
 	Get() *tools.Tool
 	GetTools() []*tools.Tool
 }
-
