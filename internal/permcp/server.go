@@ -96,11 +96,9 @@ type Server struct {
 }
 
 func NewServer(cfg Config) (*Server, error) {
-	// Validate resources if provided
-	if len(cfg.AllowedResources) > 0 {
-		if err := validateResources(cfg.AllowedResources); err != nil {
-			return nil, err
-		}
+	// Validate config
+	if err := cfg.validate(); err != nil {
+		return nil, err
 	}
 
 	var slogHandler slog.Handler
@@ -296,11 +294,20 @@ func initializePersesClient(cfg Config) (v1.ClientInterface, error) {
 	return persesClient, nil
 }
 
-func validateResources(resources []string) error {
+func (c *Config) validate() error {
+	if len(c.AllowedResources) > 0 {
+		if err := c.validateResources(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (c *Config) validateResources() error {
 	validSet := set.New(tools.ValidResources...)
 
 	var invalid []string
-	for _, rs := range resources {
+	for _, rs := range c.AllowedResources {
 		if !validSet.Contains(tools.Resource(rs)) {
 			invalid = append(invalid, rs)
 		}
