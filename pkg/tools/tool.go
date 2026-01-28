@@ -31,6 +31,20 @@ const (
 	PluginResource            Resource = "plugin"
 )
 
+var ValidResources = []Resource{
+	DashboardResource,
+	DatasourceResource,
+	ProjectResource,
+	GlobalDatasourceResource,
+	RoleResource,
+	GlobalRoleResource,
+	RoleBindingResource,
+	GlobalRoleBindingResource,
+	VariableResource,
+	GlobalVariableResource,
+	PluginResource,
+}
+
 // Tool represents an MCP tool with metadata about write access requirements
 type Tool struct {
 	MCPTool     *mcp.Tool

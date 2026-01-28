@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/perses/common/set"
 	"github.com/perses/mcp-server/pkg/tools"
 	"github.com/perses/mcp-server/pkg/tools/dashboard"
 	"github.com/perses/mcp-server/pkg/tools/datasource"
@@ -59,21 +60,6 @@ type Config struct {
 	// AllowedResources is a list of resources to register.
 	// If empty, all resources are registered.
 	AllowedResources []string
-}
-
-// ValidResources contains all valid resource names
-var ValidResources = []string{
-	"dashboard",
-	"project",
-	"datasource",
-	"globaldatasource",
-	"role",
-	"globalrole",
-	"rolebinding",
-	"globalrolebinding",
-	"variable",
-	"globalvariable",
-	"plugin",
 }
 
 func Serve(ctx context.Context, cfg Config) error {
@@ -298,22 +284,23 @@ func initializePersesClient(cfg Config) (v1.ClientInterface, error) {
 }
 
 func validateResources(resources []string) error {
-	validSet := make(map[string]bool)
-	for _, v := range ValidResources {
-		validSet[v] = true
-	}
+	validSet := set.New(tools.ValidResources...)
 
 	var invalid []string
 	for _, rs := range resources {
-		if !validSet[rs] {
+		if !validSet.Contains(tools.Resource(rs)) {
 			invalid = append(invalid, rs)
 		}
 	}
 
 	if len(invalid) > 0 {
+		validNames := make([]string, len(tools.ValidResources))
+		for i, r := range tools.ValidResources {
+			validNames[i] = string(r)
+		}
 		return fmt.Errorf("invalid resource(s): %s. Valid resources are: %s",
 			strings.Join(invalid, ", "),
-			strings.Join(ValidResources, ", "))
+			strings.Join(validNames, ", "))
 	}
 	return nil
 }
