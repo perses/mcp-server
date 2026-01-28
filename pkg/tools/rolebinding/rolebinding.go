@@ -30,7 +30,7 @@ type roleBinding struct {
 	client apiClient.ClientInterface
 }
 
-func NewRoleBinding(client apiClient.ClientInterface) resource.Resource {
+func New(client apiClient.ClientInterface) resource.Resource {
 	return &roleBinding{
 		client: client,
 	}

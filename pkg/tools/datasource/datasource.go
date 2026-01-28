@@ -30,7 +30,7 @@ type datasource struct {
 	client apiClient.ClientInterface
 }
 
-func NewDatasource(client apiClient.ClientInterface) resource.Resource {
+func New(client apiClient.ClientInterface) resource.Resource {
 	return &datasource{
 		client: client,
 	}

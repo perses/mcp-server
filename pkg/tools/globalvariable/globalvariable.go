@@ -31,7 +31,7 @@ type globalVariable struct {
 	client apiClient.ClientInterface
 }
 
-func NewGlobalVariable(client apiClient.ClientInterface) resource.Resource {
+func New(client apiClient.ClientInterface) resource.Resource {
 	return &globalVariable{
 		client: client,
 	}

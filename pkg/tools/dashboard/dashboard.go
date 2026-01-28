@@ -30,7 +30,7 @@ type dashboard struct {
 	client apiClient.ClientInterface
 }
 
-func NewDashboard(client apiClient.ClientInterface) resource.Resource {
+func New(client apiClient.ClientInterface) resource.Resource {
 	return &dashboard{
 		client: client,
 	}

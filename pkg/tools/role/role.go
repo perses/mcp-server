@@ -31,7 +31,7 @@ type role struct {
 	client apiClient.ClientInterface
 }
 
-func NewRole(client apiClient.ClientInterface) resource.Resource {
+func New(client apiClient.ClientInterface) resource.Resource {
 	return &role{
 		client: client,
 	}

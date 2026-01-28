@@ -30,7 +30,7 @@ type globalRoleBinding struct {
 	client apiClient.ClientInterface
 }
 
-func NewGlobalRoleBinding(client apiClient.ClientInterface) resource.Resource {
+func New(client apiClient.ClientInterface) resource.Resource {
 	return &globalRoleBinding{
 		client: client,
 	}

@@ -18,7 +18,7 @@ type project struct {
 	client apiClient.ClientInterface
 }
 
-func NewProject(client apiClient.ClientInterface) resource.Resource {
+func New(client apiClient.ClientInterface) resource.Resource {
 	return &project{
 		client: client,
 	}

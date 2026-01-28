@@ -29,7 +29,7 @@ type plugin struct {
 	client apiClient.ClientInterface
 }
 
-func NewPlugin(client apiClient.ClientInterface) resource.Resource {
+func New(client apiClient.ClientInterface) resource.Resource {
 	return &plugin{
 		client: client,
 	}

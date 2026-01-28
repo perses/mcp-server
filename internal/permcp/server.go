@@ -194,17 +194,17 @@ func (s *Server) Run(ctx context.Context) error {
 func (s *Server) registerTools() {
 
 	resources := []resource.Resource{
-		project.NewProject(s.persesClient),
-		dashboard.NewDashboard(s.persesClient),
-		datasource.NewDatasource(s.persesClient),
-		globaldatasource.NewGlobalDatasource(s.persesClient),
-		role.NewRole(s.persesClient),
-		globalrole.NewGlobalRole(s.persesClient),
-		rolebinding.NewRoleBinding(s.persesClient),
-		globalrolebinding.NewGlobalRoleBinding(s.persesClient),
-		variable.NewVariable(s.persesClient),
-		globalvariable.NewGlobalVariable(s.persesClient),
-		plugin.NewPlugin(s.persesClient),
+		project.New(s.persesClient),
+		dashboard.New(s.persesClient),
+		datasource.New(s.persesClient),
+		globaldatasource.New(s.persesClient),
+		role.New(s.persesClient),
+		globalrole.New(s.persesClient),
+		rolebinding.New(s.persesClient),
+		globalrolebinding.New(s.persesClient),
+		variable.New(s.persesClient),
+		globalvariable.New(s.persesClient),
+		plugin.New(s.persesClient),
 	}
 
 	var allTools []*tools.Tool
@@ -224,7 +224,7 @@ func (s *Server) registerTools() {
 
 	for _, tool := range allTools {
 		// Skip tools not in allowed resources (if filtering is enabled)
-		if len(allowedResources) > 0 && !allowedResources[string(tool.ResourceType)] {
+		if !allowedResources[string(tool.ResourceType)] {
 			s.logger.Debug("Skipping tool which is not in allowed resources",
 				"tool", tool.MCPTool.Name,
 				"resourceType", tool.ResourceType)

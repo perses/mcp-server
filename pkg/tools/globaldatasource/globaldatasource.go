@@ -33,7 +33,7 @@ type globalDatasource struct {
 	client apiClient.ClientInterface
 }
 
-func NewGlobalDatasource(client apiClient.ClientInterface) resource.Resource {
+func New(client apiClient.ClientInterface) resource.Resource {
 	return &globalDatasource{
 		client: client,
 	}

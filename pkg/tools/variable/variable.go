@@ -31,7 +31,7 @@ type projectVariable struct {
 	client apiClient.ClientInterface
 }
 
-func NewVariable(client apiClient.ClientInterface) resource.Resource {
+func New(client apiClient.ClientInterface) resource.Resource {
 	return &projectVariable{
 		client: client,
 	}

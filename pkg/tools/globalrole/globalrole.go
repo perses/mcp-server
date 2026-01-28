@@ -31,7 +31,7 @@ type globalRole struct {
 	client apiClient.ClientInterface
 }
 
-func NewGlobalRole(client apiClient.ClientInterface) resource.Resource {
+func New(client apiClient.ClientInterface) resource.Resource {
 	return &globalRole{
 		client: client,
 	}
