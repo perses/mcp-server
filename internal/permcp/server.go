@@ -210,10 +210,7 @@ func (s *Server) registerTools() {
 	}
 
 	// Build allowed resources set for filtering
-	allowedResources := make(map[string]bool)
-	for _, rs := range s.cfg.AllowedResources {
-		allowedResources[rs] = true
-	}
+	allowedResources := set.New(s.cfg.AllowedResources...)
 
 	registeredCount := 0
 	skippedReadOnly := 0
@@ -221,7 +218,7 @@ func (s *Server) registerTools() {
 
 	for _, tool := range allTools {
 		// Skip tools not in allowed resources (if filtering is enabled)
-		if !allowedResources[string(tool.ResourceType)] {
+		if !allowedResources.Contains(string(tool.ResourceType)) {
 			s.logger.Debug("Skipping tool which is not in allowed resources",
 				"tool", tool.MCPTool.Name,
 				"resourceType", tool.ResourceType)
@@ -279,21 +276,6 @@ func (s *Server) runHTTPTransport(ctx context.Context) error {
 	}
 }
 
-func initializePersesClient(cfg Config) (v1.ClientInterface, error) {
-	restClient, err := config.NewRESTClient(config.RestConfigClient{
-		URL: common.MustParseURL(cfg.PersesServerURL),
-		Headers: map[string]string{
-			"Authorization": "Bearer " + cfg.Token,
-		},
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	persesClient := v1.NewWithClient(restClient)
-	return persesClient, nil
-}
-
 func (c *Config) validate() error {
 	if len(c.AllowedResources) > 0 {
 		if err := c.validateResources(); err != nil {
@@ -305,7 +287,6 @@ func (c *Config) validate() error {
 
 func (c *Config) validateResources() error {
 	validSet := set.New(tools.ValidResources...)
-
 	var invalid []string
 	for _, rs := range c.AllowedResources {
 		if !validSet.Contains(tools.Resource(rs)) {
@@ -323,6 +304,21 @@ func (c *Config) validateResources() error {
 			strings.Join(validNames, ", "))
 	}
 	return nil
+}
+
+func initializePersesClient(cfg Config) (v1.ClientInterface, error) {
+	restClient, err := config.NewRESTClient(config.RestConfigClient{
+		URL: common.MustParseURL(cfg.PersesServerURL),
+		Headers: map[string]string{
+			"Authorization": "Bearer " + cfg.Token,
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	persesClient := v1.NewWithClient(restClient)
+	return persesClient, nil
 }
 
 func logLevel(level string) slog.Level {
