@@ -95,58 +95,6 @@ type Server struct {
 	mcpServer *mcp.Server
 }
 
-func NewServer(cfg Config) (*Server, error) {
-	// Validate config
-	if err := cfg.validate(); err != nil {
-		return nil, err
-	}
-
-	var slogHandler slog.Handler
-	var logOutput io.Writer
-
-	if cfg.LogFilePath != "" {
-		file, err := os.OpenFile(cfg.LogFilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
-		if err != nil {
-			return nil, fmt.Errorf("failed to open log file: %w", err)
-		}
-		// defer file.Close()
-		logOutput = file
-	} else {
-		logOutput = os.Stderr
-	}
-
-	slogHandler = slog.NewTextHandler(logOutput, &slog.HandlerOptions{
-		Level: logLevel(cfg.LogLevel),
-	})
-
-	logger := slog.New(slogHandler)
-
-	persesClient, err := initializePersesClient(cfg)
-	if err != nil {
-		return nil, err
-	}
-
-	logger.Info("Perses client initialized", "URL", cfg.PersesServerURL)
-
-	mcpServer := mcp.NewServer(&mcp.Implementation{
-		Name:    "perses-mcp-server",
-		Title:   "Perses MCP Server",
-		Version: cfg.Version},
-		&mcp.ServerOptions{
-			HasTools:     true,
-			HasResources: false,
-			HasPrompts:   false,
-			Logger:       logger,
-		})
-
-	return &Server{
-		cfg:          cfg,
-		logger:       logger,
-		persesClient: persesClient,
-		mcpServer:    mcpServer,
-	}, nil
-}
-
 func (s *Server) Run(ctx context.Context) error {
 
 	ctx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
@@ -304,6 +252,58 @@ func (c *Config) validateResources() error {
 			strings.Join(validNames, ", "))
 	}
 	return nil
+}
+
+func NewServer(cfg Config) (*Server, error) {
+	// Validate config
+	if err := cfg.validate(); err != nil {
+		return nil, err
+	}
+
+	var slogHandler slog.Handler
+	var logOutput io.Writer
+
+	if cfg.LogFilePath != "" {
+		file, err := os.OpenFile(cfg.LogFilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+		if err != nil {
+			return nil, fmt.Errorf("failed to open log file: %w", err)
+		}
+		// defer file.Close()
+		logOutput = file
+	} else {
+		logOutput = os.Stderr
+	}
+
+	slogHandler = slog.NewTextHandler(logOutput, &slog.HandlerOptions{
+		Level: logLevel(cfg.LogLevel),
+	})
+
+	logger := slog.New(slogHandler)
+
+	persesClient, err := initializePersesClient(cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	logger.Info("Perses client initialized", "URL", cfg.PersesServerURL)
+
+	mcpServer := mcp.NewServer(&mcp.Implementation{
+		Name:    "perses-mcp-server",
+		Title:   "Perses MCP Server",
+		Version: cfg.Version},
+		&mcp.ServerOptions{
+			HasTools:     true,
+			HasResources: false,
+			HasPrompts:   false,
+			Logger:       logger,
+		})
+
+	return &Server{
+		cfg:          cfg,
+		logger:       logger,
+		persesClient: persesClient,
+		mcpServer:    mcpServer,
+	}, nil
 }
 
 func initializePersesClient(cfg Config) (v1.ClientInterface, error) {
