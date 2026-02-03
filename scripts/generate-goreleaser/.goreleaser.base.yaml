@@ -14,6 +14,7 @@ builds:
       - darwin
     env:
       - CGO_ENABLED=0
+    main: ./cmd/permcp
 
 archives:
   - id: "default"

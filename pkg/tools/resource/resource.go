@@ -11,22 +11,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package resource
 
-import (
-	_ "embed"
+import "github.com/perses/mcp-server/pkg/tools"
 
-	"github.com/perses/perses/scripts/pkg/goreleaser"
-)
-
-//go:embed .goreleaser.base.yaml
-var baseConfig []byte
-
-func main() {
-	goreleaser.Generate(baseConfig, &goreleaser.DockerConfig{
-		ImageName:  "mcp-server",
-		DebugImage: true,
-		BinaryIDs:  []string{"mcp-server"},
-		ExtraFiles: []string{"LICENSE"},
-	})
+type Resource interface {
+	Create() *tools.Tool
+	Update() *tools.Tool
+	Delete() *tools.Tool
+	List() *tools.Tool
+	Get() *tools.Tool
+	GetTools() []*tools.Tool
 }

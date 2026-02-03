@@ -1,3 +1,16 @@
+// Copyright The Perses Authors
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package main
 
 import (
@@ -65,6 +78,7 @@ func init() {
 	rootCmd.PersistentFlags().String("log-level", "info", "Log level (debug, info, warn, error)")
 	rootCmd.PersistentFlags().String("log-file-path", "", "Path to the log file (if empty, logs go to stderr)")
 	rootCmd.PersistentFlags().Bool("read-only", false, "Restrict the server to read-only operations")
+	rootCmd.PersistentFlags().String("resources", "", "Comma-separated list of resources to register (e.g., project,dashboard,globaldatasource). If not specified, all resources are registered.")
 
 	// HTTP Streamable specific flags
 	httpCmd.PersistentFlags().String("port", "8000", "Port to run the HTTP Streamable server on")
@@ -74,6 +88,7 @@ func init() {
 	_ = viper.BindPFlag("log-level", rootCmd.PersistentFlags().Lookup("log-level"))
 	_ = viper.BindPFlag("read-only", rootCmd.PersistentFlags().Lookup("read-only"))
 	_ = viper.BindPFlag("log-file-path", rootCmd.PersistentFlags().Lookup("log-file-path"))
+	_ = viper.BindPFlag("resources", rootCmd.PersistentFlags().Lookup("resources"))
 
 	_ = viper.BindPFlag("port", httpCmd.PersistentFlags().Lookup("port"))
 	rootCmd.AddCommand(stdioCmd)
@@ -88,14 +103,26 @@ func main() {
 }
 
 func loadConfig(transport string) permcp.Config {
+	// Parse resources from comma-separated string and normalize to lowercase
+	var allowedResources []string
+	if resourcesStr := viper.GetString("resources"); resourcesStr != "" {
+		for rs := range strings.SplitSeq(resourcesStr, ",") {
+			rs = strings.TrimSpace(rs)
+			if rs != "" {
+				allowedResources = append(allowedResources, strings.ToLower(rs))
+			}
+		}
+	}
+
 	return permcp.Config{
-		Version:         version,
-		Transport:       transport,
-		PersesServerURL: viper.GetString("perses-server-url"),
-		Token:           viper.GetString(envPersesToken),
-		ReadOnly:        viper.GetBool("read-only"),
-		LogFilePath:     viper.GetString("log-file-path"),
-		LogLevel:        viper.GetString("log-level"),
-		Port:            viper.GetString("port"),
+		Version:          version,
+		Transport:        transport,
+		PersesServerURL:  viper.GetString("perses-server-url"),
+		Token:            viper.GetString(envPersesToken),
+		ReadOnly:         viper.GetBool("read-only"),
+		LogFilePath:      viper.GetString("log-file-path"),
+		LogLevel:         viper.GetString("log-level"),
+		Port:             viper.GetString("port"),
+		AllowedResources: allowedResources,
 	}
 }

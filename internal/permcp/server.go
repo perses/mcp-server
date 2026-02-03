@@ -1,3 +1,16 @@
+// Copyright The Perses Authors
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package permcp
 
 import (
@@ -13,7 +26,20 @@ import (
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/perses/common/set"
 	"github.com/perses/mcp-server/pkg/tools"
+	"github.com/perses/mcp-server/pkg/tools/dashboard"
+	"github.com/perses/mcp-server/pkg/tools/datasource"
+	"github.com/perses/mcp-server/pkg/tools/globaldatasource"
+	"github.com/perses/mcp-server/pkg/tools/globalrole"
+	"github.com/perses/mcp-server/pkg/tools/globalrolebinding"
+	"github.com/perses/mcp-server/pkg/tools/globalvariable"
+	"github.com/perses/mcp-server/pkg/tools/plugin"
+	"github.com/perses/mcp-server/pkg/tools/project"
+	"github.com/perses/mcp-server/pkg/tools/resource"
+	"github.com/perses/mcp-server/pkg/tools/role"
+	"github.com/perses/mcp-server/pkg/tools/rolebinding"
+	"github.com/perses/mcp-server/pkg/tools/variable"
 	v1 "github.com/perses/perses/pkg/client/api/v1"
 	"github.com/perses/perses/pkg/client/config"
 	"github.com/perses/perses/pkg/model/api/v1/common"
@@ -43,10 +69,44 @@ type Config struct {
 
 	// Port to run the HTTP Streamable server on
 	Port string
+
+	// AllowedResources is a list of resources to register.
+	// If empty, all resources are registered.
+	AllowedResources []string
+}
+
+func (c *Config) validate() error {
+	if len(c.AllowedResources) > 0 {
+		if err := c.validateResources(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (c *Config) validateResources() error {
+	validSet := set.New(tools.ValidResources...)
+	var invalid []string
+	for _, rs := range c.AllowedResources {
+		if !validSet.Contains(tools.Resource(rs)) {
+			invalid = append(invalid, rs)
+		}
+	}
+
+	if len(invalid) > 0 {
+		validNames := make([]string, len(tools.ValidResources))
+		for i, r := range tools.ValidResources {
+			validNames[i] = string(r)
+		}
+		return fmt.Errorf("invalid resource(s): %s. Valid resources are: %s",
+			strings.Join(invalid, ", "),
+			strings.Join(validNames, ", "))
+	}
+	return nil
 }
 
 func Serve(ctx context.Context, cfg Config) error {
-	server, err := NewServer(cfg)
+	server, err := newServer(cfg)
 	if err != nil {
 		return fmt.Errorf("initialization failed: %w", err)
 	}
@@ -54,18 +114,12 @@ func Serve(ctx context.Context, cfg Config) error {
 	return server.Run(ctx)
 }
 
-type Server struct {
-	// cfg contains the server configuration settings
-	cfg Config
-	// logger is the structured logger for the server
-	logger *slog.Logger
-	// persesClient is the client interface for interacting with the Perses API
-	persesClient v1.ClientInterface
-	// mcpServer is the Model Context Protocol server instance
-	mcpServer *mcp.Server
-}
+func newServer(cfg Config) (*Server, error) {
+	// Validate config
+	if err := cfg.validate(); err != nil {
+		return nil, err
+	}
 
-func NewServer(cfg Config) (*Server, error) {
 	var slogHandler slog.Handler
 	var logOutput io.Writer
 
@@ -112,6 +166,17 @@ func NewServer(cfg Config) (*Server, error) {
 	}, nil
 }
 
+type Server struct {
+	// cfg contains the server configuration settings
+	cfg Config
+	// logger is the structured logger for the server
+	logger *slog.Logger
+	// persesClient is the client interface for interacting with the Perses API
+	persesClient v1.ClientInterface
+	// mcpServer is the Model Context Protocol server instance
+	mcpServer *mcp.Server
+}
+
 func (s *Server) Run(ctx context.Context) error {
 
 	ctx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
@@ -154,87 +219,59 @@ func (s *Server) Run(ctx context.Context) error {
 }
 
 func (s *Server) registerTools() {
-
-	listProjectsTool, listProjectsHandler := tools.ListProjects(s.persesClient)
-	mcp.AddTool(s.mcpServer, listProjectsTool, listProjectsHandler)
-
-	projectByNameTool, projectByNameHandler := tools.GetProjectByName(s.persesClient)
-	mcp.AddTool(s.mcpServer, projectByNameTool, projectByNameHandler)
-
-	projectCreateTool, projectCreateHandler := tools.CreateProject(s.persesClient)
-	mcp.AddTool(s.mcpServer, projectCreateTool, projectCreateHandler)
-
-	dashboardListTool, dashboardListHandler := tools.ListDashboards(s.persesClient)
-	mcp.AddTool(s.mcpServer, dashboardListTool, dashboardListHandler)
-
-	dashboardByNameTool, dashboardByNameHandler := tools.GetDashboardByName(s.persesClient)
-	mcp.AddTool(s.mcpServer, dashboardByNameTool, dashboardByNameHandler)
-
-	listPluginsTool, listPluginsToolHandler := tools.ListNewPlugins(s.persesClient)
-	mcp.AddTool(s.mcpServer, listPluginsTool, listPluginsToolHandler)
-
-	listGlobalRolesTool, listGlobalRolesHandler := tools.ListGlobalRoles(s.persesClient)
-	mcp.AddTool(s.mcpServer, &listGlobalRolesTool, listGlobalRolesHandler)
-
-	getGlobalRoleTool, getGlobalRoleHandler := tools.GetGlobalRoleByName(s.persesClient)
-	mcp.AddTool(s.mcpServer, &getGlobalRoleTool, getGlobalRoleHandler)
-
-	listGlobalRoleBindingsTool, listGlobalRoleBindingsHandler := tools.ListGlobalRoleBindings(s.persesClient)
-	mcp.AddTool(s.mcpServer, &listGlobalRoleBindingsTool, listGlobalRoleBindingsHandler)
-
-	getGlobalRoleBindingTool, getGlobalRoleBindingHandler := tools.GetGlobalRoleBindingByName(s.persesClient)
-	mcp.AddTool(s.mcpServer, &getGlobalRoleBindingTool, getGlobalRoleBindingHandler)
-
-	listProjectRolesTool, listProjectRolesHandler := tools.ListProjectRoles(s.persesClient)
-	mcp.AddTool(s.mcpServer, &listProjectRolesTool, listProjectRolesHandler)
-
-	getProjectRoleTool, getProjectRoleHandler := tools.GetProjectRoleByName(s.persesClient)
-	mcp.AddTool(s.mcpServer, &getProjectRoleTool, getProjectRoleHandler)
-
-	listProjectRoleBindingsTool, listProjectRoleBindingsHandler := tools.ListProjectRoleBindings(s.persesClient)
-	mcp.AddTool(s.mcpServer, &listProjectRoleBindingsTool, listProjectRoleBindingsHandler)
-
-	getProjectRoleBindingTool, getProjectRoleBindingHandler := tools.GetProjectRoleBindingByName(s.persesClient)
-	mcp.AddTool(s.mcpServer, &getProjectRoleBindingTool, getProjectRoleBindingHandler)
-
-	listGlobalDatasourcesTool, listGlobalDatasourcesHandler := tools.ListGlobalDatasources(s.persesClient)
-	mcp.AddTool(s.mcpServer, &listGlobalDatasourcesTool, listGlobalDatasourcesHandler)
-
-	getGlobalDatasourceTool, getGlobalDatasourceHandler := tools.GetGlobalDatasourceByName(s.persesClient)
-	mcp.AddTool(s.mcpServer, &getGlobalDatasourceTool, getGlobalDatasourceHandler)
-
-	listProjectDatasourcesTool, listProjectDatasourcesHandler := tools.ListProjectDatasources(s.persesClient)
-	mcp.AddTool(s.mcpServer, &listProjectDatasourcesTool, listProjectDatasourcesHandler)
-
-	getProjectDatasourceTool, getProjectDatasourceHandler := tools.GetProjectDatasourceByName(s.persesClient)
-	mcp.AddTool(s.mcpServer, &getProjectDatasourceTool, getProjectDatasourceHandler)
-
-	listGlobalVariablesTool, listGlobalVariablesHandler := tools.ListGlobalVariables(s.persesClient)
-	mcp.AddTool(s.mcpServer, &listGlobalVariablesTool, listGlobalVariablesHandler)
-
-	getGlobalVariableTool, getGlobalVariableHandler := tools.GetGlobalVariableByName(s.persesClient)
-	mcp.AddTool(s.mcpServer, &getGlobalVariableTool, getGlobalVariableHandler)
-
-	listProjectVariablesTool, listProjectVariablesHandler := tools.ListProjectVariables(s.persesClient)
-	mcp.AddTool(s.mcpServer, &listProjectVariablesTool, listProjectVariablesHandler)
-
-	getProjectVariableTool, getProjectVariableHandler := tools.GetProjectVariableByName(s.persesClient)
-	mcp.AddTool(s.mcpServer, &getProjectVariableTool, getProjectVariableHandler)
-
-	// Add write tools here
-	if !s.cfg.ReadOnly {
-		dashboardCreateTool, dashboardCreateHandler := tools.CreateNewDashboard(s.persesClient)
-		mcp.AddTool(s.mcpServer, dashboardCreateTool, dashboardCreateHandler)
-
-		createGlobalDatasourceTool, createGlobalDatasourceHandler := tools.CreateGlobalDatasource(s.persesClient)
-		mcp.AddTool(s.mcpServer, &createGlobalDatasourceTool, createGlobalDatasourceHandler)
-
-		updateGlobalDatasourceTool, updateGlobalDatasourceHandler := tools.UpdateGlobalDatasource(s.persesClient)
-		mcp.AddTool(s.mcpServer, &updateGlobalDatasourceTool, updateGlobalDatasourceHandler)
-
-		createProjectVariableTool, createProjectVariableHandler := tools.CreateProjectTextVariable(s.persesClient)
-		mcp.AddTool(s.mcpServer, &createProjectVariableTool, createProjectVariableHandler)
+	resources := []resource.Resource{
+		project.New(s.persesClient),
+		dashboard.New(s.persesClient),
+		datasource.New(s.persesClient),
+		globaldatasource.New(s.persesClient),
+		role.New(s.persesClient),
+		globalrole.New(s.persesClient),
+		rolebinding.New(s.persesClient),
+		globalrolebinding.New(s.persesClient),
+		variable.New(s.persesClient),
+		globalvariable.New(s.persesClient),
+		plugin.New(s.persesClient),
 	}
+
+	var allTools []*tools.Tool
+	for _, r := range resources {
+		allTools = append(allTools, r.GetTools()...)
+	}
+
+	// Build allowed resources set for filtering
+	allowedResources := set.New(s.cfg.AllowedResources...)
+
+	registeredCount := 0
+	skippedReadOnly := 0
+	skippedResource := 0
+
+	for _, tool := range allTools {
+		// Skip tools not in allowed resources (if filtering is enabled)
+		if !allowedResources.Contains(string(tool.ResourceType)) {
+			s.logger.Debug("Skipping tool which is not in allowed resources",
+				"tool", tool.MCPTool.Name,
+				"resourceType", tool.ResourceType)
+			skippedResource++
+			continue
+		}
+
+		// Skip write tools in read-only mode
+		if s.cfg.ReadOnly && tool.IsWriteTool {
+			s.logger.Debug("Skipping write tool in read-only mode",
+				"tool", tool.MCPTool.Name)
+			skippedReadOnly++
+			continue
+		}
+
+		tool.RegisterWith(s.mcpServer)
+		registeredCount++
+	}
+
+	s.logger.Info("Tools registered successfully",
+		"registered", registeredCount,
+		"skipped_readonly", skippedReadOnly,
+		"skipped_resource", skippedResource,
+		"total", len(allTools))
 }
 
 func (s *Server) runStdioTransport(ctx context.Context) error {
