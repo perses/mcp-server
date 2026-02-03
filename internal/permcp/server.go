@@ -75,13 +75,95 @@ type Config struct {
 	AllowedResources []string
 }
 
+func (c *Config) validate() error {
+	if len(c.AllowedResources) > 0 {
+		if err := c.validateResources(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (c *Config) validateResources() error {
+	validSet := set.New(tools.ValidResources...)
+	var invalid []string
+	for _, rs := range c.AllowedResources {
+		if !validSet.Contains(tools.Resource(rs)) {
+			invalid = append(invalid, rs)
+		}
+	}
+
+	if len(invalid) > 0 {
+		validNames := make([]string, len(tools.ValidResources))
+		for i, r := range tools.ValidResources {
+			validNames[i] = string(r)
+		}
+		return fmt.Errorf("invalid resource(s): %s. Valid resources are: %s",
+			strings.Join(invalid, ", "),
+			strings.Join(validNames, ", "))
+	}
+	return nil
+}
+
 func Serve(ctx context.Context, cfg Config) error {
-	server, err := NewServer(cfg)
+	server, err := newServer(cfg)
 	if err != nil {
 		return fmt.Errorf("initialization failed: %w", err)
 	}
 
 	return server.Run(ctx)
+}
+
+func newServer(cfg Config) (*Server, error) {
+	// Validate config
+	if err := cfg.validate(); err != nil {
+		return nil, err
+	}
+
+	var slogHandler slog.Handler
+	var logOutput io.Writer
+
+	if cfg.LogFilePath != "" {
+		file, err := os.OpenFile(cfg.LogFilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+		if err != nil {
+			return nil, fmt.Errorf("failed to open log file: %w", err)
+		}
+		// defer file.Close()
+		logOutput = file
+	} else {
+		logOutput = os.Stderr
+	}
+
+	slogHandler = slog.NewTextHandler(logOutput, &slog.HandlerOptions{
+		Level: logLevel(cfg.LogLevel),
+	})
+
+	logger := slog.New(slogHandler)
+
+	persesClient, err := initializePersesClient(cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	logger.Info("Perses client initialized", "URL", cfg.PersesServerURL)
+
+	mcpServer := mcp.NewServer(&mcp.Implementation{
+		Name:    "perses-mcp-server",
+		Title:   "Perses MCP Server",
+		Version: cfg.Version},
+		&mcp.ServerOptions{
+			HasTools:     true,
+			HasResources: false,
+			HasPrompts:   false,
+			Logger:       logger,
+		})
+
+	return &Server{
+		cfg:          cfg,
+		logger:       logger,
+		persesClient: persesClient,
+		mcpServer:    mcpServer,
+	}, nil
 }
 
 type Server struct {
@@ -137,7 +219,6 @@ func (s *Server) Run(ctx context.Context) error {
 }
 
 func (s *Server) registerTools() {
-
 	resources := []resource.Resource{
 		project.New(s.persesClient),
 		dashboard.New(s.persesClient),
@@ -222,88 +303,6 @@ func (s *Server) runHTTPTransport(ctx context.Context) error {
 	case err := <-serverErr:
 		return err
 	}
-}
-
-func (c *Config) validate() error {
-	if len(c.AllowedResources) > 0 {
-		if err := c.validateResources(); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (c *Config) validateResources() error {
-	validSet := set.New(tools.ValidResources...)
-	var invalid []string
-	for _, rs := range c.AllowedResources {
-		if !validSet.Contains(tools.Resource(rs)) {
-			invalid = append(invalid, rs)
-		}
-	}
-
-	if len(invalid) > 0 {
-		validNames := make([]string, len(tools.ValidResources))
-		for i, r := range tools.ValidResources {
-			validNames[i] = string(r)
-		}
-		return fmt.Errorf("invalid resource(s): %s. Valid resources are: %s",
-			strings.Join(invalid, ", "),
-			strings.Join(validNames, ", "))
-	}
-	return nil
-}
-
-func NewServer(cfg Config) (*Server, error) {
-	// Validate config
-	if err := cfg.validate(); err != nil {
-		return nil, err
-	}
-
-	var slogHandler slog.Handler
-	var logOutput io.Writer
-
-	if cfg.LogFilePath != "" {
-		file, err := os.OpenFile(cfg.LogFilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
-		if err != nil {
-			return nil, fmt.Errorf("failed to open log file: %w", err)
-		}
-		// defer file.Close()
-		logOutput = file
-	} else {
-		logOutput = os.Stderr
-	}
-
-	slogHandler = slog.NewTextHandler(logOutput, &slog.HandlerOptions{
-		Level: logLevel(cfg.LogLevel),
-	})
-
-	logger := slog.New(slogHandler)
-
-	persesClient, err := initializePersesClient(cfg)
-	if err != nil {
-		return nil, err
-	}
-
-	logger.Info("Perses client initialized", "URL", cfg.PersesServerURL)
-
-	mcpServer := mcp.NewServer(&mcp.Implementation{
-		Name:    "perses-mcp-server",
-		Title:   "Perses MCP Server",
-		Version: cfg.Version},
-		&mcp.ServerOptions{
-			HasTools:     true,
-			HasResources: false,
-			HasPrompts:   false,
-			Logger:       logger,
-		})
-
-	return &Server{
-		cfg:          cfg,
-		logger:       logger,
-		persesClient: persesClient,
-		mcpServer:    mcpServer,
-	}, nil
 }
 
 func initializePersesClient(cfg Config) (v1.ClientInterface, error) {
