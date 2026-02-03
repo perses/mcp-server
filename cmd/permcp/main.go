@@ -31,8 +31,8 @@ var version = "version"
 var commit = "commit"
 var date = "date"
 
-var (
-	rootCmd = &cobra.Command{
+func newRootCommand() *cobra.Command {
+	cmd := &cobra.Command{
 		Use:     "permcp",
 		Short:   "Perses MCP Server",
 		Long:    "A Perses MCP Server to manage Perses resources",
@@ -45,7 +45,29 @@ var (
 		},
 	}
 
-	stdioCmd = &cobra.Command{
+	// Global flags
+	cmd.PersistentFlags().String("perses-server-url", "http://localhost:8080", "The Perses backend server URL")
+	cmd.PersistentFlags().String("log-level", "info", "Log level (debug, info, warn, error)")
+	cmd.PersistentFlags().String("log-file-path", "", "Path to the log file (if empty, logs go to stderr)")
+	cmd.PersistentFlags().Bool("read-only", false, "Restrict the server to read-only operations")
+	cmd.PersistentFlags().String("resources", "", "Comma-separated list of resources to register (e.g., project,dashboard,globaldatasource). If not specified, all resources are registered.")
+
+	// Bind flags to viper
+	_ = viper.BindPFlag("perses-server-url", cmd.PersistentFlags().Lookup("perses-server-url"))
+	_ = viper.BindPFlag("log-level", cmd.PersistentFlags().Lookup("log-level"))
+	_ = viper.BindPFlag("read-only", cmd.PersistentFlags().Lookup("read-only"))
+	_ = viper.BindPFlag("log-file-path", cmd.PersistentFlags().Lookup("log-file-path"))
+	_ = viper.BindPFlag("resources", cmd.PersistentFlags().Lookup("resources"))
+
+	// Add subcommands
+	cmd.AddCommand(newStdioCommand())
+	cmd.AddCommand(newHttpCommand())
+
+	return cmd
+}
+
+func newStdioCommand() *cobra.Command {
+	return &cobra.Command{
 		Use:   "stdio",
 		Short: "Start stdio MCP server",
 		Long:  "Start a Perses MCP server that communicates via standard input/output streams using JSON-RPC messages.",
@@ -54,48 +76,34 @@ var (
 			return permcp.Serve(cmd.Context(), cfg)
 		},
 	}
+}
 
-	httpCmd = &cobra.Command{
+func newHttpCommand() *cobra.Command {
+	cmd := &cobra.Command{
 		Use:   "http",
 		Short: "Start HTTP Streamable MCP server",
 		Long:  "Start a Perses MCP server that communicates via HTTP using streamable JSON-RPC messages.",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-
 			cfg := loadConfig("http")
 			return permcp.Serve(cmd.Context(), cfg)
 		},
 	}
-)
 
-func init() {
+	// HTTP Streamable specific flags
+	cmd.PersistentFlags().String("port", "8000", "Port to run the HTTP Streamable server on")
+	_ = viper.BindPFlag("port", cmd.PersistentFlags().Lookup("port"))
+
+	return cmd
+}
+
+func main() {
 	cobra.OnInitialize(
 		func() { viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_")) },
 		viper.AutomaticEnv,
 	)
 
-	// Global flags
-	rootCmd.PersistentFlags().String("perses-server-url", "http://localhost:8080", "The Perses backend server URL")
-	rootCmd.PersistentFlags().String("log-level", "info", "Log level (debug, info, warn, error)")
-	rootCmd.PersistentFlags().String("log-file-path", "", "Path to the log file (if empty, logs go to stderr)")
-	rootCmd.PersistentFlags().Bool("read-only", false, "Restrict the server to read-only operations")
-	rootCmd.PersistentFlags().String("resources", "", "Comma-separated list of resources to register (e.g., project,dashboard,globaldatasource). If not specified, all resources are registered.")
+	rootCmd := newRootCommand()
 
-	// HTTP Streamable specific flags
-	httpCmd.PersistentFlags().String("port", "8000", "Port to run the HTTP Streamable server on")
-
-	// Bind flags to viper
-	_ = viper.BindPFlag("perses-server-url", rootCmd.PersistentFlags().Lookup("perses-server-url"))
-	_ = viper.BindPFlag("log-level", rootCmd.PersistentFlags().Lookup("log-level"))
-	_ = viper.BindPFlag("read-only", rootCmd.PersistentFlags().Lookup("read-only"))
-	_ = viper.BindPFlag("log-file-path", rootCmd.PersistentFlags().Lookup("log-file-path"))
-	_ = viper.BindPFlag("resources", rootCmd.PersistentFlags().Lookup("resources"))
-
-	_ = viper.BindPFlag("port", httpCmd.PersistentFlags().Lookup("port"))
-	rootCmd.AddCommand(stdioCmd)
-	rootCmd.AddCommand(httpCmd)
-}
-
-func main() {
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)
