@@ -47,16 +47,16 @@ func newRootCommand() *cobra.Command {
 
 	// Global flags
 	cmd.PersistentFlags().String("perses-server-url", "http://localhost:8080", "The Perses backend server URL")
-	cmd.PersistentFlags().String("log-level", "info", "Log level (debug, info, warn, error)")
-	cmd.PersistentFlags().String("log-file-path", "", "Path to the log file (if empty, logs go to stderr)")
+	cmd.PersistentFlags().String("log.level", "info", "Log level (debug, info, warn, error)")
+	cmd.PersistentFlags().String("log.file-path", "", "Path to the log file (if empty, logs go to stderr)")
 	cmd.PersistentFlags().Bool("read-only", false, "Restrict the server to read-only operations")
 	cmd.PersistentFlags().String("resources", "", "Comma-separated list of resources to register (e.g., project,dashboard,globaldatasource). If not specified, all resources are registered.")
 
 	// Bind flags to viper
 	_ = viper.BindPFlag("perses-server-url", cmd.PersistentFlags().Lookup("perses-server-url"))
-	_ = viper.BindPFlag("log-level", cmd.PersistentFlags().Lookup("log-level"))
+	_ = viper.BindPFlag("log.level", cmd.PersistentFlags().Lookup("log.level"))
 	_ = viper.BindPFlag("read-only", cmd.PersistentFlags().Lookup("read-only"))
-	_ = viper.BindPFlag("log-file-path", cmd.PersistentFlags().Lookup("log-file-path"))
+	_ = viper.BindPFlag("log.file-path", cmd.PersistentFlags().Lookup("log.file-path"))
 	_ = viper.BindPFlag("resources", cmd.PersistentFlags().Lookup("resources"))
 
 	// Add subcommands
@@ -98,7 +98,7 @@ func newHttpCommand() *cobra.Command {
 
 func main() {
 	cobra.OnInitialize(
-		func() { viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_")) },
+		func() { viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_", ".", "_")) },
 		viper.AutomaticEnv,
 	)
 
@@ -128,8 +128,8 @@ func loadConfig(transport string) permcp.Config {
 		PersesServerURL:  viper.GetString("perses-server-url"),
 		Token:            viper.GetString(envPersesToken),
 		ReadOnly:         viper.GetBool("read-only"),
-		LogFilePath:      viper.GetString("log-file-path"),
-		LogLevel:         viper.GetString("log-level"),
+		LogFilePath:      viper.GetString("log.file-path"),
+		LogLevel:         viper.GetString("log.level"),
 		Port:             viper.GetString("port"),
 		AllowedResources: allowedResources,
 	}
