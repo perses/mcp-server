@@ -20,13 +20,15 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
-	"os/signal"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/perses/common/set"
+	v1 "github.com/perses/perses/pkg/client/api/v1"
+	"github.com/perses/perses/pkg/client/config"
+	"github.com/perses/perses/pkg/model/api/v1/common"
+
 	"github.com/perses/mcp-server/pkg/tools"
 	"github.com/perses/mcp-server/pkg/tools/dashboard"
 	"github.com/perses/mcp-server/pkg/tools/datasource"
@@ -40,9 +42,6 @@ import (
 	"github.com/perses/mcp-server/pkg/tools/role"
 	"github.com/perses/mcp-server/pkg/tools/rolebinding"
 	"github.com/perses/mcp-server/pkg/tools/variable"
-	v1 "github.com/perses/perses/pkg/client/api/v1"
-	"github.com/perses/perses/pkg/client/config"
-	"github.com/perses/perses/pkg/model/api/v1/common"
 )
 
 type Config struct {
@@ -178,10 +177,6 @@ type Server struct {
 }
 
 func (s *Server) Run(ctx context.Context) error {
-
-	ctx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
-
 	s.logger.Info("Starting Perses MCP Server",
 		"version", s.cfg.Version,
 		"read_only", s.cfg.ReadOnly,
@@ -240,6 +235,7 @@ func (s *Server) registerTools() {
 
 	// Build allowed resources set for filtering
 	allowedResources := set.New(s.cfg.AllowedResources...)
+	filterByResource := len(s.cfg.AllowedResources) > 0
 
 	registeredCount := 0
 	skippedReadOnly := 0
@@ -247,7 +243,7 @@ func (s *Server) registerTools() {
 
 	for _, tool := range allTools {
 		// Skip tools not in allowed resources (if filtering is enabled)
-		if !allowedResources.Contains(string(tool.ResourceType)) {
+		if filterByResource && !allowedResources.Contains(string(tool.ResourceType)) {
 			s.logger.Debug("Skipping tool which is not in allowed resources",
 				"tool", tool.MCPTool.Name,
 				"resourceType", tool.ResourceType)
@@ -308,7 +304,7 @@ func (s *Server) runHTTPTransport(ctx context.Context) error {
 func initializePersesClient(cfg Config) (v1.ClientInterface, error) {
 	restClient, err := config.NewRESTClient(config.RestConfigClient{
 		URL: common.MustParseURL(cfg.PersesServerURL),
-		Headers: map[string]string{
+		Heders: map[string]string{
 			"Authorization": "Bearer " + cfg.Token,
 		},
 	})
@@ -326,10 +322,12 @@ func logLevel(level string) slog.Level {
 		return slog.LevelDebug
 	case "info":
 		return slog.LevelInfo
-	case "warn":
+	case "warn", "warning":
 		return slog.LevelWarn
 	case "error":
 		return slog.LevelError
+	case "trace":
+		return slog.LevelDebug
 	default:
 		return slog.LevelInfo
 	}
