@@ -304,7 +304,7 @@ func (s *Server) runHTTPTransport(ctx context.Context) error {
 func initializePersesClient(cfg Config) (v1.ClientInterface, error) {
 	restClient, err := config.NewRESTClient(config.RestConfigClient{
 		URL: common.MustParseURL(cfg.PersesServerURL),
-		Heders: map[string]string{
+		Headers: map[string]string{
 			"Authorization": "Bearer " + cfg.Token,
 		},
 	})
@@ -326,8 +326,6 @@ func logLevel(level string) slog.Level {
 		return slog.LevelWarn
 	case "error":
 		return slog.LevelError
-	case "trace":
-		return slog.LevelDebug
 	default:
 		return slog.LevelInfo
 	}

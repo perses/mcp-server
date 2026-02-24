@@ -18,9 +18,8 @@ import (
 	"flag"
 	"fmt"
 	"os"
-
-	"github.com/perses/common/app"
-	"github.com/perses/common/async"
+	"os/signal"
+	"syscall"
 
 	permcp "github.com/perses/mcp-server/internal/permcp"
 )
@@ -30,8 +29,6 @@ const (
 )
 
 var version = "version"
-var commit = "commit"
-var date = "date"
 
 func main() {
 	var showVersion bool
@@ -45,6 +42,7 @@ func main() {
 	flag.BoolVar(&inputs.ReadOnly, "read-only", false, "Restrict the server to read-only operations")
 	flag.StringVar(&inputs.Resources, "resources", "", "Comma-separated list of resources to register (e.g., project,dashboard,globaldatasource). If not specified, all resources are registered.")
 	flag.StringVar(&inputs.LogFilePath, "log.file-path", "", "Path to the log file (if empty, logs go to stderr)")
+	flag.String("log.level", "info", "Log level (debug, info, warn, error)")
 
 	flag.Parse()
 
@@ -54,39 +52,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	errCh := make(chan error, 1)
-	runner := app.NewRunner().WithTasks(&serveTask{cfg: cfg, errCh: errCh})
-	runner.Start()
+	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer cancel()
 
-	select {
-	case runErr := <-errCh:
-		fmt.Fprintf(os.Stderr, "%v\n", runErr)
+	if err := permcp.Serve(ctx, cfg); err != nil {
+		fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)
-	default:
 	}
 }
-
-type serveTask struct {
-	cfg   permcp.Config
-	errCh chan error
-}
-
-func (s *serveTask) String() string {
-	return "perses-mcp-server"
-}
-
-func (s *serveTask) Execute(ctx context.Context, cancelFunc context.CancelFunc) error {
-	defer cancelFunc()
-
-	err := permcp.Serve(ctx, s.cfg)
-	if err != nil {
-		select {
-		case s.errCh <- err:
-		default:
-		}
-	}
-
-	return err
-}
-
-var _ async.SimpleTask = (*serveTask)(nil)

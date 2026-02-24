@@ -158,7 +158,7 @@ func parseAllowedResources(resources string) []string {
 	}
 
 	allowedResources := make([]string, 0)
-	for _, resource := range strings.Split(resources, ",") {
+	for resource := range strings.SplitSeq(resources, ",") {
 		resource = strings.TrimSpace(resource)
 		if resource == "" {
 			continue
