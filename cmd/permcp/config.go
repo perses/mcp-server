@@ -74,9 +74,7 @@ func (c *appConfig) Verify() error {
 
 func resolveConfig(input commandInput) (permcp.Config, error) {
 	resolved := appConfig{}
-	resolver := commonconfig.NewResolver[appConfig]().SetEnvPrefix("PERMCP").SetConfigFile(input.ConfigFile)
-
-	if err := resolver.Resolve(&resolved).Verify(); err != nil {
+	if err := commonconfig.NewResolver[appConfig]().SetEnvPrefix("PERMCP").SetConfigFile(input.ConfigFile).Resolve(&resolved).Verify(); err != nil {
 		return permcp.Config{}, fmt.Errorf("unable to resolve configuration: %w", err)
 	}
 
