@@ -45,42 +45,83 @@ import (
 )
 
 type Config struct {
+	// Transport mechanism for the MCP server (e.g., "stdio", "http-streamable")
+	Transport string `yaml:"transport,omitempty"`
+
 	// PersesServerURL is the URL of the Perses backend server
-	PersesServerURL string
+	PersesServerURL string `yaml:"perses_server_url,omitempty"`
 
 	// Token is the authentication token for the Perses server
-	Token string
-
-	// ReadOnly indicates if the server should operate in read-only mode
-	ReadOnly bool
-
-	// LogFilePath is the path to the log file (if empty, logs go to stderr)
-	LogFilePath string
-
-	// LogLevel specifies the minimum log level (debug, info, warn, error)
-	LogLevel string
-
-	// Transport mechanism for the MCP server (e.g., "stdio", "http-streamable")
-	Transport string
+	Token string `yaml:"-"`
 
 	// Port to run the HTTP Streamable server on
-	Port string
+	Port string `yaml:"port,omitempty"`
 
-	// AllowedResources is a list of resources to register.
-	// If empty, all resources are registered.
-	AllowedResources []string
+	// ReadOnly indicates if the server should operate in read-only mode
+	ReadOnly bool `yaml:"read_only,omitempty"`
+
+	// Resources is a comma-separated list of resources to register.
+	Resources string `yaml:"resources,omitempty"`
+
+	// Log contains the logger configuration.
+	Log LogConfig `yaml:"log,omitempty"`
+
+	// AllowedResources is the normalized list of resources to register.
+	AllowedResources []string `yaml:"-"`
 }
 
-func (c *Config) validate() error {
+// LogConfig contains logger settings for the server.
+type LogConfig struct {
+	// Level specifies the minimum log level (debug, info, warn, error)
+	Level string `yaml:"level,omitempty"`
+
+	// FilePath is the path to the log file (if empty, logs go to stderr)
+	FilePath string `yaml:"file_path,omitempty"`
+}
+
+func (c *Config) Verify() error {
+	if c.Transport == "" {
+		c.Transport = "stdio"
+	}
+
+	switch strings.ToLower(strings.TrimSpace(c.Transport)) {
+	case "stdio":
+		c.Transport = "stdio"
+	case "http", "http-streamable", "streamable-http":
+		c.Transport = "http"
+	default:
+		return fmt.Errorf("unsupported transport %q. valid values are: stdio, http", c.Transport)
+	}
+
+	if c.PersesServerURL == "" {
+		c.PersesServerURL = "http://localhost:8080"
+	}
+
+	if c.Port == "" {
+		c.Port = "8000"
+	}
+
+	if c.Log.Level == "" {
+		c.Log.Level = "info"
+	}
+
+	c.Resources = strings.TrimSpace(c.Resources)
+	c.AllowedResources = parseAllowedResources(c.Resources)
+
 	if len(c.AllowedResources) > 0 {
-		if err := c.validateResources(); err != nil {
+		if err := c.validateAllowedResources(); err != nil {
 			return err
 		}
 	}
+
 	return nil
 }
 
-func (c *Config) validateResources() error {
+func (c *Config) validate() error {
+	return c.Verify()
+}
+
+func (c *Config) validateAllowedResources() error {
 	validSet := set.New(tools.ValidResources...)
 	var invalid []string
 	for _, rs := range c.AllowedResources {
@@ -101,6 +142,27 @@ func (c *Config) validateResources() error {
 	return nil
 }
 
+func parseAllowedResources(resources string) []string {
+	if resources == "" {
+		return nil
+	}
+
+	allowedResources := make([]string, 0)
+	for resource := range strings.SplitSeq(resources, ",") {
+		resource = strings.TrimSpace(resource)
+		if resource == "" {
+			continue
+		}
+		allowedResources = append(allowedResources, strings.ToLower(resource))
+	}
+
+	if len(allowedResources) == 0 {
+		return nil
+	}
+
+	return allowedResources
+}
+
 func Serve(ctx context.Context, cfg Config) error {
 	server, err := newServer(cfg)
 	if err != nil {
@@ -119,8 +181,8 @@ func newServer(cfg Config) (*Server, error) {
 	var slogHandler slog.Handler
 	var logOutput io.Writer
 
-	if cfg.LogFilePath != "" {
-		file, err := os.OpenFile(cfg.LogFilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if cfg.Log.FilePath != "" {
+		file, err := os.OpenFile(cfg.Log.FilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 		if err != nil {
 			return nil, fmt.Errorf("failed to open log file: %w", err)
 		}
@@ -131,7 +193,7 @@ func newServer(cfg Config) (*Server, error) {
 	}
 
 	slogHandler = slog.NewTextHandler(logOutput, &slog.HandlerOptions{
-		Level: logLevel(cfg.LogLevel),
+		Level: logLevel(cfg.Log.Level),
 	})
 
 	logger := slog.New(slogHandler)
