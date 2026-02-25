@@ -16,10 +16,7 @@ package permcp
 import (
 	"context"
 	"fmt"
-	"io"
-	"log/slog"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
@@ -28,6 +25,7 @@ import (
 	v1 "github.com/perses/perses/pkg/client/api/v1"
 	"github.com/perses/perses/pkg/client/config"
 	"github.com/perses/perses/pkg/model/api/v1/common"
+	"github.com/sirupsen/logrus"
 
 	"github.com/perses/mcp-server/pkg/tools"
 	"github.com/perses/mcp-server/pkg/tools/dashboard"
@@ -45,7 +43,7 @@ import (
 )
 
 type Config struct {
-	// Transport mechanism for the MCP server (e.g., "stdio", "http-streamable")
+	// Transport mechanism for the MCP server (e.g., "stdio", "http")
 	Transport string `yaml:"transport,omitempty"`
 
 	// PersesServerURL is the URL of the Perses backend server
@@ -54,8 +52,8 @@ type Config struct {
 	// Token is the authentication token for the Perses server
 	Token string `yaml:"-"`
 
-	// Port to run the HTTP Streamable server on
-	Port string `yaml:"port,omitempty"`
+	// ListenAddress is the address to listen on for HTTP transport (e.g., ":8000")
+	ListenAddress string `yaml:"listen_address,omitempty"`
 
 	// ReadOnly indicates if the server should operate in read-only mode
 	ReadOnly bool `yaml:"read_only,omitempty"`
@@ -63,20 +61,8 @@ type Config struct {
 	// Resources is a comma-separated list of resources to register.
 	Resources string `yaml:"resources,omitempty"`
 
-	// Log contains the logger configuration.
-	Log LogConfig `yaml:"log,omitempty"`
-
 	// AllowedResources is the normalized list of resources to register.
 	AllowedResources []string `yaml:"-"`
-}
-
-// LogConfig contains logger settings for the server.
-type LogConfig struct {
-	// Level specifies the minimum log level (debug, info, warn, error)
-	Level string `yaml:"level,omitempty"`
-
-	// FilePath is the path to the log file (if empty, logs go to stderr)
-	FilePath string `yaml:"file_path,omitempty"`
 }
 
 func (c *Config) Verify() error {
@@ -97,12 +83,10 @@ func (c *Config) Verify() error {
 		c.PersesServerURL = "http://localhost:8080"
 	}
 
-	if c.Port == "" {
-		c.Port = "8000"
-	}
-
-	if c.Log.Level == "" {
-		c.Log.Level = "info"
+	if c.ListenAddress == "" {
+		c.ListenAddress = ":8000"
+	} else if !strings.Contains(c.ListenAddress, ":") {
+		c.ListenAddress = ":" + c.ListenAddress
 	}
 
 	c.Resources = strings.TrimSpace(c.Resources)
@@ -178,32 +162,12 @@ func newServer(cfg Config) (*Server, error) {
 		return nil, err
 	}
 
-	var slogHandler slog.Handler
-	var logOutput io.Writer
-
-	if cfg.Log.FilePath != "" {
-		file, err := os.OpenFile(cfg.Log.FilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
-		if err != nil {
-			return nil, fmt.Errorf("failed to open log file: %w", err)
-		}
-		// defer file.Close()
-		logOutput = file
-	} else {
-		logOutput = os.Stderr
-	}
-
-	slogHandler = slog.NewTextHandler(logOutput, &slog.HandlerOptions{
-		Level: logLevel(cfg.Log.Level),
-	})
-
-	logger := slog.New(slogHandler)
-
 	persesClient, err := initializePersesClient(cfg)
 	if err != nil {
 		return nil, err
 	}
 
-	logger.Info("Perses client initialized", "URL", cfg.PersesServerURL)
+	logrus.WithField("url", cfg.PersesServerURL).Info("Perses client initialized")
 
 	mcpServer := mcp.NewServer(&mcp.Implementation{
 		Name:  "perses-mcp-server",
@@ -212,12 +176,10 @@ func newServer(cfg Config) (*Server, error) {
 			HasTools:     true,
 			HasResources: false,
 			HasPrompts:   false,
-			Logger:       logger,
 		})
 
 	return &Server{
 		cfg:          cfg,
-		logger:       logger,
 		persesClient: persesClient,
 		mcpServer:    mcpServer,
 	}, nil
@@ -226,8 +188,6 @@ func newServer(cfg Config) (*Server, error) {
 type Server struct {
 	// cfg contains the server configuration settings
 	cfg Config
-	// logger is the structured logger for the server
-	logger *slog.Logger
 	// persesClient is the client interface for interacting with the Perses API
 	persesClient v1.ClientInterface
 	// mcpServer is the Model Context Protocol server instance
@@ -235,10 +195,10 @@ type Server struct {
 }
 
 func (s *Server) Run(ctx context.Context) error {
-	s.logger.Info("Starting Perses MCP Server",
-		"read_only", s.cfg.ReadOnly,
-		"transport", s.cfg.Transport,
-	)
+	logrus.WithFields(logrus.Fields{
+		"read_only": s.cfg.ReadOnly,
+		"transport": s.cfg.Transport,
+	}).Info("Starting Perses MCP Server")
 
 	s.registerTools()
 
@@ -255,15 +215,15 @@ func (s *Server) Run(ctx context.Context) error {
 		errChan <- runErr
 	}()
 
-	s.logger.Info("Perses MCP Server is running", "transport", s.cfg.Transport)
+	logrus.WithField("transport", s.cfg.Transport).Info("Perses MCP Server is running")
 
 	select {
 	case <-ctx.Done():
-		s.logger.Info("Shutting down signal received")
+		logrus.Info("Shutting down signal received")
 		return nil
 	case err := <-errChan:
 		if err != nil {
-			s.logger.Error("Server stopped unexpectedly", "error", err)
+			logrus.WithError(err).Error("Server stopped unexpectedly")
 			return fmt.Errorf("server error: %w", err)
 		}
 		return nil
@@ -301,17 +261,17 @@ func (s *Server) registerTools() {
 	for _, tool := range allTools {
 		// Skip tools not in allowed resources (if filtering is enabled)
 		if filterByResource && !allowedResources.Contains(string(tool.ResourceType)) {
-			s.logger.Debug("Skipping tool which is not in allowed resources",
-				"tool", tool.MCPTool.Name,
-				"resourceType", tool.ResourceType)
+			logrus.WithFields(logrus.Fields{
+				"tool":         tool.MCPTool.Name,
+				"resourceType": tool.ResourceType,
+			}).Debug("Skipping tool which is not in allowed resources")
 			skippedResource++
 			continue
 		}
 
 		// Skip write tools in read-only mode
 		if s.cfg.ReadOnly && tool.IsWriteTool {
-			s.logger.Debug("Skipping write tool in read-only mode",
-				"tool", tool.MCPTool.Name)
+			logrus.WithField("tool", tool.MCPTool.Name).Debug("Skipping write tool in read-only mode")
 			skippedReadOnly++
 			continue
 		}
@@ -320,15 +280,16 @@ func (s *Server) registerTools() {
 		registeredCount++
 	}
 
-	s.logger.Info("Tools registered successfully",
-		"registered", registeredCount,
-		"skipped_readonly", skippedReadOnly,
-		"skipped_resource", skippedResource,
-		"total", len(allTools))
+	logrus.WithFields(logrus.Fields{
+		"registered":       registeredCount,
+		"skipped_readonly": skippedReadOnly,
+		"skipped_resource": skippedResource,
+		"total":            len(allTools),
+	}).Info("Tools registered successfully")
 }
 
 func (s *Server) runStdioTransport(ctx context.Context) error {
-	s.logger.Info("Running MCP server with stdio transport")
+	logrus.Info("Running MCP server with stdio transport")
 	return s.mcpServer.Run(ctx, &mcp.StdioTransport{})
 }
 
@@ -337,12 +298,11 @@ func (s *Server) runHTTPTransport(ctx context.Context) error {
 		return s.mcpServer
 	}, nil)
 
-	addr := ":" + s.cfg.Port
-	httpServer := &http.Server{Addr: addr, Handler: handler}
+	httpServer := &http.Server{Addr: s.cfg.ListenAddress, Handler: handler}
 
 	serverErr := make(chan error, 1)
 	go func() {
-		s.logger.Info("Listening on HTTP", "addr", addr)
+		logrus.WithField("addr", s.cfg.ListenAddress).Info("Listening on HTTP")
 		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			serverErr <- err
 		}
@@ -371,19 +331,4 @@ func initializePersesClient(cfg Config) (v1.ClientInterface, error) {
 
 	persesClient := v1.NewWithClient(restClient)
 	return persesClient, nil
-}
-
-func logLevel(level string) slog.Level {
-	switch strings.ToLower(level) {
-	case "debug":
-		return slog.LevelDebug
-	case "info":
-		return slog.LevelInfo
-	case "warn", "warning":
-		return slog.LevelWarn
-	case "error":
-		return slog.LevelError
-	default:
-		return slog.LevelInfo
-	}
 }

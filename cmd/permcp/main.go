@@ -16,12 +16,9 @@ package main
 import (
 	"context"
 	"flag"
-	"fmt"
-	"os"
-	"os/signal"
-	"syscall"
 
-	"github.com/prometheus/common/version"
+	"github.com/perses/common/app"
+	"github.com/sirupsen/logrus"
 
 	permcp "github.com/perses/mcp-server/internal/permcp"
 )
@@ -31,34 +28,27 @@ const (
 )
 
 func main() {
-	inputs := commandInput{}
-	var showVersion bool
-	flag.StringVar(&inputs.ConfigFile, "config", "", "Path to the YAML configuration file")
-	flag.BoolVar(&showVersion, "version", false, "Print binary version and exit")
-
+	configFile := flag.String("config", "", "Path to the YAML configuration file")
 	flag.Parse()
 
-	if showVersion {
-		if version.Version == "" {
-			fmt.Println("dev")
-			return
-		}
-
-		fmt.Println(version.Version)
-		return
-	}
-
-	cfg, err := resolveConfig(inputs)
+	cfg, err := resolveConfig(*configFile)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
-		os.Exit(1)
+		logrus.WithError(err).Fatal("unable to resolve configuration")
 	}
 
-	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer cancel()
+	runner := app.NewRunner().
+		WithTasks(&serverTask{cfg: cfg})
+	runner.Start()
+}
 
-	if err := permcp.Serve(ctx, cfg); err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
-		os.Exit(1)
-	}
+type serverTask struct {
+	cfg permcp.Config
+}
+
+func (t *serverTask) String() string {
+	return "perses-mcp-server"
+}
+
+func (t *serverTask) Execute(ctx context.Context, _ context.CancelFunc) error {
+	return permcp.Serve(ctx, t.cfg)
 }

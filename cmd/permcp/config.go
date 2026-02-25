@@ -23,13 +23,9 @@ import (
 	permcp "github.com/perses/mcp-server/internal/permcp"
 )
 
-type commandInput struct {
-	ConfigFile string
-}
-
-func resolveConfig(input commandInput) (permcp.Config, error) {
+func resolveConfig(configFile string) (permcp.Config, error) {
 	resolved := permcp.Config{}
-	if err := commonconfig.NewResolver[permcp.Config]().SetEnvPrefix("PERMCP").SetConfigFile(input.ConfigFile).Resolve(&resolved).Verify(); err != nil {
+	if err := commonconfig.NewResolver[permcp.Config]().SetEnvPrefix("PERMCP").SetConfigFile(configFile).Resolve(&resolved).Verify(); err != nil {
 		return permcp.Config{}, fmt.Errorf("unable to resolve configuration: %w", err)
 	}
 
