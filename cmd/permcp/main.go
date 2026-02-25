@@ -21,6 +21,8 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/prometheus/common/version"
+
 	permcp "github.com/perses/mcp-server/internal/permcp"
 )
 
@@ -28,23 +30,23 @@ const (
 	envPersesToken = "PERSES_TOKEN"
 )
 
-var version = "version"
-
 func main() {
-	var showVersion bool
-	flag.BoolVar(&showVersion, "version", false, "Print version information and exit")
-
 	inputs := commandInput{}
+	var showVersion bool
 	flag.StringVar(&inputs.ConfigFile, "config", "", "Path to the YAML configuration file")
-	flag.StringVar(&inputs.Transport, "transport", "", "MCP transport (stdio or http)")
-	flag.StringVar(&inputs.PersesServerURL, "perses-server-url", "", "The Perses backend server URL")
-	flag.StringVar(&inputs.Port, "port", "", "Port to run the HTTP Streamable server on")
-	flag.BoolVar(&inputs.ReadOnly, "read-only", false, "Restrict the server to read-only operations")
-	flag.StringVar(&inputs.Resources, "resources", "", "Comma-separated list of resources to register (e.g., project,dashboard,globaldatasource). If not specified, all resources are registered.")
-	flag.StringVar(&inputs.LogFilePath, "log.file-path", "", "Path to the log file (if empty, logs go to stderr)")
-	flag.String("log.level", "info", "Log level (debug, info, warn, error)")
+	flag.BoolVar(&showVersion, "version", false, "Print binary version and exit")
 
 	flag.Parse()
+
+	if showVersion {
+		if version.Version == "" {
+			fmt.Println("dev")
+			return
+		}
+
+		fmt.Println(version.Version)
+		return
+	}
 
 	cfg, err := resolveConfig(inputs)
 	if err != nil {

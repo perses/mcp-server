@@ -14,7 +14,6 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"os"
 	"strings"
@@ -25,13 +24,7 @@ import (
 )
 
 type commandInput struct {
-	ConfigFile      string
-	Transport       string
-	PersesServerURL string
-	Port            string
-	ReadOnly        bool
-	Resources       string
-	LogFilePath     string
+	ConfigFile string
 }
 
 type appConfig struct {
@@ -90,49 +83,12 @@ func resolveConfig(input commandInput) (permcp.Config, error) {
 		return permcp.Config{}, fmt.Errorf("unable to resolve configuration: %w", err)
 	}
 
-	setFlags := setFlags()
-	if setFlags["transport"] {
-		resolved.Transport = input.Transport
-	}
-	if setFlags["perses-server-url"] {
-		resolved.PersesServerURL = input.PersesServerURL
-	}
-	if setFlags["port"] {
-		resolved.Port = input.Port
-	}
-	if setFlags["read-only"] {
-		resolved.ReadOnly = input.ReadOnly
-	}
-	if setFlags["resources"] {
-		resolved.Resources = input.Resources
-	}
-	if setFlags["log.file-path"] {
-		resolved.Log.FilePath = input.LogFilePath
-	}
-
-	logLevelFlag := flag.Lookup("log.level")
-	if logLevelFlag == nil {
-		return permcp.Config{}, fmt.Errorf("missing required flag: log.level")
-	}
-	if setFlags["log.level"] {
-		resolved.Log.Level = logLevelFlag.Value.String()
-	}
-
-	if err := resolved.Verify(); err != nil {
-		return permcp.Config{}, fmt.Errorf("invalid configuration: %w", err)
-	}
-
-	if err := flag.Set("log.level", resolved.Log.Level); err != nil {
-		return permcp.Config{}, fmt.Errorf("unable to set log.level flag: %w", err)
-	}
-
 	token := strings.TrimSpace(os.Getenv(envPersesToken))
 	if token == "" {
 		return permcp.Config{}, fmt.Errorf("environment variable %s is required", envPersesToken)
 	}
 
 	return permcp.Config{
-		Version:          version,
 		Transport:        resolved.Transport,
 		PersesServerURL:  resolved.PersesServerURL,
 		Token:            token,
@@ -142,14 +98,6 @@ func resolveConfig(input commandInput) (permcp.Config, error) {
 		Port:             resolved.Port,
 		AllowedResources: parseAllowedResources(resolved.Resources),
 	}, nil
-}
-
-func setFlags() map[string]bool {
-	set := map[string]bool{}
-	flag.CommandLine.Visit(func(f *flag.Flag) {
-		set[f.Name] = true
-	})
-	return set
 }
 
 func parseAllowedResources(resources string) []string {

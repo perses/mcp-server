@@ -45,9 +45,6 @@ import (
 )
 
 type Config struct {
-	// Version of the MCP server
-	Version string
-
 	// PersesServerURL is the URL of the Perses backend server
 	PersesServerURL string
 
@@ -147,9 +144,8 @@ func newServer(cfg Config) (*Server, error) {
 	logger.Info("Perses client initialized", "URL", cfg.PersesServerURL)
 
 	mcpServer := mcp.NewServer(&mcp.Implementation{
-		Name:    "perses-mcp-server",
-		Title:   "Perses MCP Server",
-		Version: cfg.Version},
+		Name:  "perses-mcp-server",
+		Title: "Perses MCP Server"},
 		&mcp.ServerOptions{
 			HasTools:     true,
 			HasResources: false,
@@ -178,7 +174,6 @@ type Server struct {
 
 func (s *Server) Run(ctx context.Context) error {
 	s.logger.Info("Starting Perses MCP Server",
-		"version", s.cfg.Version,
 		"read_only", s.cfg.ReadOnly,
 		"transport", s.cfg.Transport,
 	)

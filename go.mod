@@ -7,6 +7,7 @@ require (
 	github.com/modelcontextprotocol/go-sdk v1.2.0
 	github.com/perses/common v0.30.0
 	github.com/perses/perses v0.53.0-rc.1
+	github.com/prometheus/common v0.67.5
 )
 
 require (
@@ -73,7 +74,6 @@ require (
 	github.com/pjbgf/sha1cd v0.3.2 // indirect
 	github.com/prometheus/client_golang v1.23.2 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
-	github.com/prometheus/common v0.67.5 // indirect
 	github.com/prometheus/procfs v0.17.0 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/sergi/go-diff v1.3.2-0.20230802210424-5b0b94c5c0d3 // indirect
