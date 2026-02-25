@@ -6,3 +6,5 @@ bin/
 .cursor
 CLAUDE.md
 AGENTS.md
+
+.goreleaser.yaml
