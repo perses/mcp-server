@@ -58,10 +58,10 @@ type Config struct {
 	// AllowedResources is the normalized list of resources to register.
 	AllowedResources []string `yaml:"-"`
 
-	// Perses is the configuration for the Perses REST client.
+	// PersesServer is the configuration for connecting to the Perses backend server.
 	// Supports multiple authentication methods: Authorization (Bearer token),
 	// OAuth, BasicAuth, K8sAuth, and NativeAuth.
-	Perses config.RestConfigClient `yaml:"perses"`
+	PersesServer config.RestConfigClient `yaml:"perses_server"`
 }
 
 func (c *Config) Verify() error {
@@ -78,8 +78,8 @@ func (c *Config) Verify() error {
 		return fmt.Errorf("unsupported transport %q. valid values are: stdio, http", c.Transport)
 	}
 
-	if c.Perses.URL == nil {
-		c.Perses.URL = common.MustParseURL("http://localhost:8080")
+	if c.PersesServer.URL == nil {
+		c.PersesServer.URL = common.MustParseURL("http://localhost:8080")
 	}
 
 	if c.ListenAddress == "" {
@@ -166,7 +166,7 @@ func newServer(cfg Config) (*Server, error) {
 		return nil, err
 	}
 
-	logrus.WithField("url", cfg.Perses.URL).Info("Perses client initialized")
+	logrus.WithField("url", cfg.PersesServer.URL).Info("Perses client initialized")
 
 	mcpServer := mcp.NewServer(&mcp.Implementation{
 		Name:  "perses-mcp-server",
@@ -318,11 +318,11 @@ func (s *Server) runHTTPTransport(ctx context.Context) error {
 }
 
 func initializePersesClient(cfg Config) (v1.ClientInterface, error) {
-	if err := cfg.Perses.Validate(); err != nil {
+	if err := cfg.PersesServer.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid perses client configuration: %w", err)
 	}
 
-	restClient, err := config.NewRESTClient(cfg.Perses)
+	restClient, err := config.NewRESTClient(cfg.PersesServer)
 	if err != nil {
 		return nil, fmt.Errorf("error creating Perses REST client: %w", err)
 	}
