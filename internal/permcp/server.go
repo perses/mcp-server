@@ -46,12 +46,6 @@ type Config struct {
 	// Transport mechanism for the MCP server (e.g., "stdio", "http")
 	Transport string `yaml:"transport,omitempty"`
 
-	// PersesServerURL is the URL of the Perses backend server
-	PersesServerURL string `yaml:"perses_server_url,omitempty"`
-
-	// Token is the authentication token for the Perses server
-	Token string `yaml:"-"`
-
 	// ListenAddress is the address to listen on for HTTP transport (e.g., ":8000")
 	ListenAddress string `yaml:"listen_address,omitempty"`
 
@@ -63,6 +57,11 @@ type Config struct {
 
 	// AllowedResources is the normalized list of resources to register.
 	AllowedResources []string `yaml:"-"`
+
+	// Perses is the configuration for the Perses REST client.
+	// Supports multiple authentication methods: Authorization (Bearer token),
+	// OAuth, BasicAuth, K8sAuth, and NativeAuth.
+	Perses config.RestConfigClient `yaml:"perses"`
 }
 
 func (c *Config) Verify() error {
@@ -79,8 +78,8 @@ func (c *Config) Verify() error {
 		return fmt.Errorf("unsupported transport %q. valid values are: stdio, http", c.Transport)
 	}
 
-	if c.PersesServerURL == "" {
-		c.PersesServerURL = "http://localhost:8080"
+	if c.Perses.URL == nil {
+		c.Perses.URL = common.MustParseURL("http://localhost:8080")
 	}
 
 	if c.ListenAddress == "" {
@@ -167,7 +166,7 @@ func newServer(cfg Config) (*Server, error) {
 		return nil, err
 	}
 
-	logrus.WithField("url", cfg.PersesServerURL).Info("Perses client initialized")
+	logrus.WithField("url", cfg.Perses.URL).Info("Perses client initialized")
 
 	mcpServer := mcp.NewServer(&mcp.Implementation{
 		Name:  "perses-mcp-server",
@@ -319,16 +318,14 @@ func (s *Server) runHTTPTransport(ctx context.Context) error {
 }
 
 func initializePersesClient(cfg Config) (v1.ClientInterface, error) {
-	restClient, err := config.NewRESTClient(config.RestConfigClient{
-		URL: common.MustParseURL(cfg.PersesServerURL),
-		Headers: map[string]string{
-			"Authorization": "Bearer " + cfg.Token,
-		},
-	})
-	if err != nil {
-		return nil, err
+	if err := cfg.Perses.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid perses client configuration: %w", err)
 	}
 
-	persesClient := v1.NewWithClient(restClient)
-	return persesClient, nil
+	restClient, err := config.NewRESTClient(cfg.Perses)
+	if err != nil {
+		return nil, fmt.Errorf("error creating Perses REST client: %w", err)
+	}
+
+	return v1.NewWithClient(restClient), nil
 }

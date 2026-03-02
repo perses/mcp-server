@@ -15,8 +15,6 @@ package main
 
 import (
 	"fmt"
-	"os"
-	"strings"
 
 	commonconfig "github.com/perses/common/config"
 
@@ -28,13 +26,6 @@ func resolveConfig(configFile string) (permcp.Config, error) {
 	if err := commonconfig.NewResolver[permcp.Config]().SetEnvPrefix("PERMCP").SetConfigFile(configFile).Resolve(&resolved).Verify(); err != nil {
 		return permcp.Config{}, fmt.Errorf("unable to resolve configuration: %w", err)
 	}
-
-	token := strings.TrimSpace(os.Getenv(envPersesToken))
-	if token == "" {
-		return permcp.Config{}, fmt.Errorf("environment variable %s is required", envPersesToken)
-	}
-
-	resolved.Token = token
 
 	return resolved, nil
 }

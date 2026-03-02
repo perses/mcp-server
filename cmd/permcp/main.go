@@ -23,10 +23,6 @@ import (
 	permcp "github.com/perses/mcp-server/internal/permcp"
 )
 
-const (
-	envPersesToken = "PERSES_TOKEN"
-)
-
 func main() {
 	configFile := flag.String("config", "", "Path to the YAML configuration file")
 	flag.Parse()
