@@ -14,7 +14,6 @@
 package main
 
 import (
-	"context"
 	"flag"
 
 	"github.com/perses/common/app"
@@ -27,24 +26,16 @@ func main() {
 	configFile := flag.String("config", "", "Path to the YAML configuration file")
 	flag.Parse()
 
-	cfg, err := resolveConfig(*configFile)
+	cfg, err := permcp.ResolveConfig(*configFile)
 	if err != nil {
 		logrus.WithError(err).Fatal("unable to resolve configuration")
 	}
+	mcpServer, err := permcp.New(cfg)
+	if err != nil {
+		logrus.WithError(err).Fatal("unable to create mcp server")
+	}
 
 	runner := app.NewRunner().
-		WithTasks(&serverTask{cfg: cfg})
+		WithTasks(mcpServer)
 	runner.Start()
-}
-
-type serverTask struct {
-	cfg permcp.Config
-}
-
-func (t *serverTask) String() string {
-	return "perses-mcp-server"
-}
-
-func (t *serverTask) Execute(ctx context.Context, _ context.CancelFunc) error {
-	return permcp.Serve(ctx, t.cfg)
 }

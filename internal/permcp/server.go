@@ -18,13 +18,12 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/perses/common/async"
 	"github.com/perses/common/set"
 	v1 "github.com/perses/perses/pkg/client/api/v1"
 	"github.com/perses/perses/pkg/client/config"
-	"github.com/perses/perses/pkg/model/api/v1/common"
 	"github.com/sirupsen/logrus"
 
 	"github.com/perses/mcp-server/pkg/tools"
@@ -42,125 +41,7 @@ import (
 	"github.com/perses/mcp-server/pkg/tools/variable"
 )
 
-type Config struct {
-	// Transport mechanism for the MCP server (e.g., "stdio", "http")
-	Transport string `yaml:"transport,omitempty"`
-
-	// ListenAddress is the address to listen on for HTTP transport (e.g., ":8000")
-	ListenAddress string `yaml:"listen_address,omitempty"`
-
-	// ReadOnly indicates if the server should operate in read-only mode
-	ReadOnly bool `yaml:"read_only,omitempty"`
-
-	// Resources is a comma-separated list of resources to register.
-	Resources string `yaml:"resources,omitempty"`
-
-	// AllowedResources is the normalized list of resources to register.
-	AllowedResources []string `yaml:"-"`
-
-	// PersesServer is the configuration for connecting to the Perses backend server.
-	// Supports multiple authentication methods: Authorization (Bearer token),
-	// OAuth, BasicAuth, K8sAuth, and NativeAuth.
-	PersesServer config.RestConfigClient `yaml:"perses_server"`
-}
-
-func (c *Config) Verify() error {
-	if c.Transport == "" {
-		c.Transport = "stdio"
-	}
-
-	switch strings.ToLower(strings.TrimSpace(c.Transport)) {
-	case "stdio":
-		c.Transport = "stdio"
-	case "http", "http-streamable", "streamable-http":
-		c.Transport = "http"
-	default:
-		return fmt.Errorf("unsupported transport %q. valid values are: stdio, http", c.Transport)
-	}
-
-	if c.PersesServer.URL == nil {
-		c.PersesServer.URL = common.MustParseURL("http://localhost:8080")
-	}
-
-	if c.ListenAddress == "" {
-		c.ListenAddress = ":8000"
-	} else if !strings.Contains(c.ListenAddress, ":") {
-		c.ListenAddress = ":" + c.ListenAddress
-	}
-
-	c.Resources = strings.TrimSpace(c.Resources)
-	c.AllowedResources = parseAllowedResources(c.Resources)
-
-	if len(c.AllowedResources) > 0 {
-		if err := c.validateAllowedResources(); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (c *Config) validate() error {
-	return c.Verify()
-}
-
-func (c *Config) validateAllowedResources() error {
-	validSet := set.New(tools.ValidResources...)
-	var invalid []string
-	for _, rs := range c.AllowedResources {
-		if !validSet.Contains(tools.Resource(rs)) {
-			invalid = append(invalid, rs)
-		}
-	}
-
-	if len(invalid) > 0 {
-		validNames := make([]string, len(tools.ValidResources))
-		for i, r := range tools.ValidResources {
-			validNames[i] = string(r)
-		}
-		return fmt.Errorf("invalid resource(s): %s. Valid resources are: %s",
-			strings.Join(invalid, ", "),
-			strings.Join(validNames, ", "))
-	}
-	return nil
-}
-
-func parseAllowedResources(resources string) []string {
-	if resources == "" {
-		return nil
-	}
-
-	allowedResources := make([]string, 0)
-	for resource := range strings.SplitSeq(resources, ",") {
-		resource = strings.TrimSpace(resource)
-		if resource == "" {
-			continue
-		}
-		allowedResources = append(allowedResources, strings.ToLower(resource))
-	}
-
-	if len(allowedResources) == 0 {
-		return nil
-	}
-
-	return allowedResources
-}
-
-func Serve(ctx context.Context, cfg Config) error {
-	server, err := newServer(cfg)
-	if err != nil {
-		return fmt.Errorf("initialization failed: %w", err)
-	}
-
-	return server.Run(ctx)
-}
-
-func newServer(cfg Config) (*Server, error) {
-	// Validate config
-	if err := cfg.validate(); err != nil {
-		return nil, err
-	}
-
+func New(cfg Config) (async.SimpleTask, error) {
 	persesClient, err := initializePersesClient(cfg)
 	if err != nil {
 		return nil, err
@@ -177,14 +58,24 @@ func newServer(cfg Config) (*Server, error) {
 			HasPrompts:   false,
 		})
 
-	return &Server{
+	return &server{
 		cfg:          cfg,
 		persesClient: persesClient,
 		mcpServer:    mcpServer,
 	}, nil
 }
 
-type Server struct {
+func initializePersesClient(cfg Config) (v1.ClientInterface, error) {
+	restClient, err := config.NewRESTClient(cfg.PersesServer)
+	if err != nil {
+		return nil, fmt.Errorf("error creating Perses REST client: %w", err)
+	}
+
+	return v1.NewWithClient(restClient), nil
+}
+
+type server struct {
+	async.SimpleTask
 	// cfg contains the server configuration settings
 	cfg Config
 	// persesClient is the client interface for interacting with the Perses API
@@ -193,43 +84,48 @@ type Server struct {
 	mcpServer *mcp.Server
 }
 
-func (s *Server) Run(ctx context.Context) error {
+func (s *server) Execute(ctx context.Context, cancelFunc context.CancelFunc) error {
 	logrus.WithFields(logrus.Fields{
 		"read_only": s.cfg.ReadOnly,
 		"transport": s.cfg.Transport,
 	}).Info("Starting Perses MCP Server")
 
 	s.registerTools()
-
-	errChan := make(chan error, 1)
-
+	// start server
+	serverCtx, serverCancelFunc := context.WithCancel(ctx)
 	go func() {
-		var runErr error
-
+		defer serverCancelFunc()
 		if strings.ToLower(s.cfg.Transport) == "http" {
-			runErr = s.runHTTPTransport(ctx)
+			if err := s.runHTTPTransport(); err != nil {
+				logrus.WithError(err).Info("http server stopped")
+			}
 		} else {
-			runErr = s.runStdioTransport(ctx)
+			if err := s.runStdioTransport(ctx); err != nil {
+				logrus.WithError(err).Info("stdio server stopped")
+			}
 		}
-		errChan <- runErr
 	}()
 
 	logrus.WithField("transport", s.cfg.Transport).Info("Perses MCP Server is running")
 
+	// Wait for the end of the task or cancellation
 	select {
+	case <-serverCtx.Done():
+		// Server ended unexpectedly
+		// In our ecosystem, as we are producing each time an HTTP API, if the HTTP api stopped, we want to stop the whole application.
+		// That's why we are calling the parent cancelFunc
+		cancelFunc()
+		// as it is possible that the serverCtx.Done() is closed because the main cancelFunc() has been called by another go routing,
+		// we should try to close properly the http server
+		// Note: that's why we don't return any error here.
 	case <-ctx.Done():
-		logrus.Info("Shutting down signal received")
-		return nil
-	case err := <-errChan:
-		if err != nil {
-			logrus.WithError(err).Error("Server stopped unexpectedly")
-			return fmt.Errorf("server error: %w", err)
-		}
-		return nil
+		// Cancellation requested by the parent context
+		logrus.Debug("server cancellation requested")
 	}
+	return nil
 }
 
-func (s *Server) registerTools() {
+func (s *server) registerTools() {
 	resources := []resource.Resource{
 		project.New(s.persesClient),
 		dashboard.New(s.persesClient),
@@ -287,45 +183,20 @@ func (s *Server) registerTools() {
 	}).Info("Tools registered successfully")
 }
 
-func (s *Server) runStdioTransport(ctx context.Context) error {
+func (s *server) runStdioTransport(ctx context.Context) error {
 	logrus.Info("Running MCP server with stdio transport")
 	return s.mcpServer.Run(ctx, &mcp.StdioTransport{})
 }
 
-func (s *Server) runHTTPTransport(ctx context.Context) error {
+func (s *server) runHTTPTransport() error {
 	handler := mcp.NewStreamableHTTPHandler(func(req *http.Request) *mcp.Server {
 		return s.mcpServer
 	}, nil)
 
 	httpServer := &http.Server{Addr: s.cfg.ListenAddress, Handler: handler}
-
-	serverErr := make(chan error, 1)
-	go func() {
-		logrus.WithField("addr", s.cfg.ListenAddress).Info("Listening on HTTP")
-		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			serverErr <- err
-		}
-	}()
-
-	select {
-	case <-ctx.Done():
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		return httpServer.Shutdown(shutdownCtx)
-	case err := <-serverErr:
-		return err
-	}
+	return httpServer.ListenAndServe()
 }
 
-func initializePersesClient(cfg Config) (v1.ClientInterface, error) {
-	if err := cfg.PersesServer.Validate(); err != nil {
-		return nil, fmt.Errorf("invalid perses client configuration: %w", err)
-	}
-
-	restClient, err := config.NewRESTClient(cfg.PersesServer)
-	if err != nil {
-		return nil, fmt.Errorf("error creating Perses REST client: %w", err)
-	}
-
-	return v1.NewWithClient(restClient), nil
+func (s *server) String() string {
+	return "MCP server"
 }
