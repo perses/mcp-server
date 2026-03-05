@@ -14,19 +14,18 @@
 package main
 
 import (
-	_ "embed"
+	"fmt"
 
-	"github.com/perses/perses/scripts/pkg/goreleaser"
+	commonconfig "github.com/perses/common/config"
+
+	permcp "github.com/perses/mcp-server/internal/permcp"
 )
 
-//go:embed .goreleaser.base.yaml
-var baseConfig []byte
+func resolveConfig(configFile string) (permcp.Config, error) {
+	resolved := permcp.Config{}
+	if err := commonconfig.NewResolver[permcp.Config]().SetEnvPrefix("PERMCP").SetConfigFile(configFile).Resolve(&resolved).Verify(); err != nil {
+		return permcp.Config{}, fmt.Errorf("unable to resolve configuration: %w", err)
+	}
 
-func main() {
-	goreleaser.Generate(baseConfig, &goreleaser.DockerConfig{
-		ImageName:  "mcp-server",
-		DebugImage: true,
-		BinaryIDs:  []string{"mcp-server"},
-		ExtraFiles: []string{"LICENSE"},
-	})
+	return resolved, nil
 }

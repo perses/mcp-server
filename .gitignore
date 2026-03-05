@@ -2,5 +2,9 @@ dist/
 bin/
 .vscode/
 .idea/
+.goreleaser.yaml
+.cursor
+CLAUDE.md
+AGENTS.md
 
 .goreleaser.yaml

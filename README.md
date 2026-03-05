@@ -98,9 +98,14 @@ You can easily access this file via the Claude Desktop app by navigating to `Cla
     "perses-mcp": {
       "command": "<ABSOLUTE_PATH_TO_PERSES_MCP_BINARY>",
       "args": [
+        "--transport",
+        "stdio",
         "--perses-server-url",
         "<PERSES_SERVER_URL>"
         // Add "--read-only" here for read-only mode
+        // Add "--config", "/path/to/config.yaml" to load configuration from file
+        // Add "--log.file-path", "/path/to/logfile.log" for file logging
+        // Add "--resources", "project,dashboard" to register only specific resources
       ],
       "env": {
         "PERSES_TOKEN": "<PERSES_TOKEN>"
@@ -133,9 +138,14 @@ Add the following JSON code snippet to the VS Code MCP Config file. See [VS Code
     "perses-mcp": {
       "command": "<ABSOLUTE_PATH_TO_PERSES_MCP_BINARY>",
       "args": [
+        "--transport",
+        "stdio",
         "--perses-server-url",
         "http://localhost:8080"
         // Add "--read-only" here for read-only mode
+        // Add "--config", "/path/to/config.yaml" to load configuration from file
+        // Add "--log.file-path", "/path/to/logfile.log" for file logging
+        // Add "--resources", "project,dashboard" to register only specific resources
       ],
       "env": {
         "PERSES_TOKEN": "${input:perses-token}"
@@ -165,7 +175,7 @@ export PERSES_TOKEN=<YOUR_PERSES_TOKEN>
 Run the following command to start the MCP server in Streamable HTTP mode:
 
 ```bash
-/path/to/mcp-server --transport streamable-http --perses-server-url <PERSES_SERVER_URL> --port 8000
+/path/to/perses-mcp-server --transport http --perses-server-url <PERSES_SERVER_URL> --port 8000
 ```
 
 <details>
@@ -184,17 +194,108 @@ Add the following JSON code snippet to the VS Code MCP Config file. See [VS Code
 ```
 </details>
 
-## Command-Line Flags
+## Command-Line Usage
 
-The Perses MCP Server supports several command-line flags to customize its behavior:
+The Perses MCP Server uses simple flags:
+
+```bash
+perses-mcp-server [flags]
+```
+
+### Flags
 
 | Flag | Default | Description |
 |------|---------|-------------|
+| `--config` | `""` | Path to the YAML configuration file. Values from CLI flags override the file. |
+| `--transport` | `stdio` | MCP transport mode (options: `stdio`, `http`) |
 | `--perses-server-url` | `http://localhost:8080` | The Perses backend server URL |
-| `--log-level` | `info` | Log level (options: `debug`, `info`, `warn`, `error`) |
-| `--transport` | `stdio` | MCP protocol transport mechanism (options: `stdio`, `streamable-http`) |
-| `--port` | `8000` | Port to run the HTTP Streamable server on (only used with `streamable-http` transport) |
+| `--log.level` | `info` | Log level (options: `debug`, `info`, `warn`, `error`) |
+| `--log.file-path` | `""` | Path to the log file (if empty, logs go to stderr) |
 | `--read-only` | `false` | Restrict the server to read-only operations |
+| `--resources` | `""` | Comma-separated list of resources to register. If not specified, all resources are registered. |
+| `--port` | `8000` | Port to run the HTTP Streamable server on (used when `--transport http`) |
+| `--version` | `false` | Print version information and exit |
+
+#### Available Resources
+
+The `--resources` flag accepts the following resource names (case-insensitive):
+
+| Resource | Description |
+|---------|-------------|
+| `dashboard` | Dashboard management tools |
+| `project` | Project management tools |
+| `datasource` | Project-level datasource tools |
+| `globaldatasource` | Global datasource tools |
+| `role` | Project-level role tools |
+| `globalrole` | Global role tools |
+| `rolebinding` | Project-level role binding tools |
+| `globalrolebinding` | Global role binding tools |
+| `variable` | Project-level variable tools |
+| `globalvariable` | Global variable tools |
+| `plugin` | Plugin tools |
+
+### Environment Variables
+
+- `PERSES_TOKEN` (required) - Authentication token for the Perses server
+- `PERMCP_*` (optional) - Configuration overrides loaded through the Perses common config resolver
+  - Examples: `PERMCP_TRANSPORT`, `PERMCP_PERSES_SERVER_URL`, `PERMCP_PORT`, `PERMCP_READ_ONLY`, `PERMCP_RESOURCES`, `PERMCP_LOG_LEVEL`, `PERMCP_LOG_FILE_PATH`
+
+### Configuration Precedence
+
+Configuration values are loaded in this order (later wins):
+
+1. Built-in defaults
+2. YAML file provided by `--config`
+3. Environment variables with `PERMCP_` prefix
+4. CLI flags
+
+### Example `config.yaml`
+
+```yaml
+transport: stdio
+perses_server_url: http://localhost:8080
+port: "8000"
+read_only: false
+resources: project,dashboard
+log:
+  level: info
+  file_path: ""
+```
+
+### Examples
+
+Start in STDIO mode with read-only access:
+```bash
+perses-mcp-server --transport stdio --perses-server-url http://localhost:8080 --read-only
+```
+
+Start in HTTP mode with debug logging:
+```bash
+perses-mcp-server --transport http --perses-server-url http://localhost:8080 --port 8000 --log.level debug
+```
+
+Start with file-based logging:
+```bash
+perses-mcp-server --transport stdio --perses-server-url http://localhost:8080 --log.file-path /var/log/perses-mcp-server.log
+```
+
+Start with only specific resources (e.g., project, dashboard, and globaldatasource):
+```bash
+perses-mcp-server --transport stdio --perses-server-url http://localhost:8080 --resources project,dashboard,globaldatasource
+```
+
+Combine resources with read-only mode (only read operations for selected resources):
+```bash
+perses-mcp-server --transport stdio --perses-server-url http://localhost:8080 --resources dashboard,project --read-only
+```
+
+Use a configuration file and override with environment variables:
+```bash
+export PERMCP_TRANSPORT=http
+export PERMCP_PORT=9000
+export PERSES_TOKEN=<YOUR_PERSES_TOKEN>
+perses-mcp-server --config ./config.yaml
+```
 
 ## Local Development
 

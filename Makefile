@@ -1,10 +1,19 @@
 
 GO   ?= go
 GOCI ?= golangci-lint
+COMMIT := $(shell git rev-parse HEAD)
+DATE := $(shell date +%Y-%m-%d)
+BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
+VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+PKG_LDFLAGS := github.com/prometheus/common/version
+LDFLAGS := -s -w -X ${PKG_LDFLAGS}.Version=${VERSION} -X ${PKG_LDFLAGS}.Revision=${COMMIT} -X ${PKG_LDFLAGS}.BuildDate=${DATE} -X ${PKG_LDFLAGS}.Branch=${BRANCH}
+
+export LDFLAGS
+export DATE
 
 .PHONY: build
 build:
-	go build -o bin/
+	$(GO) build -ldflags "$(LDFLAGS)" -o bin/perses-mcp-server ./cmd/permcp
 
 .PHONY: generate-goreleaser
 generate-goreleaser:

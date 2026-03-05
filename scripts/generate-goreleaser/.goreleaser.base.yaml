@@ -14,6 +14,9 @@ builds:
       - darwin
     env:
       - CGO_ENABLED=0
+    ldflags:
+      - "{{.Env.LDFLAGS}}"
+    main: ./cmd/permcp
 
 archives:
   - id: "default"
