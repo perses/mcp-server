@@ -76,7 +76,7 @@ func (r *roleBinding) List() *tools.Tool {
 		},
 	}
 
-	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input ProjectRoleBindingInput) (*mcp.CallToolResult, any, error) {
+	handler := func(_ context.Context, _ *mcp.CallToolRequest, input ProjectRoleBindingInput) (*mcp.CallToolResult, any, error) { //nolint: unparam
 		roleBindings, err := r.client.RoleBinding(input.Project).List("")
 		if err != nil {
 			return nil, nil, fmt.Errorf("error retrieving role bindings in project '%s': %w", input.Project, err)
@@ -141,7 +141,7 @@ func (r *roleBinding) Get() *tools.Tool {
 		},
 	}
 
-	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input GetProjectRoleBindingByNameInput) (*mcp.CallToolResult, any, error) {
+	handler := func(_ context.Context, _ *mcp.CallToolRequest, input GetProjectRoleBindingByNameInput) (*mcp.CallToolResult, any, error) { //nolint: unparam
 		roleBinding, err := r.client.RoleBinding(input.Project).Get(input.Name)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error retrieving role binding '%s' in project '%s': %w", input.Name, input.Project, err)
@@ -220,7 +220,7 @@ func (r *roleBinding) Create() *tools.Tool {
 		},
 	}
 
-	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input CreateProjectRoleBindingInput) (*mcp.CallToolResult, any, error) {
+	handler := func(_ context.Context, _ *mcp.CallToolRequest, input CreateProjectRoleBindingInput) (*mcp.CallToolResult, any, error) { //nolint: unparam
 		subjects := make([]v1.Subject, len(input.Subjects))
 		for i, s := range input.Subjects {
 			subjects[i] = v1.Subject{
@@ -323,7 +323,7 @@ func (r *roleBinding) Update() *tools.Tool {
 		},
 	}
 
-	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input UpdateProjectRoleBindingInput) (*mcp.CallToolResult, any, error) {
+	handler := func(_ context.Context, _ *mcp.CallToolRequest, input UpdateProjectRoleBindingInput) (*mcp.CallToolResult, any, error) { //nolint: unparam
 		subjects := make([]v1.Subject, len(input.Subjects))
 		for i, s := range input.Subjects {
 			subjects[i] = v1.Subject{
@@ -412,7 +412,7 @@ func (r *roleBinding) Delete() *tools.Tool {
 		},
 	}
 
-	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input DeleteProjectRoleBindingInput) (*mcp.CallToolResult, any, error) {
+	handler := func(_ context.Context, _ *mcp.CallToolRequest, input DeleteProjectRoleBindingInput) (*mcp.CallToolResult, any, error) { //nolint: unparam
 		err := r.client.RoleBinding(input.Project).Delete(input.Name)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error deleting role binding '%s' in project '%s': %w", input.Name, input.Project, err)

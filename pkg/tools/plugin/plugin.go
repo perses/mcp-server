@@ -54,7 +54,7 @@ func (p *plugin) List() *tools.Tool {
 		},
 	}
 
-	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input map[string]any) (*mcp.CallToolResult, any, error) {
+	handler := func(_ context.Context, _ *mcp.CallToolRequest, input map[string]any) (*mcp.CallToolResult, any, error) { //nolint: unparam
 		plugins, err := p.client.Plugin().List()
 		if err != nil {
 			return nil, nil, fmt.Errorf("error retrieving plugins: %w", err)

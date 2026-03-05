@@ -77,7 +77,7 @@ func (v *projectVariable) List() *tools.Tool {
 		},
 	}
 
-	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input ListProjectVariablesInput) (*mcp.CallToolResult, any, error) {
+	handler := func(_ context.Context, _ *mcp.CallToolRequest, input ListProjectVariablesInput) (*mcp.CallToolResult, any, error) { //nolint: unparam
 		variables, err := v.client.Variable(input.Project).List("")
 		if err != nil {
 			return nil, nil, fmt.Errorf("error retrieving variables in project '%s': %w", input.Project, err)
@@ -142,7 +142,7 @@ func (v *projectVariable) Get() *tools.Tool {
 		},
 	}
 
-	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input GetProjectVariableByNameInput) (*mcp.CallToolResult, any, error) {
+	handler := func(_ context.Context, _ *mcp.CallToolRequest, input GetProjectVariableByNameInput) (*mcp.CallToolResult, any, error) { //nolint: unparam
 		projectVar, err := v.client.Variable(input.Project).Get(input.Name)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error retrieving variable '%s' in project '%s': %w", input.Name, input.Project, err)
@@ -207,7 +207,7 @@ func (v *projectVariable) Create() *tools.Tool {
 		},
 	}
 
-	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input CreateProjectVariableInput) (*mcp.CallToolResult, any, error) {
+	handler := func(_ context.Context, _ *mcp.CallToolRequest, input CreateProjectVariableInput) (*mcp.CallToolResult, any, error) { //nolint: unparam
 		projectVar := &v1.Variable{
 			Kind: "Variable",
 			Metadata: v1.ProjectMetadata{
@@ -296,7 +296,7 @@ func (v *projectVariable) Update() *tools.Tool {
 		},
 	}
 
-	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input UpdateProjectVariableInput) (*mcp.CallToolResult, any, error) {
+	handler := func(_ context.Context, _ *mcp.CallToolRequest, input UpdateProjectVariableInput) (*mcp.CallToolResult, any, error) { //nolint: unparam
 		projectVar := &v1.Variable{
 			Kind: v1.KindVariable,
 			Metadata: v1.ProjectMetadata{
@@ -380,7 +380,7 @@ func (v *projectVariable) Delete() *tools.Tool {
 		},
 	}
 
-	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input DeleteProjectVariableInput) (*mcp.CallToolResult, any, error) {
+	handler := func(_ context.Context, _ *mcp.CallToolRequest, input DeleteProjectVariableInput) (*mcp.CallToolResult, any, error) { //nolint: unparam
 		err := v.client.Variable(input.Project).Delete(input.Name)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error deleting variable '%s' in project '%s': %w", input.Name, input.Project, err)

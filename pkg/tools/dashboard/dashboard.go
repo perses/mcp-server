@@ -76,7 +76,7 @@ func (d *dashboard) List() *tools.Tool {
 		},
 	}
 
-	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input ListDashboardsInput) (result *mcp.CallToolResult, output any, _ error) {
+	handler := func(_ context.Context, _ *mcp.CallToolRequest, input ListDashboardsInput) (*mcp.CallToolResult, any, error) { //nolint: unparam
 		response, err := d.client.Dashboard(input.Project).List("")
 		if err != nil {
 			return nil, nil, fmt.Errorf("error retrieving dashboards: %w", err)
@@ -142,7 +142,7 @@ func (d *dashboard) Get() *tools.Tool {
 		},
 	}
 
-	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input GetDashboardByNameInput) (result *mcp.CallToolResult, output any, _ error) {
+	handler := func(_ context.Context, _ *mcp.CallToolRequest, input GetDashboardByNameInput) (*mcp.CallToolResult, any, error) { //nolint: unparam
 		response, err := d.client.Dashboard(input.Project).Get(input.Name)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error retrieving dashboard '%s' in project '%s': %w", input.Name, input.Project, err)
@@ -193,7 +193,7 @@ func (d *dashboard) Create() *tools.Tool {
 		},
 	}
 
-	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input CreateDashboardInput) (*mcp.CallToolResult, any, error) {
+	handler := func(_ context.Context, _ *mcp.CallToolRequest, input CreateDashboardInput) (*mcp.CallToolResult, any, error) { //nolint: unparam
 		var dashboardObj v1.Dashboard
 		if err := json.Unmarshal([]byte(input.Dashboard), &dashboardObj); err != nil {
 			return nil, nil, fmt.Errorf("invalid dashboard JSON: %w", err)
@@ -260,7 +260,7 @@ func (d *dashboard) Update() *tools.Tool {
 		},
 	}
 
-	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input UpdateDashboardInput) (*mcp.CallToolResult, any, error) {
+	handler := func(_ context.Context, _ *mcp.CallToolRequest, input UpdateDashboardInput) (*mcp.CallToolResult, any, error) { //nolint: unparam
 		var dashboardObj v1.Dashboard
 		if err := json.Unmarshal([]byte(input.Dashboard), &dashboardObj); err != nil {
 			return nil, nil, fmt.Errorf("invalid dashboard JSON: %w", err)
@@ -330,7 +330,7 @@ func (d *dashboard) Delete() *tools.Tool {
 		},
 	}
 
-	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input DeleteDashboardInput) (*mcp.CallToolResult, any, error) {
+	handler := func(_ context.Context, _ *mcp.CallToolRequest, input DeleteDashboardInput) (*mcp.CallToolResult, any, error) { //nolint: unparam
 		err := d.client.Dashboard(input.Project).Delete(input.Name)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error deleting dashboard '%s' in project '%s': %w", input.Name, input.Project, err)

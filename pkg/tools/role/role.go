@@ -75,7 +75,7 @@ func (r *role) List() *tools.Tool {
 		},
 	}
 
-	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input ProjectRoleInput) (*mcp.CallToolResult, any, error) {
+	handler := func(_ context.Context, _ *mcp.CallToolRequest, input ProjectRoleInput) (*mcp.CallToolResult, any, error) { //nolint: unparam
 		roles, err := r.client.Role(input.Project).List("")
 		if err != nil {
 			return nil, nil, fmt.Errorf("error retrieving roles in project '%s': %w", input.Project, err)
@@ -140,7 +140,7 @@ func (r *role) Get() *tools.Tool {
 		},
 	}
 
-	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input GetProjectRoleByNameInput) (*mcp.CallToolResult, any, error) {
+	handler := func(_ context.Context, _ *mcp.CallToolRequest, input GetProjectRoleByNameInput) (*mcp.CallToolResult, any, error) { //nolint: unparam
 		role, err := r.client.Role(input.Project).Get(input.Name)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error retrieving role '%s' in project '%s': %w", input.Name, input.Project, err)
@@ -221,7 +221,7 @@ func (r *role) Create() *tools.Tool {
 		},
 	}
 
-	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input CreateProjectRoleInput) (*mcp.CallToolResult, any, error) {
+	handler := func(_ context.Context, _ *mcp.CallToolRequest, input CreateProjectRoleInput) (*mcp.CallToolResult, any, error) { //nolint: unparam
 		actions := make([]roleModel.Action, len(input.Actions))
 		for i, a := range input.Actions {
 			actions[i] = roleModel.Action(a)
@@ -331,7 +331,7 @@ func (r *role) Update() *tools.Tool {
 		},
 	}
 
-	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input UpdateProjectRoleInput) (*mcp.CallToolResult, any, error) {
+	handler := func(_ context.Context, _ *mcp.CallToolRequest, input UpdateProjectRoleInput) (*mcp.CallToolResult, any, error) { //nolint: unparam
 		actions := make([]roleModel.Action, len(input.Actions))
 		for i, a := range input.Actions {
 			actions[i] = roleModel.Action(a)
@@ -425,7 +425,7 @@ func (r *role) Delete() *tools.Tool {
 		},
 	}
 
-	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input DeleteProjectRoleInput) (*mcp.CallToolResult, any, error) {
+	handler := func(_ context.Context, _ *mcp.CallToolRequest, input DeleteProjectRoleInput) (*mcp.CallToolResult, any, error) { //nolint: unparam
 		err := r.client.Role(input.Project).Delete(input.Name)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error deleting role '%s' in project '%s': %w", input.Name, input.Project, err)
