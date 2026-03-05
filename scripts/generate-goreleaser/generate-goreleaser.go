@@ -27,6 +27,7 @@ func main() {
 		ImageName:  "mcp-server",
 		DebugImage: true,
 		BinaryIDs:  []string{"mcp-server"},
+		Registry:   []string{"docker.io/persesdev", "quay.io/persesdev"},
 		ExtraFiles: []string{"LICENSE"},
 	})
 }
