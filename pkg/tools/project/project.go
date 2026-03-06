@@ -80,7 +80,7 @@ func (p *project) Create() *tools.Tool {
 		},
 		Name: "perses_create_project",
 	}
-	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input CreateProjectInput) (*mcp.CallToolResult, any, error) {
+	handler := func(_ context.Context, _ *mcp.CallToolRequest, input CreateProjectInput) (*mcp.CallToolResult, any, error) { //nolint:unparam
 		newProjectRequest := &v1.Project{
 			Kind: "Project",
 			Metadata: v1.Metadata{
@@ -133,7 +133,7 @@ func (p *project) List() *tools.Tool {
 			OpenWorldHint:   jsonschema.Ptr(false),
 		},
 	}
-	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input ListProjectsInput) (*mcp.CallToolResult, any, error) {
+	handler := func(_ context.Context, _ *mcp.CallToolRequest, input ListProjectsInput) (*mcp.CallToolResult, any, error) { //nolint:unparam
 		projects, err := p.client.Project().List("")
 		if err != nil {
 			return nil, nil, fmt.Errorf("error retrieving projects: %w", err)
@@ -202,7 +202,7 @@ func (p *project) Update() *tools.Tool {
 			Required: []string{"name"},
 		},
 	}
-	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input UpdateProjectInput) (*mcp.CallToolResult, any, error) {
+	handler := func(_ context.Context, _ *mcp.CallToolRequest, input UpdateProjectInput) (*mcp.CallToolResult, any, error) { //nolint:unparam
 		updateProjectRequest := &v1.Project{
 			Kind: "Project",
 			Metadata: v1.Metadata{
@@ -270,7 +270,7 @@ func (p *project) Delete() *tools.Tool {
 			Required: []string{"name"},
 		},
 	}
-	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input DeleteProjectInput) (*mcp.CallToolResult, any, error) {
+	handler := func(_ context.Context, _ *mcp.CallToolRequest, input DeleteProjectInput) (*mcp.CallToolResult, any, error) { //nolint:unparam
 		err := p.client.Project().Delete(input.Name)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error deleting project '%s': %w", input.Name, err)
@@ -322,7 +322,7 @@ func (p *project) Get() *tools.Tool {
 			Required: []string{"name"},
 		},
 	}
-	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input GetProjectInput) (*mcp.CallToolResult, any, error) {
+	handler := func(_ context.Context, _ *mcp.CallToolRequest, input GetProjectInput) (*mcp.CallToolResult, any, error) { //nolint:unparam
 		response, err := p.client.Project().Get(input.Name)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error retrieving project '%s': %w", input.Name, err)

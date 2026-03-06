@@ -17,7 +17,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"strings"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/perses/common/async"
@@ -95,7 +95,7 @@ func (s *server) Execute(ctx context.Context, cancelFunc context.CancelFunc) err
 	serverCtx, serverCancelFunc := context.WithCancel(ctx)
 	go func() {
 		defer serverCancelFunc()
-		if strings.ToLower(s.cfg.Transport) == "http" {
+		if s.cfg.Transport == HTTPTransport {
 			if err := s.runHTTPTransport(); err != nil {
 				logrus.WithError(err).Info("http server stopped")
 			}
@@ -193,7 +193,12 @@ func (s *server) runHTTPTransport() error {
 		return s.mcpServer
 	}, nil)
 
-	httpServer := &http.Server{Addr: s.cfg.ListenAddress, Handler: handler}
+	httpServer := &http.Server{
+		Addr:              s.cfg.ListenAddress,
+		ReadTimeout:       30 * time.Second,
+		ReadHeaderTimeout: 10 * time.Second,
+		Handler:           handler,
+	}
 	return httpServer.ListenAndServe()
 }
 

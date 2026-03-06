@@ -60,7 +60,7 @@ func (g *globalVariable) List() *tools.Tool {
 		},
 	}
 
-	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input map[string]any) (*mcp.CallToolResult, any, error) {
+	handler := func(_ context.Context, _ *mcp.CallToolRequest, input map[string]any) (*mcp.CallToolResult, any, error) { //nolint:unparam
 		variables, err := g.client.GlobalVariable().List("")
 		if err != nil {
 			return nil, nil, fmt.Errorf("error retrieving global variables: %w", err)
@@ -117,7 +117,7 @@ func (g *globalVariable) Get() *tools.Tool {
 		},
 	}
 
-	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input GetGlobalVariableByNameInput) (*mcp.CallToolResult, any, error) {
+	handler := func(_ context.Context, _ *mcp.CallToolRequest, input GetGlobalVariableByNameInput) (*mcp.CallToolResult, any, error) { //nolint:unparam
 		globalVariable, err := g.client.GlobalVariable().Get(input.Name)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error retrieving global variable '%s': %w", input.Name, err)
@@ -179,7 +179,7 @@ func (g *globalVariable) Create() *tools.Tool {
 		},
 	}
 
-	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input CreateGlobalVariableInput) (*mcp.CallToolResult, any, error) {
+	handler := func(_ context.Context, _ *mcp.CallToolRequest, input CreateGlobalVariableInput) (*mcp.CallToolResult, any, error) { //nolint:unparam
 		globalVar := &v1.GlobalVariable{
 			Kind: v1.KindGlobalVariable,
 			Metadata: v1.Metadata{
@@ -254,7 +254,7 @@ func (g *globalVariable) Update() *tools.Tool {
 		},
 	}
 
-	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input UpdateGlobalVariableInput) (*mcp.CallToolResult, any, error) {
+	handler := func(_ context.Context, _ *mcp.CallToolRequest, input UpdateGlobalVariableInput) (*mcp.CallToolResult, any, error) { //nolint:unparam
 		globalVar := &v1.GlobalVariable{
 			Kind: v1.KindGlobalVariable,
 			Metadata: v1.Metadata{
@@ -324,7 +324,7 @@ func (g *globalVariable) Delete() *tools.Tool {
 		},
 	}
 
-	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input DeleteGlobalVariableInput) (*mcp.CallToolResult, any, error) {
+	handler := func(_ context.Context, _ *mcp.CallToolRequest, input DeleteGlobalVariableInput) (*mcp.CallToolResult, any, error) { //nolint:unparam
 		err := g.client.GlobalVariable().Delete(input.Name)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error deleting global variable '%s': %w", input.Name, err)

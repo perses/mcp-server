@@ -62,7 +62,7 @@ func (g *globalDatasource) List() *tools.Tool {
 		},
 	}
 
-	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input map[string]any) (*mcp.CallToolResult, any, error) {
+	handler := func(_ context.Context, _ *mcp.CallToolRequest, input map[string]any) (*mcp.CallToolResult, any, error) { //nolint:unparam
 		globalDatasources, err := g.client.GlobalDatasource().List("")
 		if err != nil {
 			return nil, nil, fmt.Errorf("error retrieving global datasources: %w", err)
@@ -119,7 +119,7 @@ func (g *globalDatasource) Get() *tools.Tool {
 		},
 	}
 
-	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input GetGlobalDatasourceByNameInput) (*mcp.CallToolResult, any, error) {
+	handler := func(_ context.Context, _ *mcp.CallToolRequest, input GetGlobalDatasourceByNameInput) (*mcp.CallToolResult, any, error) { //nolint:unparam
 		globalDatasource, err := g.client.GlobalDatasource().Get(input.Name)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error retrieving global datasource '%s': %w", input.Name, err)
@@ -199,7 +199,7 @@ func (g *globalDatasource) Create() *tools.Tool {
 		},
 	}
 
-	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input CreateGlobalDatasourceInput) (*mcp.CallToolResult, any, error) {
+	handler := func(_ context.Context, _ *mcp.CallToolRequest, input CreateGlobalDatasourceInput) (*mcp.CallToolResult, any, error) { //nolint:unparam
 		// Parse the URL
 		parsedURL, err := common.ParseURL(input.URL)
 		if err != nil {
@@ -330,7 +330,7 @@ func (g *globalDatasource) Update() *tools.Tool {
 		},
 	}
 
-	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input UpdateGlobalDatasourceInput) (*mcp.CallToolResult, any, error) {
+	handler := func(_ context.Context, _ *mcp.CallToolRequest, input UpdateGlobalDatasourceInput) (*mcp.CallToolResult, any, error) { //nolint:unparam
 		// Parse the URL
 		parsedURL, err := common.ParseURL(input.URL)
 		if err != nil {
@@ -437,7 +437,7 @@ func (g *globalDatasource) Delete() *tools.Tool {
 		},
 	}
 
-	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input DeleteGlobalDatasourceInput) (*mcp.CallToolResult, any, error) {
+	handler := func(_ context.Context, _ *mcp.CallToolRequest, input DeleteGlobalDatasourceInput) (*mcp.CallToolResult, any, error) { //nolint:unparam
 		err := g.client.GlobalDatasource().Delete(input.Name)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error deleting global datasource '%s': %w", input.Name, err)
