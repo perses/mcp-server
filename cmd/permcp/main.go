@@ -17,12 +17,13 @@ import (
 	"flag"
 
 	"github.com/perses/common/app"
+	commongLogrus "github.com/perses/common/logrus"
+	"github.com/perses/mcp-server/internal/permcp"
 	"github.com/sirupsen/logrus"
-
-	permcp "github.com/perses/mcp-server/internal/permcp"
 )
 
 func main() {
+	commongLogrus.InitFlag()
 	configFile := flag.String("config", "", "Path to the YAML configuration file")
 	flag.Parse()
 
@@ -36,6 +37,7 @@ func main() {
 	}
 
 	runner := app.NewRunner().
+		WithDefaultLogrusBuilder().
 		WithTasks(mcpServer)
 	runner.Start()
 }
