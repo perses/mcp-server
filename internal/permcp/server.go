@@ -17,6 +17,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/perses/common/async"
@@ -192,7 +193,12 @@ func (s *server) runHTTPTransport() error {
 		return s.mcpServer
 	}, nil)
 
-	httpServer := &http.Server{Addr: s.cfg.ListenAddress, Handler: handler}
+	httpServer := &http.Server{
+		Addr:              s.cfg.ListenAddress,
+		ReadTimeout:       30 * time.Second,
+		ReadHeaderTimeout: 10 * time.Second,
+		Handler:           handler,
+	}
 	return httpServer.ListenAndServe()
 }
 
