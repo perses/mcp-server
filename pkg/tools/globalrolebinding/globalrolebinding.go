@@ -59,7 +59,7 @@ func (g *globalRoleBinding) List() *tools.Tool {
 		},
 	}
 
-	handler := func(_ context.Context, _ *mcp.CallToolRequest, input map[string]any) (*mcp.CallToolResult, any, error) { //nolint: unparam
+	handler := func(_ context.Context, _ *mcp.CallToolRequest, input map[string]any) (*mcp.CallToolResult, any, error) { //nolint:unparam
 		globalRoleBindings, err := g.client.GlobalRoleBinding().List("")
 		if err != nil {
 			return nil, nil, fmt.Errorf("error retrieving global role bindings: %w", err)
@@ -116,7 +116,7 @@ func (g *globalRoleBinding) Get() *tools.Tool {
 		},
 	}
 
-	handler := func(_ context.Context, _ *mcp.CallToolRequest, input GetGlobalRoleBindingByNameInput) (*mcp.CallToolResult, any, error) { //nolint: unparam
+	handler := func(_ context.Context, _ *mcp.CallToolRequest, input GetGlobalRoleBindingByNameInput) (*mcp.CallToolResult, any, error) { //nolint:unparam
 		globalRoleBinding, err := g.client.GlobalRoleBinding().Get(input.Name)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error retrieving global role binding '%s': %w", input.Name, err)
@@ -187,7 +187,7 @@ func (g *globalRoleBinding) Create() *tools.Tool {
 		},
 	}
 
-	handler := func(_ context.Context, _ *mcp.CallToolRequest, input CreateGlobalRoleBindingInput) (*mcp.CallToolResult, any, error) { //nolint: unparam
+	handler := func(_ context.Context, _ *mcp.CallToolRequest, input CreateGlobalRoleBindingInput) (*mcp.CallToolResult, any, error) { //nolint:unparam
 		subjects := make([]v1.Subject, len(input.Subjects))
 		for i, s := range input.Subjects {
 			subjects[i] = v1.Subject{
@@ -277,7 +277,7 @@ func (g *globalRoleBinding) Update() *tools.Tool {
 		},
 	}
 
-	handler := func(_ context.Context, _ *mcp.CallToolRequest, input UpdateGlobalRoleBindingInput) (*mcp.CallToolResult, any, error) { //nolint: unparam
+	handler := func(_ context.Context, _ *mcp.CallToolRequest, input UpdateGlobalRoleBindingInput) (*mcp.CallToolResult, any, error) { //nolint:unparam
 		subjects := make([]v1.Subject, len(input.Subjects))
 		for i, s := range input.Subjects {
 			subjects[i] = v1.Subject{
@@ -353,7 +353,7 @@ func (g *globalRoleBinding) Delete() *tools.Tool {
 		},
 	}
 
-	handler := func(_ context.Context, _ *mcp.CallToolRequest, input DeleteGlobalRoleBindingInput) (*mcp.CallToolResult, any, error) { //nolint: unparam
+	handler := func(_ context.Context, _ *mcp.CallToolRequest, input DeleteGlobalRoleBindingInput) (*mcp.CallToolResult, any, error) { //nolint:unparam
 		err := g.client.GlobalRoleBinding().Delete(input.Name)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error deleting global role binding '%s': %w", input.Name, err)

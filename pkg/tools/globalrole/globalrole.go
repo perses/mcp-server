@@ -60,7 +60,7 @@ func (g *globalRole) List() *tools.Tool {
 		},
 	}
 
-	handler := func(_ context.Context, _ *mcp.CallToolRequest, input map[string]any) (*mcp.CallToolResult, any, error) { //nolint: unparam
+	handler := func(_ context.Context, _ *mcp.CallToolRequest, input map[string]any) (*mcp.CallToolResult, any, error) { //nolint:unparam
 		globalRoles, err := g.client.GlobalRole().List("")
 		if err != nil {
 			return nil, nil, fmt.Errorf("error retrieving global roles: %w", err)
@@ -117,7 +117,7 @@ func (g *globalRole) Get() *tools.Tool {
 		},
 	}
 
-	handler := func(_ context.Context, _ *mcp.CallToolRequest, input GetGlobalRoleByNameInput) (*mcp.CallToolResult, any, error) { //nolint: unparam
+	handler := func(_ context.Context, _ *mcp.CallToolRequest, input GetGlobalRoleByNameInput) (*mcp.CallToolResult, any, error) { //nolint:unparam
 		globalRole, err := g.client.GlobalRole().Get(input.Name)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error retrieving global role '%s': %w", input.Name, err)
@@ -190,7 +190,7 @@ func (g *globalRole) Create() *tools.Tool {
 		},
 	}
 
-	handler := func(_ context.Context, _ *mcp.CallToolRequest, input CreateGlobalRoleInput) (*mcp.CallToolResult, any, error) { //nolint: unparam
+	handler := func(_ context.Context, _ *mcp.CallToolRequest, input CreateGlobalRoleInput) (*mcp.CallToolResult, any, error) { //nolint:unparam
 		actions := make([]role.Action, len(input.Actions))
 		for i, a := range input.Actions {
 			actions[i] = role.Action(a)
@@ -287,7 +287,7 @@ func (g *globalRole) Update() *tools.Tool {
 		},
 	}
 
-	handler := func(_ context.Context, _ *mcp.CallToolRequest, input UpdateGlobalRoleInput) (*mcp.CallToolResult, any, error) { //nolint: unparam
+	handler := func(_ context.Context, _ *mcp.CallToolRequest, input UpdateGlobalRoleInput) (*mcp.CallToolResult, any, error) { //nolint:unparam
 		actions := make([]role.Action, len(input.Actions))
 		for i, a := range input.Actions {
 			actions[i] = role.Action(a)
@@ -368,7 +368,7 @@ func (g *globalRole) Delete() *tools.Tool {
 		},
 	}
 
-	handler := func(_ context.Context, _ *mcp.CallToolRequest, input DeleteGlobalRoleInput) (*mcp.CallToolResult, any, error) { //nolint: unparam
+	handler := func(_ context.Context, _ *mcp.CallToolRequest, input DeleteGlobalRoleInput) (*mcp.CallToolResult, any, error) { //nolint:unparam
 		err := g.client.GlobalRole().Delete(input.Name)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error deleting global role '%s': %w", input.Name, err)

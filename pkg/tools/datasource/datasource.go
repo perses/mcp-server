@@ -76,7 +76,7 @@ func (d *datasource) List() *tools.Tool {
 		},
 	}
 
-	handler := func(_ context.Context, _ *mcp.CallToolRequest, input ListProjectDatasourcesInput) (*mcp.CallToolResult, any, error) { //nolint: unparam
+	handler := func(_ context.Context, _ *mcp.CallToolRequest, input ListProjectDatasourcesInput) (*mcp.CallToolResult, any, error) { //nolint:unparam
 		datasources, err := d.client.Datasource(input.Project).List("")
 		if err != nil {
 			return nil, nil, fmt.Errorf("error retrieving datasources in project '%s': %w", input.Project, err)
@@ -141,7 +141,7 @@ func (d *datasource) Get() *tools.Tool {
 		},
 	}
 
-	handler := func(_ context.Context, _ *mcp.CallToolRequest, input GetProjectDatasourceByNameInput) (*mcp.CallToolResult, any, error) { //nolint: unparam
+	handler := func(_ context.Context, _ *mcp.CallToolRequest, input GetProjectDatasourceByNameInput) (*mcp.CallToolResult, any, error) { //nolint:unparam
 		datasource, err := d.client.Datasource(input.Project).Get(input.Name)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error retrieving datasource '%s' in project '%s': %w", input.Name, input.Project, err)
@@ -203,7 +203,7 @@ func (d *datasource) Create() *tools.Tool {
 		},
 	}
 
-	handler := func(_ context.Context, _ *mcp.CallToolRequest, input CreateDatasourceInput) (*mcp.CallToolResult, any, error) { //nolint: unparam
+	handler := func(_ context.Context, _ *mcp.CallToolRequest, input CreateDatasourceInput) (*mcp.CallToolResult, any, error) { //nolint:unparam
 		var datasourceObj v1.Datasource
 		if err := json.Unmarshal([]byte(input.Datasource), &datasourceObj); err != nil {
 			return nil, nil, fmt.Errorf("invalid datasource JSON: %w", err)
@@ -270,7 +270,7 @@ func (d *datasource) Update() *tools.Tool {
 		},
 	}
 
-	handler := func(_ context.Context, _ *mcp.CallToolRequest, input UpdateDatasourceInput) (*mcp.CallToolResult, any, error) { //nolint: unparam
+	handler := func(_ context.Context, _ *mcp.CallToolRequest, input UpdateDatasourceInput) (*mcp.CallToolResult, any, error) { //nolint:unparam
 		var datasourceObj v1.Datasource
 		if err := json.Unmarshal([]byte(input.Datasource), &datasourceObj); err != nil {
 			return nil, nil, fmt.Errorf("invalid datasource JSON: %w", err)
@@ -340,7 +340,7 @@ func (d *datasource) Delete() *tools.Tool {
 		},
 	}
 
-	handler := func(_ context.Context, _ *mcp.CallToolRequest, input DeleteDatasourceInput) (*mcp.CallToolResult, any, error) { //nolint: unparam
+	handler := func(_ context.Context, _ *mcp.CallToolRequest, input DeleteDatasourceInput) (*mcp.CallToolResult, any, error) { //nolint:unparam
 		err := d.client.Datasource(input.Project).Delete(input.Name)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error deleting datasource '%s' in project '%s': %w", input.Name, input.Project, err)
