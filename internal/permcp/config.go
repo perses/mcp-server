@@ -24,6 +24,13 @@ import (
 	"github.com/perses/perses/pkg/model/api/v1/common"
 )
 
+type Transport string
+
+const (
+	HTTPTransport  Transport = "http"
+	STDIOTransport Transport = "stdio"
+)
+
 func ResolveConfig(configFile string) (Config, error) {
 	c := Config{}
 	return c, commonconfig.NewResolver[Config]().
@@ -35,7 +42,7 @@ func ResolveConfig(configFile string) (Config, error) {
 
 type Config struct {
 	// Transport mechanism for the MCP server (e.g., "stdio", "http")
-	Transport string `yaml:"transport,omitempty"`
+	Transport Transport `yaml:"transport,omitempty"`
 
 	// ListenAddress is the address to listen on for HTTP transport (e.g., ":8000")
 	ListenAddress string `yaml:"listen_address,omitempty"`
@@ -57,14 +64,14 @@ type Config struct {
 
 func (c *Config) Verify() error {
 	if c.Transport == "" {
-		c.Transport = "stdio"
+		c.Transport = STDIOTransport
 	}
 
-	switch strings.ToLower(strings.TrimSpace(c.Transport)) {
+	switch strings.ToLower(strings.TrimSpace(string(c.Transport))) {
 	case "stdio":
 		c.Transport = "stdio"
 	case "http", "http-streamable", "streamable-http":
-		c.Transport = "http"
+		c.Transport = HTTPTransport
 	default:
 		return fmt.Errorf("unsupported transport %q. valid values are: stdio, http", c.Transport)
 	}
