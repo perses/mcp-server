@@ -149,6 +149,45 @@ For more details about how environment variables override the configuration file
 > See [Environment Variables](#environment-variables) for the full list.
 
 <details>
+<summary>OpenCode</summary>
+
+Add the following to your [OpenCode config](https://opencode.ai/docs/config/) under `mcp`. See [OpenCode MCP documentation](https://opencode.ai/docs/mcp-servers/) for more details.
+
+```json
+{
+  "mcp": {
+    "perses": {
+      "command": [
+        "<ABSOLUTE_PATH_TO_PERSES_MCP_BINARY>",
+        "--config",
+        "<ABSOLUTE_PATH_TO_CONFIG_YAML>"
+      ],
+      "environment": {
+        "PERMCP_PERSES_SERVER_NATIVE_AUTH_LOGIN": "{env:PERMCP_PERSES_SERVER_NATIVE_AUTH_LOGIN}",
+        "PERMCP_PERSES_SERVER_NATIVE_AUTH_PASSWORD": "{env:PERMCP_PERSES_SERVER_NATIVE_AUTH_PASSWORD}"
+      },
+      "enabled": true,
+      "type": "local"
+    }
+  }
+}
+```
+</details>
+
+<details>
+<summary>Claude Code</summary>
+
+Use the Claude Code CLI to add the Perses MCP server. See [Claude Code MCP documentation](https://docs.anthropic.com/en/docs/claude-code/mcp) for more details.
+
+```bash
+claude mcp add --transport stdio \
+  --env PERMCP_PERSES_SERVER_NATIVE_AUTH_LOGIN=<YOUR_LOGIN> \
+  --env PERMCP_PERSES_SERVER_NATIVE_AUTH_PASSWORD=<YOUR_PASSWORD> \
+  perses-mcp -- <ABSOLUTE_PATH_TO_PERSES_MCP_BINARY> --config <ABSOLUTE_PATH_TO_CONFIG_YAML>
+```
+</details>
+
+<details>
 <summary>Claude Desktop</summary>
 
 Create or edit the Claude Desktop configuration file at:
@@ -198,32 +237,6 @@ Add the following to your VS Code MCP config file. See [VS Code MCP documentatio
         "PERMCP_PERSES_SERVER_NATIVE_AUTH_LOGIN": "<YOUR_LOGIN>",
         "PERMCP_PERSES_SERVER_NATIVE_AUTH_PASSWORD": "<YOUR_PASSWORD>"
       }
-    }
-  }
-}
-```
-</details>
-
-<details>
-<summary>OpenCode</summary>
-
-Add the following to your [OpenCode config](https://opencode.ai/docs/config/) under `mcp`. See [OpenCode MCP documentation](https://opencode.ai/docs/mcp-servers/) for more details.
-
-```json
-{
-  "mcp": {
-    "perses": {
-      "command": [
-        "<ABSOLUTE_PATH_TO_PERSES_MCP_BINARY>",
-        "--config",
-        "<ABSOLUTE_PATH_TO_CONFIG_YAML>"
-      ],
-      "environment": {
-        "PERMCP_PERSES_SERVER_NATIVE_AUTH_LOGIN": "{env:PERMCP_PERSES_SERVER_NATIVE_AUTH_LOGIN}",
-        "PERMCP_PERSES_SERVER_NATIVE_AUTH_PASSWORD": "{env:PERMCP_PERSES_SERVER_NATIVE_AUTH_PASSWORD}"
-      },
-      "enabled": true,
-      "type": "local"
     }
   }
 }
