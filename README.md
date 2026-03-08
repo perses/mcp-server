@@ -78,7 +78,8 @@ perses_server:
   #   insecure_skip_verify: false
 ```
 
-> **Note**: Configuration values are resolved in this order (later wins): built-in defaults < YAML configuration file < environment variables.
+> [!NOTE]
+> Configuration values are resolved in this order (later wins): built-in defaults < YAML configuration file < environment variables.
 
 #### Available Resources
 
@@ -138,7 +139,8 @@ For more details about how environment variables override the configuration file
 }
 ```
 
-> **Tip**: Pass sensitive auth values as environment variables instead of storing them in the config file:
+> [!TIP]
+> Pass sensitive auth values as environment variables instead of storing them in the config file:
 >
 > **Basic auth**: `PERMCP_PERSES_SERVER_NATIVE_AUTH_LOGIN` and `PERMCP_PERSES_SERVER_NATIVE_AUTH_PASSWORD`
 >
@@ -301,7 +303,8 @@ authorization:
   credentials: "<YOUR_TOKEN>"
 ```
 
-> **Warning**: The bearer token automatically expires based on the `access_token_ttl` setting (default: 15 minutes) of the Perses server. You can change this in the Perses app [configuration](https://perses.dev/perses/docs/configuration/configuration/?h=configu).
+> [!WARNING]
+> The bearer token automatically expires based on the `access_token_ttl` setting (default: 15 minutes) of the Perses server. You can change this in the Perses app [configuration](https://perses.dev/perses/docs/configuration/configuration/?h=configu).
 
 ## Command-Line Usage
 
