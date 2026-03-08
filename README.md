@@ -60,6 +60,8 @@ perses_server:
   url: "http://localhost:8080"
 
   # Authentication (choose one method):
+  # It is recommended to use environment variables for sensitive values.
+  # Refer the "Environment Variables" section.
 
   # Option 1: Basic authentication (login/password)
   # native_auth:
