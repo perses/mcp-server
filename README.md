@@ -3,7 +3,6 @@
     <h1 align="center">MCP Server for Perses</h1>
 </div>
 
-> This MCP Server is currently in **beta**. Features and tools may change, and stability is not guaranteed. Feedback and contributions are most welcome!
 
 ## Overview
 
