@@ -41,17 +41,85 @@ https://github.com/user-attachments/assets/b80c354a-8006-4e1f-b7f4-e123002f7dc3
 
 ### 1. Create a configuration file
 
-Create a YAML configuration file (e.g., `perses-mcp-config.yaml`):
+Create a YAML configuration file (e.g., `perses-mcp-config.yaml`). See [Authentication](#authentication) for details on each auth method.
 
 ```yaml
+# MCP transport mode: "stdio" or "http"
+transport: stdio
+
+# Address to listen on for HTTP transport (e.g., ":8000")
+listen_address: ":8000"
+
+# Restrict the server to read-only operations
+read_only: false
+
+# Comma-separated list of resources to register (if empty, all resources are registered)
+resources: ""
+
+# Perses server connection configuration
 perses_server:
   url: "http://localhost:8080"
-  native_auth:
-    login: "admin"
-    password: "password"
+
+  # Authentication (choose one method):
+
+  # Option 1: Basic authentication (login/password)
+  # native_auth:
+  #   login: "admin"
+  #   password: "password"
+
+  # Option 2: Bearer token (e.g., from `percli whoami --show-token`)
+  # authorization:
+  #   type: Bearer
+  #   credentials: "<YOUR_TOKEN>"
+  #   # credentials_file: "/path/to/token/file"  # Alternative: read token from file
+
+  # TLS configuration (optional)
+  # tls_config:
+  #   ca_file: "/path/to/ca.pem"
+  #   insecure_skip_verify: false
 ```
 
-> See [Configuration File](#configuration-file) for all options and [Authentication](#authentication) for other auth methods.
+> **Note**: Configuration values are resolved in this order (later wins): built-in defaults < YAML configuration file < environment variables.
+
+#### Available Resources
+
+The `resources` field accepts the following resource names (case-insensitive, comma-separated):
+
+| Resource | Description |
+|---------|-------------|
+| `dashboard` | Dashboard management tools |
+| `project` | Project management tools |
+| `datasource` | Project-level datasource tools |
+| `globaldatasource` | Global datasource tools |
+| `role` | Project-level role tools |
+| `globalrole` | Global role tools |
+| `rolebinding` | Project-level role binding tools |
+| `globalrolebinding` | Global role binding tools |
+| `variable` | Project-level variable tools |
+| `globalvariable` | Global variable tools |
+| `plugin` | Plugin tools |
+
+#### Environment Variables
+
+Configuration values in the YAML file can be overridden using environment variables with the `PERMCP_` prefix. The variable name is derived by uppercasing each YAML key and joining nested keys with `_`.
+
+For example, the YAML path `perses_server.native_auth.password` becomes `PERMCP_PERSES_SERVER_NATIVE_AUTH_PASSWORD`.
+
+This is particularly useful for sensitive values like passwords and tokens that should not be stored in the config file.
+
+| Environment Variable | Config Path | Description |
+|---------------------|-------------|-------------|
+| `PERMCP_TRANSPORT` | `transport` | Transport mode |
+| `PERMCP_LISTEN_ADDRESS` | `listen_address` | HTTP listen address |
+| `PERMCP_READ_ONLY` | `read_only` | Read-only mode |
+| `PERMCP_RESOURCES` | `resources` | Resources to register |
+| `PERMCP_PERSES_SERVER_URL` | `perses_server.url` | Perses server URL |
+| `PERMCP_PERSES_SERVER_NATIVE_AUTH_LOGIN` | `perses_server.native_auth.login` | Basic auth username |
+| `PERMCP_PERSES_SERVER_NATIVE_AUTH_PASSWORD` | `perses_server.native_auth.password` | Basic auth password |
+| `PERMCP_PERSES_SERVER_AUTHORIZATION_TYPE` | `perses_server.authorization.type` | Authorization type (e.g., `Bearer`) |
+| `PERMCP_PERSES_SERVER_AUTHORIZATION_CREDENTIALS` | `perses_server.authorization.credentials` | Authorization token |
+
+For more details about how environment variables override the configuration file, see the [Perses Configuration docs](https://perses.dev/perses/docs/configuration/configuration/?h=perses_#configuration-file).
 
 ### 2. Add the MCP server to your client
 
@@ -70,6 +138,14 @@ perses_server:
   }
 }
 ```
+
+> **Tip**: Pass sensitive auth values as environment variables instead of storing them in the config file:
+>
+> **Basic auth**: `PERMCP_PERSES_SERVER_NATIVE_AUTH_LOGIN` and `PERMCP_PERSES_SERVER_NATIVE_AUTH_PASSWORD`
+>
+> **Bearer token**: `PERMCP_PERSES_SERVER_AUTHORIZATION_CREDENTIALS`
+>
+> See [Environment Variables](#environment-variables) for the full list.
 
 <details>
 <summary>Claude Desktop</summary>
@@ -92,6 +168,7 @@ You can also access this file via `Claude > Settings > Developer > Edit Config`.
         "<ABSOLUTE_PATH_TO_CONFIG_YAML>"
       ],
       "env": {
+        "PERMCP_PERSES_SERVER_NATIVE_AUTH_LOGIN": "<YOUR_LOGIN>",
         "PERMCP_PERSES_SERVER_NATIVE_AUTH_PASSWORD": "<YOUR_PASSWORD>"
       }
     }
@@ -117,6 +194,7 @@ Add the following to your VS Code MCP config file. See [VS Code MCP documentatio
         "<ABSOLUTE_PATH_TO_CONFIG_YAML>"
       ],
       "env": {
+        "PERMCP_PERSES_SERVER_NATIVE_AUTH_LOGIN": "<YOUR_LOGIN>",
         "PERMCP_PERSES_SERVER_NATIVE_AUTH_PASSWORD": "<YOUR_PASSWORD>"
       }
     }
@@ -186,91 +264,9 @@ Then point your MCP client to the HTTP endpoint:
 ```
 </details>
 
-## Configuration File
-
-The MCP server is configured through a YAML file passed via the `--config` flag.
-
-```yaml
-# MCP transport mode: "stdio" or "http"
-transport: stdio
-
-# Address to listen on for HTTP transport (e.g., ":8000")
-listen_address: ":8000"
-
-# Restrict the server to read-only operations
-read_only: false
-
-# Comma-separated list of resources to register (if empty, all resources are registered)
-resources: ""
-
-# Perses server connection configuration
-perses_server:
-  url: "http://localhost:8080"
-
-  # Authentication (choose one method):
-
-  # Option 1: Native authentication (login/password)
-  # native_auth:
-  #   login: "admin"
-  #   password: "password"
-
-  # Option 2: Bearer token (e.g., from `percli whoami --show-token`)
-  # authorization:
-  #   type: Bearer
-  #   credentials: "<YOUR_TOKEN>"
-  #   # credentials_file: "/path/to/token/file"  # Alternative: read token from file
-
-  # TLS configuration (optional)
-  # tls_config:
-  #   ca_file: "/path/to/ca.pem"
-  #   insecure_skip_verify: false
-```
-
-> **Note**: Configuration values are resolved in this order (later wins): built-in defaults < YAML configuration file (`--config`) < environment variables (`PERMCP_` prefix).
-
-### Available Resources
-
-The `resources` field accepts the following resource names (case-insensitive, comma-separated):
-
-| Resource | Description |
-|---------|-------------|
-| `dashboard` | Dashboard management tools |
-| `project` | Project management tools |
-| `datasource` | Project-level datasource tools |
-| `globaldatasource` | Global datasource tools |
-| `role` | Project-level role tools |
-| `globalrole` | Global role tools |
-| `rolebinding` | Project-level role binding tools |
-| `globalrolebinding` | Global role binding tools |
-| `variable` | Project-level variable tools |
-| `globalvariable` | Global variable tools |
-| `plugin` | Plugin tools |
-
-## Environment Variables
-
-Configuration values in the YAML file can be overridden using environment variables with the `PERMCP_` prefix. The variable name is derived by uppercasing each YAML key and joining nested keys with `_`.
-
-For example, the YAML path `perses_server.native_auth.password` becomes `PERMCP_PERSES_SERVER_NATIVE_AUTH_PASSWORD`.
-
-This is particularly useful for sensitive values like passwords and tokens that should not be stored in the config file.
-
-| Environment Variable | Config Path | Description |
-|---------------------|-------------|-------------|
-| `PERMCP_TRANSPORT` | `transport` | Transport mode |
-| `PERMCP_LISTEN_ADDRESS` | `listen_address` | HTTP listen address |
-| `PERMCP_READ_ONLY` | `read_only` | Read-only mode |
-| `PERMCP_RESOURCES` | `resources` | Resources to register |
-| `PERMCP_PERSES_SERVER_URL` | `perses_server.url` | Perses server URL |
-| `PERMCP_PERSES_SERVER_NATIVE_AUTH_LOGIN` | `perses_server.native_auth.login` | Native auth username |
-| `PERMCP_PERSES_SERVER_NATIVE_AUTH_PASSWORD` | `perses_server.native_auth.password` | Native auth password |
-| `PERMCP_PERSES_SERVER_AUTHORIZATION_TYPE` | `perses_server.authorization.type` | Authorization type (e.g., `Bearer`) |
-| `PERMCP_PERSES_SERVER_AUTHORIZATION_CREDENTIALS` | `perses_server.authorization.credentials` | Authorization token |
-
-For more details about how environment variables override the configuration file, see the [Perses Configuration docs](https://perses.dev/perses/docs/configuration/configuration/?h=perses_#configuration-file).
-
 ## Authentication
 
-There are two ways to authenticate the MCP server with your Perses instance. Add the relevant block under `perses_server` in your [configuration file](#configuration-file).
+There are two ways to authenticate the MCP server with your Perses instance. Add the relevant block under `perses_server` in your [configuration file](#1-create-a-configuration-file).
 
 ### Basic Authentication (Username/Password)
 
@@ -281,8 +277,6 @@ native_auth:
   login: "your-username"
   password: "your-password"
 ```
-
-> **Tip**: Store sensitive values as environment variables instead of in the config file (e.g., `PERMCP_PERSES_SERVER_NATIVE_AUTH_PASSWORD`). See [Environment Variables](#environment-variables) for details.
 
 ### Bearer Token (via `percli`)
 
@@ -307,8 +301,6 @@ authorization:
   type: Bearer
   credentials: "<YOUR_TOKEN>"
 ```
-
-> **Tip**: Store the token as an environment variable `PERMCP_PERSES_SERVER_AUTHORIZATION_CREDENTIALS` instead of in the config file. See [Environment Variables](#environment-variables) for details.
 
 > **Warning**: The bearer token automatically expires based on the `access_token_ttl` setting (default: 15 minutes) of the Perses server. You can change this in the Perses app [configuration](https://perses.dev/perses/docs/configuration/configuration/?h=configu).
 
