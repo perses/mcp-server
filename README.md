@@ -3,14 +3,19 @@
     <h1 align="center">MCP Server for Perses</h1>
 </div>
 
-> [!WARNING]  
 > This MCP Server is currently in **beta**. Features and tools may change, and stability is not guaranteed. Feedback and contributions are most welcome!
 
 ## Overview
 
-The Perses MCP Server is a local [Model Context Protocol (MCP)](https://modelcontextprotocol.io/introduction) Server that enables the LLM hosts(Claude Desktop, VS Code, Cursor) to interact with the Perses Application in a standardized way.
+The Perses MCP Server is a local [Model Context Protocol (MCP)](https://modelcontextprotocol.io/introduction) Server that enables the LLM hosts(Opencode, Claude Desktop, VS Code, Cursor) to interact with the Perses Application in a standardized way.
 
 ## Demo
+
+<details open>
+<summary> Opencode</summary>
+  
+https://github.com/user-attachments/assets/87137515-1b45-442d-a4c9-68f460a1ba4c
+</details>
 
 <details open>
 <summary> Claude Desktop</summary>
@@ -27,20 +32,38 @@ https://github.com/user-attachments/assets/b80c354a-8006-4e1f-b7f4-e123002f7dc3
 
 ## Pre-requisites
 
-- [percli](https://perses.dev/perses/docs/cli/)
-- `PERSES_TOKEN`
+- A running [Perses](https://github.com/perses/perses) instance
+- A configuration file for the MCP server (see [Configuration File](#configuration-file))
 
-### Obtaining Your Perses Authentication Token
+### Authentication
 
-1. Login to your Perses server using the `percli` command line tool:
+There are two main ways to authenticate the MCP server with your Perses instance.
+1. Basic Auth using your Perses username and password
+2. Bearer token obtained via the Perses CLI `percli` command-line tool.
+
+#### Basic Authentication (Username/Password)
+
+Use your Perses username and password directly:
+
+```yaml
+perses_server:
+  url: "https://perses.example.com"
+  native_auth:
+    login: "your-username"
+    password: "your-password"
+```
+
+> **Tip**: You can store sensitive values like passwords as environment variables instead of in the config file (e.g., `PERMCP_PERSES_SERVER_NATIVE_AUTH_PASSWORD`). See [Environment Variables](#environment-variables) for details.
+
+#### Bearer Token (via `percli`)
+
+1. Install [percli](https://perses.dev/perses/docs/cli/) and login to your Perses server:
 
 ```bash
 percli login <PERSES_SERVER_URL>
 ```
 
-For example, `percli login https://demo.perses.dev`.
-
-Or `percli login http://localhost:8080` if you are running [perses/perses](https://github.com/perses/perses) locally from the source code or from the perses image.
+For example, `percli login https://demo.perses.dev`
 
 2. After successful login, retrieve your token:
 
@@ -48,9 +71,19 @@ Or `percli login http://localhost:8080` if you are running [perses/perses](https
 percli whoami --show-token
 ```
 
-Copy the token to use in your MCP server configuration.
+3. Use the token in your configuration file:
 
-**WARNING: Your login will automatically expire in 15 minutes**. If you want to extend the token duration, you can change the `access_token_ttl` setting in the Perses app [configuration](https://perses.dev/perses/docs/configuration/configuration/?h=configu), then restart the app (if running locally) or rebuild the Docker image.
+```yaml
+perses_server:
+  url: "https://perses.example.com"
+  authorization:
+    type: Bearer
+    credentials: "<YOUR_TOKEN>"
+```
+
+> **Tip**: You can also store the token as an environment variable `PERMCP_PERSES_SERVER_AUTHORIZATION_CREDENTIALS` instead of in the config file. See [Environment Variables](#environment-variables) for details.
+
+> **WARNING**: The bearer token automatically expires based on the `access_token_ttl` setting (default: 15 minutes) of the Perses server. You can change this in the Perses app [configuration](https://perses.dev/perses/docs/configuration/configuration/?h=configu).
 
 ## Download the MCP Server Binary
 
@@ -82,7 +115,18 @@ https://github.com/user-attachments/assets/b80c354a-8006-4e1f-b7f4-e123002f7dc3
 
 To add this MCP server to [Claude Desktop](https://claude.ai/download):
 
-1. Create or edit the Claude Desktop configuration file at:
+1. Create a configuration file (e.g., `perses-mcp-config.yaml`):
+
+```yaml
+transport: stdio
+perses_server:
+  url: "http://localhost:8080"
+  native_auth:
+    login: "admin"
+    password: "password"
+```
+
+2. Create or edit the Claude Desktop configuration file at:
 
    - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
    - Windows: `%APPDATA%\Claude\claude_desktop_config.json`
@@ -90,7 +134,7 @@ To add this MCP server to [Claude Desktop](https://claude.ai/download):
 
 You can easily access this file via the Claude Desktop app by navigating to `Claude > Settings > Developer > Edit Config`.
 
-2. Add the following JSON block to the configuration file:
+3. Add the following JSON block to the configuration file:
 
 ```json
 {
@@ -98,58 +142,65 @@ You can easily access this file via the Claude Desktop app by navigating to `Cla
     "perses-mcp": {
       "command": "<ABSOLUTE_PATH_TO_PERSES_MCP_BINARY>",
       "args": [
-        "--transport",
-        "stdio",
-        "--perses-server-url",
-        "<PERSES_SERVER_URL>"
-        // Add "--read-only" here for read-only mode
-        // Add "--config", "/path/to/config.yaml" to load configuration from file
-        // Add "--log.file-path", "/path/to/logfile.log" for file logging
-        // Add "--resources", "project,dashboard" to register only specific resources
+        "--config",
+        "<ABSOLUTE_PATH_TO_CONFIG_YAML>"
       ],
       "env": {
-        "PERSES_TOKEN": "<PERSES_TOKEN>"
+        "PERMCP_PERSES_SERVER_NATIVE_AUTH_PASSWORD": "<YOUR_PASSWORD>"
       }
     }
   }
 }
 ```
 
-3. Restart Claude Desktop for the changes to take effect.
+> **Tip**: Sensitive values like passwords and tokens should be stored as environment variables in the `"env"` block rather than in the config file.
+
+4. Restart Claude Desktop for the changes to take effect.
 </details>
 
 <details>
 <summary>Install in VS Code</summary>
 
-
 Add the following JSON code snippet to the VS Code MCP Config file. See [VS Code MCP documentation](https://code.visualstudio.com/docs/copilot/chat/mcp-servers) for more details.
 
 ```json
 {
-  "inputs": [
-    {
-      "type": "promptString",
-      "id": "perses-token",
-      "description": "PERSES_TOKEN to connect with Perses Application",
-      "password": true
-    }
-  ],
   "servers": {
     "perses-mcp": {
       "command": "<ABSOLUTE_PATH_TO_PERSES_MCP_BINARY>",
       "args": [
-        "--transport",
-        "stdio",
-        "--perses-server-url",
-        "http://localhost:8080"
-        // Add "--read-only" here for read-only mode
-        // Add "--config", "/path/to/config.yaml" to load configuration from file
-        // Add "--log.file-path", "/path/to/logfile.log" for file logging
-        // Add "--resources", "project,dashboard" to register only specific resources
+        "--config",
+        "<ABSOLUTE_PATH_TO_CONFIG_YAML>"
       ],
       "env": {
-        "PERSES_TOKEN": "${input:perses-token}"
+        "PERMCP_PERSES_SERVER_NATIVE_AUTH_PASSWORD": "<YOUR_PASSWORD>"
       }
+    }
+  }
+}
+```
+</details>
+
+<details>
+<summary>Install in OpenCode</summary>
+
+Add the following to your [OpenCode Config](https://opencode.ai/docs/config/) under `mcp`. See the [OpenCode MCP documentation](https://opencode.ai/docs/mcp-servers/) for more details.
+
+```json
+{
+  "mcp": {
+    "perses": {
+      "command": [
+        "<ABSOLUTE_PATH_TO_PERSES_MCP_BINARY>",
+        "--config",
+        "<ABSOLUTE_PATH_TO_CONFIG_YAML>"
+      ],
+      "environment": {
+        "PERMCP_PERSES_SERVER_NATIVE_AUTH_LOGIN": "{env:PERMCP_PERSES_SERVER_NATIVE_AUTH_LOGIN}",
+        "PERMCP_PERSES_SERVER_NATIVE_AUTH_PASSWORD": "{env:PERMCP_PERSES_SERVER_NATIVE_AUTH_PASSWORD}"
+      },
+      "enabled": true,
+      "type": "local"
     }
   }
 }
@@ -165,17 +216,16 @@ The Streamable HTTP mode allows the MCP server to communicate with LLM hosts ove
 
 For more details, see the [MCP Protocol Specification Docs](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports#streamable-http).
 
+Create a configuration file (e.g., `config.yaml`) with the HTTP transport:
 
-Before starting the MCP server, set your Perses authentication token:
-
-```bash
-export PERSES_TOKEN=<YOUR_PERSES_TOKEN>
-```
-
-Run the following command to start the MCP server in Streamable HTTP mode:
-
-```bash
-/path/to/perses-mcp-server --transport http --perses-server-url <PERSES_SERVER_URL> --port 8000
+```yaml
+transport: http
+listen_address: ":8000"
+perses_server:
+  url: "http://localhost:8080"
+  native_auth:
+    login: "admin"
+    password: "password"
 ```
 
 <details>
@@ -196,29 +246,62 @@ Add the following JSON code snippet to the VS Code MCP Config file. See [VS Code
 
 ## Command-Line Usage
 
-The Perses MCP Server uses simple flags:
-
 ```bash
-perses-mcp-server [flags]
+perses-mcp-server --config /path/to/config.yaml
 ```
 
 ### Flags
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--config` | `""` | Path to the YAML configuration file. Values from CLI flags override the file. |
-| `--transport` | `stdio` | MCP transport mode (options: `stdio`, `http`) |
-| `--perses-server-url` | `http://localhost:8080` | The Perses backend server URL |
-| `--log.level` | `info` | Log level (options: `debug`, `info`, `warn`, `error`) |
-| `--log.file-path` | `""` | Path to the log file (if empty, logs go to stderr) |
-| `--read-only` | `false` | Restrict the server to read-only operations |
-| `--resources` | `""` | Comma-separated list of resources to register. If not specified, all resources are registered. |
-| `--port` | `8000` | Port to run the HTTP Streamable server on (used when `--transport http`) |
-| `--version` | `false` | Print version information and exit |
+| `--config` | `""` | Path to the YAML configuration file |
+| `-log.level` | `info` | Log level (options: `panic`, `fatal`, `error`, `warning`, `info`, `debug`, `trace`) |
+| `-log.format` | `text` | Log format (options: `text`, `json`) |
+| `-log.method-trace` | `false` | Include the calling method as a field in the log |
+
+### Configuration File
+
+The MCP server is configured primarily through a YAML configuration file passed via the `--config` flag.
+
+```yaml
+# MCP transport mode: "stdio" or "http"
+transport: stdio
+
+# Address to listen on for HTTP transport (e.g., ":8000")
+listen_address: ":8000"
+
+# Restrict the server to read-only operations
+read_only: false
+
+# Comma-separated list of resources to register (if empty, all resources are registered)
+resources: ""
+
+# Perses server connection configuration
+perses_server:
+  url: "http://localhost:8080"
+
+  # Authentication (choose one method):
+
+  # Option 1: Native authentication (login/password)
+  # native_auth:
+  #   login: "admin"
+  #   password: "password"
+
+  # Option 2: Bearer token (e.g., from `percli whoami --show-token`)
+  # authorization:
+  #   type: Bearer
+  #   credentials: "<YOUR_TOKEN>"
+  #   # credentials_file: "/path/to/token/file"  # Alternative: read token from file
+
+  # TLS configuration (optional)
+  # tls_config:
+  #   ca_file: "/path/to/ca.pem"
+  #   insecure_skip_verify: false
+```
 
 #### Available Resources
 
-The `--resources` flag accepts the following resource names (case-insensitive):
+The `resources` field accepts the following resource names (case-insensitive, comma-separated):
 
 | Resource | Description |
 |---------|-------------|
@@ -236,66 +319,37 @@ The `--resources` flag accepts the following resource names (case-insensitive):
 
 ### Environment Variables
 
-- `PERSES_TOKEN` (required) - Authentication token for the Perses server
-- `PERMCP_*` (optional) - Configuration overrides loaded through the Perses common config resolver
-  - Examples: `PERMCP_TRANSPORT`, `PERMCP_PERSES_SERVER_URL`, `PERMCP_PORT`, `PERMCP_READ_ONLY`, `PERMCP_RESOURCES`, `PERMCP_LOG_LEVEL`, `PERMCP_LOG_FILE_PATH`
+Configuration values in the YAML file can be overridden using environment variables with the `PERMCP_` prefix. The variable name is derived by uppercasing each YAML key and joining nested keys with `_`.
+
+For example, the YAML path `perses_server.native_auth.password` becomes:
+
+```
+PERMCP_PERSES_SERVER_NATIVE_AUTH_PASSWORD
+```
+
+This is particularly useful for sensitive values like passwords and tokens that should not be stored in the config file.
+
+| Environment Variable | Config Path | Description |
+|---------------------|-------------|-------------|
+| `PERMCP_TRANSPORT` | `transport` | Transport mode |
+| `PERMCP_LISTEN_ADDRESS` | `listen_address` | HTTP listen address |
+| `PERMCP_READ_ONLY` | `read_only` | Read-only mode |
+| `PERMCP_RESOURCES` | `resources` | Resources to register |
+| `PERMCP_PERSES_SERVER_URL` | `perses_server.url` | Perses server URL |
+| `PERMCP_PERSES_SERVER_NATIVE_AUTH_LOGIN` | `perses_server.native_auth.login` | Native auth username |
+| `PERMCP_PERSES_SERVER_NATIVE_AUTH_PASSWORD` | `perses_server.native_auth.password` | Native auth password |
+| `PERMCP_PERSES_SERVER_AUTHORIZATION_TYPE` | `perses_server.authorization.type` | Authorization type (e.g., `Bearer`) |
+| `PERMCP_PERSES_SERVER_AUTHORIZATION_CREDENTIALS` | `perses_server.authorization.credentials` | Authorization token |
+
+For more details about how environment variables override the configuration file, see the [Perses Configuration docs](https://perses.dev/perses/docs/configuration/configuration/?h=perses_#configuration-file).
 
 ### Configuration Precedence
 
-Configuration values are loaded in this order (later wins):
+Configuration values are resolved in this order (later wins):
 
 1. Built-in defaults
-2. YAML file provided by `--config`
+2. YAML configuration file (provided via `--config`)
 3. Environment variables with `PERMCP_` prefix
-4. CLI flags
-
-### Example `config.yaml`
-
-```yaml
-transport: stdio
-perses_server_url: http://localhost:8080
-port: "8000"
-read_only: false
-resources: project,dashboard
-log:
-  level: info
-  file_path: ""
-```
-
-### Examples
-
-Start in STDIO mode with read-only access:
-```bash
-perses-mcp-server --transport stdio --perses-server-url http://localhost:8080 --read-only
-```
-
-Start in HTTP mode with debug logging:
-```bash
-perses-mcp-server --transport http --perses-server-url http://localhost:8080 --port 8000 --log.level debug
-```
-
-Start with file-based logging:
-```bash
-perses-mcp-server --transport stdio --perses-server-url http://localhost:8080 --log.file-path /var/log/perses-mcp-server.log
-```
-
-Start with only specific resources (e.g., project, dashboard, and globaldatasource):
-```bash
-perses-mcp-server --transport stdio --perses-server-url http://localhost:8080 --resources project,dashboard,globaldatasource
-```
-
-Combine resources with read-only mode (only read operations for selected resources):
-```bash
-perses-mcp-server --transport stdio --perses-server-url http://localhost:8080 --resources dashboard,project --read-only
-```
-
-Use a configuration file and override with environment variables:
-```bash
-export PERMCP_TRANSPORT=http
-export PERMCP_PORT=9000
-export PERSES_TOKEN=<YOUR_PERSES_TOKEN>
-perses-mcp-server --config ./config.yaml
-```
 
 ## Local Development
 
@@ -312,7 +366,7 @@ This should create a `bin` directory which contains the binary named `mcp-server
 ## Tools
 
 > [!NOTE]  
-> When running in read-only mode (`--read-only` flag), only tools that retrieve information are available. Write operations like `create_project`, `create_dashboard`, `create_global_datasource`, `update_global_datasource`, and `create_project_variable` are disabled in read-only mode.
+> When running in read-only mode (`read_only: true` in config), only tools that retrieve information are available. Write operations like `create_project`, `create_dashboard`, `create_global_datasource`, `update_global_datasource`, and `create_project_variable` are disabled in read-only mode.
 
 ### Projects
 
