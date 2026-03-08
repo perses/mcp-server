@@ -10,7 +10,7 @@ The Perses MCP Server is a local [Model Context Protocol (MCP)](https://modelcon
 
 ## Demo
 
-https://github.com/user-attachments/assets/b1a59a67-f6fc-4286-a2d5-cc9c891c1557
+https://github.com/user-attachments/assets/03706209-abef-47f2-8067-67c723537750
 
 ## Getting Started
 
