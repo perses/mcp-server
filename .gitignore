@@ -7,4 +7,4 @@ bin/
 CLAUDE.md
 AGENTS.md
 
-.goreleaser.yaml
+.github/perses-ci/
