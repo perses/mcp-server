@@ -3,8 +3,8 @@ module github.com/perses/mcp-server
 go 1.25.7
 
 require (
-	github.com/google/jsonschema-go v0.4.2
-	github.com/modelcontextprotocol/go-sdk v1.4.1
+	github.com/google/jsonschema-go v0.4.3
+	github.com/modelcontextprotocol/go-sdk v1.6.0
 	github.com/perses/common v0.30.3-0.20260306150237-ab1e93b1be8d
 	github.com/perses/perses v0.53.1
 	github.com/sirupsen/logrus v1.9.4
