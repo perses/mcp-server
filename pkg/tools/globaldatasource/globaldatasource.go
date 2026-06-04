@@ -27,6 +27,8 @@ import (
 	"github.com/perses/perses/pkg/model/api/v1/common"
 	"github.com/perses/perses/pkg/model/api/v1/datasource"
 	"github.com/perses/perses/pkg/model/api/v1/datasource/http"
+	commonSpec "github.com/perses/spec/go/common"
+	datasourceSpec "github.com/perses/spec/go/datasource"
 )
 
 type globalDatasource struct {
@@ -56,9 +58,9 @@ func (g *globalDatasource) List() *tools.Tool {
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Lists all global datasources in Perses",
 			ReadOnlyHint:    true,
-			DestructiveHint: jsonschema.Ptr(false),
+			DestructiveHint: new(false),
 			IdempotentHint:  true,
-			OpenWorldHint:   jsonschema.Ptr(false),
+			OpenWorldHint:   new(false),
 		},
 	}
 
@@ -100,9 +102,9 @@ func (g *globalDatasource) Get() *tools.Tool {
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Gets a global datasource by name in Perses",
 			ReadOnlyHint:    true,
-			DestructiveHint: jsonschema.Ptr(false),
+			DestructiveHint: new(false),
 			IdempotentHint:  true,
-			OpenWorldHint:   jsonschema.Ptr(false),
+			OpenWorldHint:   new(false),
 		},
 		InputSchema: &jsonschema.Schema{
 			Type: "object",
@@ -110,8 +112,8 @@ func (g *globalDatasource) Get() *tools.Tool {
 				"name": {
 					Type:        "string",
 					Description: "Global Datasource name",
-					MinLength:   jsonschema.Ptr(1),
-					MaxLength:   jsonschema.Ptr(75),
+					MinLength:   new(1),
+					MaxLength:   new(75),
 					Pattern:     "^[a-zA-Z0-9_.-]+$",
 				},
 			},
@@ -161,9 +163,9 @@ func (g *globalDatasource) Create() *tools.Tool {
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Creates a new global datasource in Perses",
 			ReadOnlyHint:    false,
-			DestructiveHint: jsonschema.Ptr(false),
+			DestructiveHint: new(false),
 			IdempotentHint:  true,
-			OpenWorldHint:   jsonschema.Ptr(false),
+			OpenWorldHint:   new(false),
 		},
 		InputSchema: &jsonschema.Schema{
 			Type: "object",
@@ -171,8 +173,8 @@ func (g *globalDatasource) Create() *tools.Tool {
 				"name": {
 					Type:        "string",
 					Description: "Global Datasource name",
-					MinLength:   jsonschema.Ptr(1),
-					MaxLength:   jsonschema.Ptr(75),
+					MinLength:   new(1),
+					MaxLength:   new(75),
 					Pattern:     "^[a-zA-Z0-9_.-]+$",
 				},
 				"type": {
@@ -183,7 +185,7 @@ func (g *globalDatasource) Create() *tools.Tool {
 				"url": {
 					Type:        "string",
 					Description: "Datasource URL",
-					MinLength:   jsonschema.Ptr(1),
+					MinLength:   new(1),
 				},
 				"display_name": {
 					Type:        "string",
@@ -239,12 +241,12 @@ func (g *globalDatasource) Create() *tools.Tool {
 			Metadata: v1.Metadata{
 				Name: input.Name,
 			},
-			Spec: v1.DatasourceSpec{
-				Display: &common.Display{
+			Spec: datasourceSpec.Spec{
+				Display: &commonSpec.Display{
 					Name: displayName,
 				},
 				Default: false, // Default to false, can be updated later
-				Plugin: common.Plugin{
+				Plugin: commonSpec.Plugin{
 					Kind: input.Type,
 					Spec: pluginSpec,
 				},
@@ -292,9 +294,9 @@ func (g *globalDatasource) Update() *tools.Tool {
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Updates an existing global datasource in Perses",
 			ReadOnlyHint:    false,
-			DestructiveHint: jsonschema.Ptr(false),
+			DestructiveHint: new(false),
 			IdempotentHint:  true,
-			OpenWorldHint:   jsonschema.Ptr(false),
+			OpenWorldHint:   new(false),
 		},
 		InputSchema: &jsonschema.Schema{
 			Type: "object",
@@ -302,8 +304,8 @@ func (g *globalDatasource) Update() *tools.Tool {
 				"name": {
 					Type:        "string",
 					Description: "Global Datasource name",
-					MinLength:   jsonschema.Ptr(1),
-					MaxLength:   jsonschema.Ptr(75),
+					MinLength:   new(1),
+					MaxLength:   new(75),
 					Pattern:     "^[a-zA-Z0-9_.-]+$",
 				},
 				"type": {
@@ -314,7 +316,7 @@ func (g *globalDatasource) Update() *tools.Tool {
 				"url": {
 					Type:        "string",
 					Description: "Datasource URL",
-					MinLength:   jsonschema.Ptr(1),
+					MinLength:   new(1),
 				},
 				"display_name": {
 					Type:        "string",
@@ -369,12 +371,12 @@ func (g *globalDatasource) Update() *tools.Tool {
 			Metadata: v1.Metadata{
 				Name: input.Name,
 			},
-			Spec: v1.DatasourceSpec{
-				Display: &common.Display{
+			Spec: datasourceSpec.Spec{
+				Display: &commonSpec.Display{
 					Name: displayName,
 				},
 				Default: false, // Default to false, can be updated later
-				Plugin: common.Plugin{
+				Plugin: commonSpec.Plugin{
 					Kind: input.Type,
 					Spec: pluginSpec,
 				},
@@ -418,9 +420,9 @@ func (g *globalDatasource) Delete() *tools.Tool {
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Deletes a global datasource in Perses",
 			ReadOnlyHint:    false,
-			DestructiveHint: jsonschema.Ptr(true),
+			DestructiveHint: new(true),
 			IdempotentHint:  true,
-			OpenWorldHint:   jsonschema.Ptr(false),
+			OpenWorldHint:   new(false),
 		},
 		InputSchema: &jsonschema.Schema{
 			Type: "object",
@@ -428,8 +430,8 @@ func (g *globalDatasource) Delete() *tools.Tool {
 				"name": {
 					Type:        "string",
 					Description: "Global Datasource name",
-					MinLength:   jsonschema.Ptr(1),
-					MaxLength:   jsonschema.Ptr(75),
+					MinLength:   new(1),
+					MaxLength:   new(75),
 					Pattern:     "^[a-zA-Z0-9_.-]+$",
 				},
 			},

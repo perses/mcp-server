@@ -48,9 +48,9 @@ func (p *project) Create() *tools.Tool {
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Creates a new project in Perses",
 			ReadOnlyHint:    false,
-			DestructiveHint: jsonschema.Ptr(false),
+			DestructiveHint: new(false),
 			IdempotentHint:  true,
-			OpenWorldHint:   jsonschema.Ptr(false),
+			OpenWorldHint:   new(false),
 		},
 		Description: "Create a new Perses Project",
 		InputSchema: &jsonschema.Schema{
@@ -59,20 +59,20 @@ func (p *project) Create() *tools.Tool {
 				"project": {
 					Type:        "string",
 					Description: "Name of the project to create",
-					MinLength:   jsonschema.Ptr(1),
-					MaxLength:   jsonschema.Ptr(75),
+					MinLength:   new(1),
+					MaxLength:   new(75),
 					Pattern:     "^[a-zA-Z0-9_.-]+$",
 				},
 				"displayName": {
 					Type:        "string",
 					Description: "Display name for the project",
-					MinLength:   jsonschema.Ptr(1),
-					MaxLength:   jsonschema.Ptr(75),
+					MinLength:   new(1),
+					MaxLength:   new(75),
 				},
 				"description": {
 					Type:        "string",
 					Description: "Description for the project",
-					MaxLength:   jsonschema.Ptr(200),
+					MaxLength:   new(200),
 					Pattern:     "^[a-zA-Z0-9_.-]+$",
 				},
 			},
@@ -128,9 +128,9 @@ func (p *project) List() *tools.Tool {
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Lists all projects in Perses",
 			ReadOnlyHint:    true,
-			DestructiveHint: jsonschema.Ptr(false),
+			DestructiveHint: new(false),
 			IdempotentHint:  true,
-			OpenWorldHint:   jsonschema.Ptr(false),
+			OpenWorldHint:   new(false),
 		},
 	}
 	handler := func(_ context.Context, _ *mcp.CallToolRequest, input ListProjectsInput) (*mcp.CallToolResult, any, error) { //nolint:unparam
@@ -173,9 +173,9 @@ func (p *project) Update() *tools.Tool {
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Updates an existing project in Perses",
 			ReadOnlyHint:    false,
-			DestructiveHint: jsonschema.Ptr(false),
+			DestructiveHint: new(false),
 			IdempotentHint:  true,
-			OpenWorldHint:   jsonschema.Ptr(false),
+			OpenWorldHint:   new(false),
 		},
 		InputSchema: &jsonschema.Schema{
 			Type: "object",
@@ -183,20 +183,20 @@ func (p *project) Update() *tools.Tool {
 				"name": {
 					Type:        "string",
 					Description: "Name of the project to update",
-					MinLength:   jsonschema.Ptr(1),
-					MaxLength:   jsonschema.Ptr(75),
+					MinLength:   new(1),
+					MaxLength:   new(75),
 					Pattern:     "^[a-zA-Z0-9_.-]+$",
 				},
 				"displayName": {
 					Type:        "string",
 					Description: "Display name for the project",
-					MinLength:   jsonschema.Ptr(1),
-					MaxLength:   jsonschema.Ptr(75),
+					MinLength:   new(1),
+					MaxLength:   new(75),
 				},
 				"description": {
 					Type:        "string",
 					Description: "Description for the project",
-					MaxLength:   jsonschema.Ptr(200),
+					MaxLength:   new(200),
 				},
 			},
 			Required: []string{"name"},
@@ -252,9 +252,9 @@ func (p *project) Delete() *tools.Tool {
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Deletes a project in Perses",
 			ReadOnlyHint:    false,
-			DestructiveHint: jsonschema.Ptr(true),
+			DestructiveHint: new(true),
 			IdempotentHint:  true,
-			OpenWorldHint:   jsonschema.Ptr(false),
+			OpenWorldHint:   new(false),
 		},
 		InputSchema: &jsonschema.Schema{
 			Type: "object",
@@ -262,8 +262,8 @@ func (p *project) Delete() *tools.Tool {
 				"name": {
 					Type:        "string",
 					Description: "Name of the project to delete",
-					MinLength:   jsonschema.Ptr(1),
-					MaxLength:   jsonschema.Ptr(75),
+					MinLength:   new(1),
+					MaxLength:   new(75),
 					Pattern:     "^[a-zA-Z0-9_.-]+$",
 				},
 			},
@@ -304,9 +304,9 @@ func (p *project) Get() *tools.Tool {
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Gets a project by name in Perses",
 			ReadOnlyHint:    true,
-			DestructiveHint: jsonschema.Ptr(false),
+			DestructiveHint: new(false),
 			IdempotentHint:  true,
-			OpenWorldHint:   jsonschema.Ptr(false),
+			OpenWorldHint:   new(false),
 		},
 		InputSchema: &jsonschema.Schema{
 			Type: "object",
@@ -314,8 +314,8 @@ func (p *project) Get() *tools.Tool {
 				"name": {
 					Type:        "string",
 					Description: "Name of the project to retrieve",
-					MinLength:   jsonschema.Ptr(1),
-					MaxLength:   jsonschema.Ptr(75),
+					MinLength:   new(1),
+					MaxLength:   new(75),
 					Pattern:     "^[a-zA-Z0-9_.-]+$",
 				},
 			},

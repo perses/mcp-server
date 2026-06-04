@@ -54,9 +54,9 @@ func (g *globalRole) List() *tools.Tool {
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Lists all global roles in Perses",
 			ReadOnlyHint:    true,
-			DestructiveHint: jsonschema.Ptr(false),
+			DestructiveHint: new(false),
 			IdempotentHint:  true,
-			OpenWorldHint:   jsonschema.Ptr(false),
+			OpenWorldHint:   new(false),
 		},
 	}
 
@@ -98,9 +98,9 @@ func (g *globalRole) Get() *tools.Tool {
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Gets a global role by name in Perses",
 			ReadOnlyHint:    true,
-			DestructiveHint: jsonschema.Ptr(false),
+			DestructiveHint: new(false),
 			IdempotentHint:  true,
-			OpenWorldHint:   jsonschema.Ptr(false),
+			OpenWorldHint:   new(false),
 		},
 		InputSchema: &jsonschema.Schema{
 			Type: "object",
@@ -108,8 +108,8 @@ func (g *globalRole) Get() *tools.Tool {
 				"name": {
 					Type:        "string",
 					Description: "Global Role name",
-					MinLength:   jsonschema.Ptr(1),
-					MaxLength:   jsonschema.Ptr(75),
+					MinLength:   new(1),
+					MaxLength:   new(75),
 					Pattern:     "^[a-zA-Z0-9_.-]+$",
 				},
 			},
@@ -160,8 +160,8 @@ func (g *globalRole) Create() *tools.Tool {
 				"name": {
 					Type:        "string",
 					Description: "Global Role name",
-					MinLength:   jsonschema.Ptr(1),
-					MaxLength:   jsonschema.Ptr(75),
+					MinLength:   new(1),
+					MaxLength:   new(75),
 					Pattern:     "^[a-zA-Z0-9_.-]+$",
 				},
 				"actions": {
@@ -182,9 +182,9 @@ func (g *globalRole) Create() *tools.Tool {
 			Required: []string{"name", "actions", "scopes"},
 		},
 		Annotations: &mcp.ToolAnnotations{
-			DestructiveHint: jsonschema.Ptr(false),
+			DestructiveHint: new(false),
 			IdempotentHint:  true,
-			OpenWorldHint:   jsonschema.Ptr(false),
+			OpenWorldHint:   new(false),
 			ReadOnlyHint:    false,
 			Title:           "Creates a global role in Perses",
 		},
@@ -257,8 +257,8 @@ func (g *globalRole) Update() *tools.Tool {
 				"name": {
 					Type:        "string",
 					Description: "Global Role name",
-					MinLength:   jsonschema.Ptr(1),
-					MaxLength:   jsonschema.Ptr(75),
+					MinLength:   new(1),
+					MaxLength:   new(75),
 					Pattern:     "^[a-zA-Z0-9_.-]+$",
 				},
 				"actions": {
@@ -279,9 +279,9 @@ func (g *globalRole) Update() *tools.Tool {
 			Required: []string{"name", "actions", "scopes"},
 		},
 		Annotations: &mcp.ToolAnnotations{
-			DestructiveHint: jsonschema.Ptr(false),
+			DestructiveHint: new(false),
 			IdempotentHint:  true,
-			OpenWorldHint:   jsonschema.Ptr(false),
+			OpenWorldHint:   new(false),
 			ReadOnlyHint:    false,
 			Title:           "Updates an existing global role in Perses",
 		},
@@ -352,17 +352,17 @@ func (g *globalRole) Delete() *tools.Tool {
 				"name": {
 					Type:        "string",
 					Description: "Global Role name",
-					MinLength:   jsonschema.Ptr(1),
-					MaxLength:   jsonschema.Ptr(75),
+					MinLength:   new(1),
+					MaxLength:   new(75),
 					Pattern:     "^[a-zA-Z0-9_.-]+$",
 				},
 			},
 			Required: []string{"name"},
 		},
 		Annotations: &mcp.ToolAnnotations{
-			DestructiveHint: jsonschema.Ptr(true),
+			DestructiveHint: new(true),
 			IdempotentHint:  true,
-			OpenWorldHint:   jsonschema.Ptr(false),
+			OpenWorldHint:   new(false),
 			ReadOnlyHint:    false,
 			Title:           "Deletes a global role in Perses",
 		},
