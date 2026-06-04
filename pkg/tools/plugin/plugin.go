@@ -18,7 +18,6 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/perses/mcp-server/pkg/tools"
 	"github.com/perses/mcp-server/pkg/tools/resource"
@@ -48,9 +47,9 @@ func (p *plugin) List() *tools.Tool {
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Lists all plugins in Perses",
 			ReadOnlyHint:    true,
-			DestructiveHint: jsonschema.Ptr(false),
+			DestructiveHint: new(false),
 			IdempotentHint:  true,
-			OpenWorldHint:   jsonschema.Ptr(false),
+			OpenWorldHint:   new(false),
 		},
 	}
 

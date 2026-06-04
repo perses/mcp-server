@@ -24,7 +24,7 @@ import (
 	"github.com/perses/mcp-server/pkg/tools/resource"
 	apiClient "github.com/perses/perses/pkg/client/api/v1"
 	v1 "github.com/perses/perses/pkg/model/api/v1"
-	"github.com/perses/perses/pkg/model/api/v1/variable"
+	"github.com/perses/spec/go/dashboard/variable"
 )
 
 type globalVariable struct {
@@ -54,9 +54,9 @@ func (g *globalVariable) List() *tools.Tool {
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Lists all global variables in Perses",
 			ReadOnlyHint:    true,
-			DestructiveHint: jsonschema.Ptr(false),
+			DestructiveHint: new(false),
 			IdempotentHint:  true,
-			OpenWorldHint:   jsonschema.Ptr(false),
+			OpenWorldHint:   new(false),
 		},
 	}
 
@@ -98,9 +98,9 @@ func (g *globalVariable) Get() *tools.Tool {
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Gets a global variable by name in Perses",
 			ReadOnlyHint:    true,
-			DestructiveHint: jsonschema.Ptr(false),
+			DestructiveHint: new(false),
 			IdempotentHint:  true,
-			OpenWorldHint:   jsonschema.Ptr(false),
+			OpenWorldHint:   new(false),
 		},
 		InputSchema: &jsonschema.Schema{
 			Type: "object",
@@ -108,8 +108,8 @@ func (g *globalVariable) Get() *tools.Tool {
 				"name": {
 					Type:        "string",
 					Description: "Global Variable name",
-					MinLength:   jsonschema.Ptr(1),
-					MaxLength:   jsonschema.Ptr(75),
+					MinLength:   new(1),
+					MaxLength:   new(75),
 					Pattern:     "^[a-zA-Z0-9_.-]+$",
 				},
 			},
@@ -159,8 +159,8 @@ func (g *globalVariable) Create() *tools.Tool {
 				"name": {
 					Type:        "string",
 					Description: "Global Variable name",
-					MinLength:   jsonschema.Ptr(1),
-					MaxLength:   jsonschema.Ptr(75),
+					MinLength:   new(1),
+					MaxLength:   new(75),
 					Pattern:     "^[a-zA-Z0-9_.-]+$",
 				},
 				"value": {
@@ -171,9 +171,9 @@ func (g *globalVariable) Create() *tools.Tool {
 			Required: []string{"name", "value"},
 		},
 		Annotations: &mcp.ToolAnnotations{
-			DestructiveHint: jsonschema.Ptr(false),
+			DestructiveHint: new(false),
 			IdempotentHint:  true,
-			OpenWorldHint:   jsonschema.Ptr(false),
+			OpenWorldHint:   new(false),
 			ReadOnlyHint:    false,
 			Title:           "Creates a global variable in Perses",
 		},
@@ -234,8 +234,8 @@ func (g *globalVariable) Update() *tools.Tool {
 				"name": {
 					Type:        "string",
 					Description: "Global Variable name",
-					MinLength:   jsonschema.Ptr(1),
-					MaxLength:   jsonschema.Ptr(75),
+					MinLength:   new(1),
+					MaxLength:   new(75),
 					Pattern:     "^[a-zA-Z0-9_.-]+$",
 				},
 				"value": {
@@ -246,9 +246,9 @@ func (g *globalVariable) Update() *tools.Tool {
 			Required: []string{"name", "value"},
 		},
 		Annotations: &mcp.ToolAnnotations{
-			DestructiveHint: jsonschema.Ptr(false),
+			DestructiveHint: new(false),
 			IdempotentHint:  true,
-			OpenWorldHint:   jsonschema.Ptr(false),
+			OpenWorldHint:   new(false),
 			ReadOnlyHint:    false,
 			Title:           "Updates an existing global variable in Perses",
 		},
@@ -308,17 +308,17 @@ func (g *globalVariable) Delete() *tools.Tool {
 				"name": {
 					Type:        "string",
 					Description: "Global Variable name",
-					MinLength:   jsonschema.Ptr(1),
-					MaxLength:   jsonschema.Ptr(75),
+					MinLength:   new(1),
+					MaxLength:   new(75),
 					Pattern:     "^[a-zA-Z0-9_.-]+$",
 				},
 			},
 			Required: []string{"name"},
 		},
 		Annotations: &mcp.ToolAnnotations{
-			DestructiveHint: jsonschema.Ptr(true),
+			DestructiveHint: new(true),
 			IdempotentHint:  true,
-			OpenWorldHint:   jsonschema.Ptr(false),
+			OpenWorldHint:   new(false),
 			ReadOnlyHint:    false,
 			Title:           "Deletes a global variable in Perses",
 		},

@@ -24,7 +24,7 @@ import (
 	"github.com/perses/mcp-server/pkg/tools/resource"
 	apiClient "github.com/perses/perses/pkg/client/api/v1"
 	v1 "github.com/perses/perses/pkg/model/api/v1"
-	"github.com/perses/perses/pkg/model/api/v1/variable"
+	"github.com/perses/spec/go/dashboard/variable"
 )
 
 type projectVariable struct {
@@ -58,9 +58,9 @@ func (v *projectVariable) List() *tools.Tool {
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Lists variables for a specific project in Perses",
 			ReadOnlyHint:    true,
-			DestructiveHint: jsonschema.Ptr(false),
+			DestructiveHint: new(false),
 			IdempotentHint:  true,
-			OpenWorldHint:   jsonschema.Ptr(false),
+			OpenWorldHint:   new(false),
 		},
 		InputSchema: &jsonschema.Schema{
 			Type: "object",
@@ -68,8 +68,8 @@ func (v *projectVariable) List() *tools.Tool {
 				"project": {
 					Type:        "string",
 					Description: "Project name",
-					MinLength:   jsonschema.Ptr(1),
-					MaxLength:   jsonschema.Ptr(75),
+					MinLength:   new(1),
+					MaxLength:   new(75),
 					Pattern:     "^[a-zA-Z0-9_.-]+$",
 				},
 			},
@@ -116,9 +116,9 @@ func (v *projectVariable) Get() *tools.Tool {
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Gets a variable by name in a specific project in Perses",
 			ReadOnlyHint:    true,
-			DestructiveHint: jsonschema.Ptr(false),
+			DestructiveHint: new(false),
 			IdempotentHint:  true,
-			OpenWorldHint:   jsonschema.Ptr(false),
+			OpenWorldHint:   new(false),
 		},
 		InputSchema: &jsonschema.Schema{
 			Type: "object",
@@ -126,15 +126,15 @@ func (v *projectVariable) Get() *tools.Tool {
 				"project": {
 					Type:        "string",
 					Description: "Project name",
-					MinLength:   jsonschema.Ptr(1),
-					MaxLength:   jsonschema.Ptr(75),
+					MinLength:   new(1),
+					MaxLength:   new(75),
 					Pattern:     "^[a-zA-Z0-9_.-]+$",
 				},
 				"name": {
 					Type:        "string",
 					Description: "Variable name",
-					MinLength:   jsonschema.Ptr(1),
-					MaxLength:   jsonschema.Ptr(75),
+					MinLength:   new(1),
+					MaxLength:   new(75),
 					Pattern:     "^[a-zA-Z0-9_.-]+$",
 				},
 			},
@@ -181,9 +181,9 @@ func (v *projectVariable) Create() *tools.Tool {
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Creates a project level variable in Perses",
 			ReadOnlyHint:    false,
-			DestructiveHint: jsonschema.Ptr(false),
+			DestructiveHint: new(false),
 			IdempotentHint:  true,
-			OpenWorldHint:   jsonschema.Ptr(false),
+			OpenWorldHint:   new(false),
 		},
 		InputSchema: &jsonschema.Schema{
 			Type: "object",
@@ -191,15 +191,15 @@ func (v *projectVariable) Create() *tools.Tool {
 				"name": {
 					Type:        "string",
 					Description: "Variable name",
-					MinLength:   jsonschema.Ptr(1),
-					MaxLength:   jsonschema.Ptr(75),
+					MinLength:   new(1),
+					MaxLength:   new(75),
 					Pattern:     "^[a-zA-Z0-9_.-]+$",
 				},
 				"project": {
 					Type:        "string",
 					Description: "Project name",
-					MinLength:   jsonschema.Ptr(1),
-					MaxLength:   jsonschema.Ptr(75),
+					MinLength:   new(1),
+					MaxLength:   new(75),
 					Pattern:     "^[a-zA-Z0-9_.-]+$",
 				},
 			},
@@ -266,9 +266,9 @@ func (v *projectVariable) Update() *tools.Tool {
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Updates a project level variable in Perses",
 			ReadOnlyHint:    false,
-			DestructiveHint: jsonschema.Ptr(false),
+			DestructiveHint: new(false),
 			IdempotentHint:  true,
-			OpenWorldHint:   jsonschema.Ptr(false),
+			OpenWorldHint:   new(false),
 		},
 		InputSchema: &jsonschema.Schema{
 			Type: "object",
@@ -276,15 +276,15 @@ func (v *projectVariable) Update() *tools.Tool {
 				"name": {
 					Type:        "string",
 					Description: "Variable name",
-					MinLength:   jsonschema.Ptr(1),
-					MaxLength:   jsonschema.Ptr(75),
+					MinLength:   new(1),
+					MaxLength:   new(75),
 					Pattern:     "^[a-zA-Z0-9_.-]+$",
 				},
 				"project": {
 					Type:        "string",
 					Description: "Project name",
-					MinLength:   jsonschema.Ptr(1),
-					MaxLength:   jsonschema.Ptr(75),
+					MinLength:   new(1),
+					MaxLength:   new(75),
 					Pattern:     "^[a-zA-Z0-9_.-]+$",
 				},
 				"value": {
@@ -354,9 +354,9 @@ func (v *projectVariable) Delete() *tools.Tool {
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Deletes a project level variable in Perses",
 			ReadOnlyHint:    false,
-			DestructiveHint: jsonschema.Ptr(true),
+			DestructiveHint: new(true),
 			IdempotentHint:  true,
-			OpenWorldHint:   jsonschema.Ptr(false),
+			OpenWorldHint:   new(false),
 		},
 		InputSchema: &jsonschema.Schema{
 			Type: "object",
@@ -364,15 +364,15 @@ func (v *projectVariable) Delete() *tools.Tool {
 				"name": {
 					Type:        "string",
 					Description: "Variable name",
-					MinLength:   jsonschema.Ptr(1),
-					MaxLength:   jsonschema.Ptr(75),
+					MinLength:   new(1),
+					MaxLength:   new(75),
 					Pattern:     "^[a-zA-Z0-9_.-]+$",
 				},
 				"project": {
 					Type:        "string",
 					Description: "Project name",
-					MinLength:   jsonschema.Ptr(1),
-					MaxLength:   jsonschema.Ptr(75),
+					MinLength:   new(1),
+					MaxLength:   new(75),
 					Pattern:     "^[a-zA-Z0-9_.-]+$",
 				},
 			},
