@@ -76,6 +76,7 @@ The `resources` field accepts the following resource names (case-insensitive, co
 | Resource | Description |
 |---------|-------------|
 | `dashboard` | Dashboard management tools |
+| `ephemeraldashboard` | Ephemeral dashboard management tools |
 | `project` | Project management tools |
 | `datasource` | Project-level datasource tools |
 | `globaldatasource` | Global datasource tools |
@@ -323,49 +324,83 @@ perses-mcp-server --config /path/to/config.yaml
 ## Tools
 
 > [!NOTE]  
-> When running in read-only mode (`read_only: true` in config), only tools that retrieve information are available. Write operations like `create_project`, `create_dashboard`, `create_global_datasource`, `update_global_datasource`, and `create_project_variable` are disabled in read-only mode.
+> When running in read-only mode (`read_only: true` in config), only tools that retrieve information are available. All write operations (create, update, delete) are disabled in read-only mode.
 
 ### Projects
 
-| Tool                         | Description           | Required Parameters |
-| ---------------------------- | --------------------- | ------------------- |
-| `perses_list_projects`       | List all projects     | -                   |
-| `perses_get_project_by_name` | Get a project by name | `project`           |
-| `perses_create_project`      | Create a new project  | `project`           |
+| Tool                         | Description                  | Required Parameters |
+| ---------------------------- | ---------------------------- | ------------------- |
+| `perses_list_projects`       | List all projects            | -                   |
+| `perses_get_project_by_name` | Get a project by name        | `project`           |
+| `perses_create_project`      | Create a new project         | `project`           |
+| `perses_update_project`      | Update an existing project   | `project`           |
+| `perses_delete_project`      | Delete a project             | `project`           |
 
 ### Dashboards
 
 | Tool                           | Description                                                    | Required Parameters    |
 | ------------------------------ | -------------------------------------------------------------- | ---------------------- |
 | `perses_list_dashboards`       | List all dashboards for a specific project                     | `project`              |
-| `perses_get_dashboard_by_name` | Get a dashboard by name for a project                          | `project`, `dashboard` |
+| `perses_get_dashboard_by_name` | Get a dashboard by name for a project                          | `project`, `name`      |
 | `perses_create_dashboard`      | Create a dashboard given a project and dashboard configuration | `project`, `dashboard` |
+| `perses_update_dashboard`      | Update an existing dashboard in a project                      | `project`, `dashboard` |
+| `perses_delete_dashboard`      | Delete a dashboard from a project                              | `project`, `name`      |
 
 For dashboard configuration, see [Perses Dashboards](https://github.com/perses/perses/blob/main/docs/api/dashboard.md)
 
+### Ephemeral Dashboards
+
+Ephemeral dashboards are temporary dashboards with a TTL (time-to-live). They are automatically cleaned up after expiry.
+
+| Tool                                     | Description                                                               | Required Parameters    |
+| ---------------------------------------- | ------------------------------------------------------------------------- | ---------------------- |
+| `perses_list_ephemeral_dashboards`       | List all ephemeral dashboards for a specific project                      | `project`              |
+| `perses_get_ephemeral_dashboard_by_name` | Get an ephemeral dashboard by name for a project                          | `project`, `name`      |
+| `perses_create_ephemeral_dashboard`      | Create an ephemeral dashboard given a project and dashboard configuration | `project`, `dashboard` |
+| `perses_update_ephemeral_dashboard`      | Update an existing ephemeral dashboard in a project                       | `project`, `dashboard` |
+| `perses_delete_ephemeral_dashboard`      | Delete an ephemeral dashboard from a project                              | `project`, `name`      |
+
+For ephemeral dashboard configuration, see [Perses EphemeralDashboard](https://github.com/perses/perses/blob/main/docs/api/ephemeral-dashboard.md)
+
 ### Datasources
 
-| Tool                                    | Description                                 | Required Parameters     | Optional Parameters          |
-| --------------------------------------- | ------------------------------------------- | ----------------------- | ---------------------------- |
-| `perses_list_global_datasources`        | List all global datasources                 | -                       | -                            |
-| `perses_list_datasources`               | List all datasources for a specific project | `project`               | -                            |
-| `perses_get_global_datasource_by_name`  | Get a global datasource by name             | `datasource`            | -                            |
-| `perses_get_project_datasource_by_name` | Get a project datasource by name            | `project`, `datasource` | -                            |
-| `perses_create_global_datasource`       | Create a new global datasource              | `name`, `type`, `url`   | `display_name`, `proxy_type` |
-| `perses_update_global_datasource`       | Update an existing global datasource        | `name`, `type`, `url`   | `display_name`, `proxy_type` |
+| Tool                                    | Description                                  | Required Parameters     | Optional Parameters          |
+| --------------------------------------- | -------------------------------------------- | ----------------------- | ---------------------------- |
+| `perses_list_global_datasources`        | List all global datasources                  | -                       | -                            |
+| `perses_get_global_datasource_by_name`  | Get a global datasource by name              | `name`                  | -                            |
+| `perses_create_global_datasource`       | Create a new global datasource               | `name`, `type`, `url`   | `display_name`, `proxy_type` |
+| `perses_update_global_datasource`       | Update an existing global datasource         | `name`, `type`, `url`   | `display_name`, `proxy_type` |
+| `perses_delete_global_datasource`       | Delete a global datasource                   | `name`                  | -                            |
+| `perses_list_project_datasources`       | List all datasources for a specific project  | `project`               | -                            |
+| `perses_get_project_datasource_by_name` | Get a project datasource by name             | `project`, `name`       | -                            |
+| `perses_create_project_datasource`      | Create a new datasource in a project         | `project`, `datasource` | -                            |
+| `perses_update_project_datasource`      | Update an existing datasource in a project   | `project`, `datasource` | -                            |
+| `perses_delete_project_datasource`      | Delete a datasource from a project           | `project`, `name`       | -                            |
 
 ### Roles
 
-| Tool                                      | Description                           | Required Parameters      |
-| ----------------------------------------- | ------------------------------------- | ------------------------ |
-| `perses_list_global_roles`                | List all global roles                 | -                        |
-| `perses_get_global_role_by_name`          | Get a global role by name             | `role`                   |
-| `perses_list_global_role_bindings`        | List all global role bindings         | -                        |
-| `perses_get_global_role_binding_by_name`  | Get a global role binding by name     | `roleBinding`            |
-| `perses_list_project_roles`               | List all roles for a specific project | `project`                |
-| `perses_get_project_role_by_name`         | Get a project role by name            | `project`, `role`        |
-| `perses_list_project_role_bindings`       | List all role bindings for a project  | `project`                |
-| `perses_get_project_role_binding_by_name` | Get a project role binding by name    | `project`, `roleBinding` |
+| Tool                                      | Description                              | Required Parameters      |
+| ----------------------------------------- | ---------------------------------------- | ------------------------ |
+| `perses_list_global_roles`                | List all global roles                    | -                        |
+| `perses_get_global_role_by_name`          | Get a global role by name                | `role`                   |
+| `perses_create_global_role`               | Create a new global role                 | `role`                   |
+| `perses_update_global_role`               | Update an existing global role           | `role`                   |
+| `perses_delete_global_role`               | Delete a global role                     | `role`                   |
+| `perses_list_global_role_bindings`        | List all global role bindings            | -                        |
+| `perses_get_global_role_binding_by_name`  | Get a global role binding by name        | `roleBinding`            |
+| `perses_create_global_role_binding`       | Create a new global role binding         | `roleBinding`            |
+| `perses_update_global_role_binding`       | Update an existing global role binding   | `roleBinding`            |
+| `perses_delete_global_role_binding`       | Delete a global role binding             | `roleBinding`            |
+| `perses_list_project_roles`               | List all roles for a specific project    | `project`                |
+| `perses_get_project_role_by_name`         | Get a project role by name               | `project`, `role`        |
+| `perses_create_project_role`              | Create a new project role                | `project`, `role`        |
+| `perses_update_project_role`              | Update an existing project role          | `project`, `role`        |
+| `perses_delete_project_role`              | Delete a project role                    | `project`, `role`        |
+| `perses_list_project_role_bindings`       | List all role bindings for a project     | `project`                |
+| `perses_get_project_role_binding_by_name` | Get a project role binding by name       | `project`, `roleBinding` |
+| `perses_create_project_role_binding`      | Create a new project role binding        | `project`, `roleBinding` |
+| `perses_update_project_role_binding`      | Update an existing project role binding  | `project`, `roleBinding` |
+| `perses_delete_project_role_binding`      | Delete a project role binding            | `project`, `roleBinding` |
 
 ### Plugins
 
@@ -379,9 +414,14 @@ For dashboard configuration, see [Perses Dashboards](https://github.com/perses/p
 | ------------------------------------- | ----------------------------------------- | --------------------- |
 | `perses_list_global_variables`        | List all global variables                 | -                     |
 | `perses_get_global_variable_by_name`  | Get a global variable by name             | `variable`            |
-| `perses_list_variables`               | List all variables for a specific project | `project`             |
+| `perses_create_global_variable`       | Create a new global variable              | `variable`            |
+| `perses_update_global_variable`       | Update an existing global variable        | `variable`            |
+| `perses_delete_global_variable`       | Delete a global variable                  | `variable`            |
+| `perses_list_project_variables`       | List all variables for a specific project | `project`             |
 | `perses_get_project_variable_by_name` | Get a project variable by name            | `project`, `variable` |
 | `perses_create_project_variable`      | Create a project level variable           | `name`, `project`     |
+| `perses_update_project_variable`      | Update an existing project variable       | `project`, `variable` |
+| `perses_delete_project_variable`      | Delete a project variable                 | `project`, `variable` |
 
 ## Local Development
 
