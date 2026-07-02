@@ -29,6 +29,7 @@ import (
 	"github.com/perses/mcp-server/pkg/tools"
 	"github.com/perses/mcp-server/pkg/tools/dashboard"
 	"github.com/perses/mcp-server/pkg/tools/datasource"
+	"github.com/perses/mcp-server/pkg/tools/ephemeraldashboard"
 	"github.com/perses/mcp-server/pkg/tools/globaldatasource"
 	"github.com/perses/mcp-server/pkg/tools/globalrole"
 	"github.com/perses/mcp-server/pkg/tools/globalrolebinding"
@@ -129,6 +130,7 @@ func (s *server) registerTools() {
 	resources := []resource.Resource{
 		project.New(s.persesClient),
 		dashboard.New(s.persesClient),
+		ephemeraldashboard.New(s.persesClient),
 		datasource.New(s.persesClient),
 		globaldatasource.New(s.persesClient),
 		role.New(s.persesClient),
