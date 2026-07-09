@@ -62,17 +62,17 @@ func (r *roleBinding) List() *tools.Tool {
 			OpenWorldHint:   new(false),
 		},
 		InputSchema: &jsonschema.Schema{
-			Type: "object",
+			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
-				"project": {
-					Type:        "string",
+				string(tools.ProjectResource): {
+					Type:        tools.SchemaTypeString,
 					Description: "Project name",
 					MinLength:   new(1),
 					MaxLength:   new(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					Pattern:     tools.PatternResourceName,
 				},
 			},
-			Required: []string{"project"},
+			Required: []string{string(tools.ProjectResource)},
 		},
 	}
 
@@ -120,24 +120,24 @@ func (r *roleBinding) Get() *tools.Tool {
 			OpenWorldHint:   new(false),
 		},
 		InputSchema: &jsonschema.Schema{
-			Type: "object",
+			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
-				"project": {
-					Type:        "string",
+				string(tools.ProjectResource): {
+					Type:        tools.SchemaTypeString,
 					Description: "Project name",
 					MinLength:   new(1),
 					MaxLength:   new(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					Pattern:     tools.PatternResourceName,
 				},
-				"name": {
-					Type:        "string",
+				tools.ResourceName: {
+					Type:        tools.SchemaTypeString,
 					Description: "Role Binding name",
 					MinLength:   new(1),
 					MaxLength:   new(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					Pattern:     tools.PatternResourceName,
 				},
 			},
-			Required: []string{"project", "name"},
+			Required: []string{string(tools.ProjectResource), tools.ResourceName},
 		},
 	}
 
@@ -180,24 +180,24 @@ func (r *roleBinding) Create() *tools.Tool {
 		Name:        "perses_create_project_role_binding",
 		Description: "Create a project role binding that binds users to a role",
 		InputSchema: &jsonschema.Schema{
-			Type: "object",
+			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
-				"project": {
-					Type:        "string",
+				string(tools.ProjectResource): {
+					Type:        tools.SchemaTypeString,
 					Description: "Project name",
 					MinLength:   new(1),
 					MaxLength:   new(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					Pattern:     tools.PatternResourceName,
 				},
-				"name": {
-					Type:        "string",
+				tools.ResourceName: {
+					Type:        tools.SchemaTypeString,
 					Description: "Role Binding name",
 					MinLength:   new(1),
 					MaxLength:   new(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					Pattern:     tools.PatternResourceName,
 				},
 				"role": {
-					Type:        "string",
+					Type:        tools.SchemaTypeString,
 					Description: "Name of the Role to bind",
 					MinLength:   new(1),
 				},
@@ -205,11 +205,11 @@ func (r *roleBinding) Create() *tools.Tool {
 					Type:        "array",
 					Description: "List of user names to bind to the role",
 					Items: &jsonschema.Schema{
-						Type: "string",
+						Type: tools.SchemaTypeString,
 					},
 				},
 			},
-			Required: []string{"project", "name", "role", "subjects"},
+			Required: []string{string(tools.ProjectResource), tools.ResourceName, "role", "subjects"},
 		},
 		Annotations: &mcp.ToolAnnotations{
 			DestructiveHint: new(false),
@@ -283,24 +283,24 @@ func (r *roleBinding) Update() *tools.Tool {
 		Name:        "perses_update_project_role_binding",
 		Description: "Update an existing project role binding",
 		InputSchema: &jsonschema.Schema{
-			Type: "object",
+			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
-				"project": {
-					Type:        "string",
+				string(tools.ProjectResource): {
+					Type:        tools.SchemaTypeString,
 					Description: "Project name",
 					MinLength:   new(1),
 					MaxLength:   new(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					Pattern:     tools.PatternResourceName,
 				},
-				"name": {
-					Type:        "string",
+				tools.ResourceName: {
+					Type:        tools.SchemaTypeString,
 					Description: "Role Binding name",
 					MinLength:   new(1),
 					MaxLength:   new(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					Pattern:     tools.PatternResourceName,
 				},
 				"role": {
-					Type:        "string",
+					Type:        tools.SchemaTypeString,
 					Description: "Name of the Role to bind",
 					MinLength:   new(1),
 				},
@@ -308,11 +308,11 @@ func (r *roleBinding) Update() *tools.Tool {
 					Type:        "array",
 					Description: "List of user names to bind to the role",
 					Items: &jsonschema.Schema{
-						Type: "string",
+						Type: tools.SchemaTypeString,
 					},
 				},
 			},
-			Required: []string{"project", "name", "role", "subjects"},
+			Required: []string{string(tools.ProjectResource), tools.ResourceName, "role", "subjects"},
 		},
 		Annotations: &mcp.ToolAnnotations{
 			DestructiveHint: new(false),
@@ -384,24 +384,24 @@ func (r *roleBinding) Delete() *tools.Tool {
 		Name:        "perses_delete_project_role_binding",
 		Description: "Delete a project role binding",
 		InputSchema: &jsonschema.Schema{
-			Type: "object",
+			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
-				"project": {
-					Type:        "string",
+				string(tools.ProjectResource): {
+					Type:        tools.SchemaTypeString,
 					Description: "Project name",
 					MinLength:   new(1),
 					MaxLength:   new(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					Pattern:     tools.PatternResourceName,
 				},
-				"name": {
-					Type:        "string",
+				tools.ResourceName: {
+					Type:        tools.SchemaTypeString,
 					Description: "Role Binding name",
 					MinLength:   new(1),
 					MaxLength:   new(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					Pattern:     tools.PatternResourceName,
 				},
 			},
-			Required: []string{"project", "name"},
+			Required: []string{string(tools.ProjectResource), tools.ResourceName},
 		},
 		Annotations: &mcp.ToolAnnotations{
 			DestructiveHint: new(true),

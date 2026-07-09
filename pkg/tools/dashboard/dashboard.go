@@ -62,17 +62,17 @@ func (d *dashboard) List() *tools.Tool {
 			Title:           "List dashboards for a specific project in Perses",
 		},
 		InputSchema: &jsonschema.Schema{
-			Type: "object",
+			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
-				"project": {
-					Type:        "string",
+				string(tools.ProjectResource): {
+					Type:        tools.SchemaTypeString,
 					Description: "Project name",
 					MinLength:   new(1),
 					MaxLength:   new(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					Pattern:     tools.PatternResourceName,
 				},
 			},
-			Required: []string{"project"},
+			Required: []string{string(tools.ProjectResource)},
 		},
 	}
 
@@ -121,24 +121,24 @@ func (d *dashboard) Get() *tools.Tool {
 			Title:           "Gets a dashboard by name in a specific project in Perses",
 		},
 		InputSchema: &jsonschema.Schema{
-			Type: "object",
+			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
-				"project": {
-					Type:        "string",
+				string(tools.ProjectResource): {
+					Type:        tools.SchemaTypeString,
 					Description: "Project name",
 					MinLength:   new(1),
 					MaxLength:   new(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					Pattern:     tools.PatternResourceName,
 				},
-				"name": {
-					Type:        "string",
+				tools.ResourceName: {
+					Type:        tools.SchemaTypeString,
 					Description: "Dashboard name",
 					MinLength:   new(1),
 					MaxLength:   new(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					Pattern:     tools.PatternResourceName,
 				},
 			},
-			Required: []string{"project", "name"},
+			Required: []string{string(tools.ProjectResource), tools.ResourceName},
 		},
 	}
 
@@ -168,21 +168,21 @@ func (d *dashboard) Create() *tools.Tool {
 		Name:        "perses_create_dashboard",
 		Description: "Create a new dashboard in a specific project",
 		InputSchema: &jsonschema.Schema{
-			Type: "object",
+			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
-				"project": {
-					Type:        "string",
+				string(tools.ProjectResource): {
+					Type:        tools.SchemaTypeString,
 					Description: "Project name",
 					MinLength:   new(1),
 					MaxLength:   new(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					Pattern:     tools.PatternResourceName,
 				},
 				"dashboard": {
-					Type:        "string",
+					Type:        tools.SchemaTypeString,
 					Description: "Dashboard JSON as string",
 				},
 			},
-			Required: []string{"project", "dashboard"},
+			Required: []string{string(tools.ProjectResource), "dashboard"},
 		},
 		Annotations: &mcp.ToolAnnotations{
 			DestructiveHint: new(false),
@@ -235,21 +235,21 @@ func (d *dashboard) Update() *tools.Tool {
 		Name:        "perses_update_dashboard",
 		Description: "Update an existing dashboard in a specific project",
 		InputSchema: &jsonschema.Schema{
-			Type: "object",
+			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
-				"project": {
-					Type:        "string",
+				string(tools.ProjectResource): {
+					Type:        tools.SchemaTypeString,
 					Description: "Project name",
 					MinLength:   new(1),
 					MaxLength:   new(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					Pattern:     tools.PatternResourceName,
 				},
 				"dashboard": {
-					Type:        "string",
+					Type:        tools.SchemaTypeString,
 					Description: "Dashboard JSON as string",
 				},
 			},
-			Required: []string{"project", "dashboard"},
+			Required: []string{string(tools.ProjectResource), "dashboard"},
 		},
 		Annotations: &mcp.ToolAnnotations{
 			DestructiveHint: new(false),
@@ -302,24 +302,24 @@ func (d *dashboard) Delete() *tools.Tool {
 		Name:        "perses_delete_dashboard",
 		Description: "Delete a dashboard from a specific project",
 		InputSchema: &jsonschema.Schema{
-			Type: "object",
+			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
-				"project": {
-					Type:        "string",
+				string(tools.ProjectResource): {
+					Type:        tools.SchemaTypeString,
 					Description: "Project name",
 					MinLength:   new(1),
 					MaxLength:   new(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					Pattern:     tools.PatternResourceName,
 				},
-				"name": {
-					Type:        "string",
+				tools.ResourceName: {
+					Type:        tools.SchemaTypeString,
 					Description: "Dashboard name",
 					MinLength:   new(1),
 					MaxLength:   new(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					Pattern:     tools.PatternResourceName,
 				},
 			},
-			Required: []string{"project", "name"},
+			Required: []string{string(tools.ProjectResource), tools.ResourceName},
 		},
 		Annotations: &mcp.ToolAnnotations{
 			DestructiveHint: new(true),

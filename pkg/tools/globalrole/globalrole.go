@@ -103,17 +103,17 @@ func (g *globalRole) Get() *tools.Tool {
 			OpenWorldHint:   new(false),
 		},
 		InputSchema: &jsonschema.Schema{
-			Type: "object",
+			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
-				"name": {
-					Type:        "string",
+				tools.ResourceName: {
+					Type:        tools.SchemaTypeString,
 					Description: "Global Role name",
 					MinLength:   new(1),
 					MaxLength:   new(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					Pattern:     tools.PatternResourceName,
 				},
 			},
-			Required: []string{"name"},
+			Required: []string{tools.ResourceName},
 		},
 	}
 
@@ -155,31 +155,31 @@ func (g *globalRole) Create() *tools.Tool {
 		Name:        "perses_create_global_role",
 		Description: "Create a global role with specified permissions",
 		InputSchema: &jsonschema.Schema{
-			Type: "object",
+			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
-				"name": {
-					Type:        "string",
+				tools.ResourceName: {
+					Type:        tools.SchemaTypeString,
 					Description: "Global Role name",
 					MinLength:   new(1),
 					MaxLength:   new(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					Pattern:     tools.PatternResourceName,
 				},
 				"actions": {
-					Type:        "array",
+					Type:        tools.SchemaTypeArray,
 					Description: "List of actions (e.g., read, create, update, delete)",
 					Items: &jsonschema.Schema{
-						Type: "string",
+						Type: tools.SchemaTypeString,
 					},
 				},
 				"scopes": {
-					Type:        "array",
+					Type:        tools.SchemaTypeArray,
 					Description: "List of scopes (resource kinds the role applies to)",
 					Items: &jsonschema.Schema{
-						Type: "string",
+						Type: tools.SchemaTypeString,
 					},
 				},
 			},
-			Required: []string{"name", "actions", "scopes"},
+			Required: []string{tools.ResourceName, "actions", "scopes"},
 		},
 		Annotations: &mcp.ToolAnnotations{
 			DestructiveHint: new(false),
@@ -252,31 +252,31 @@ func (g *globalRole) Update() *tools.Tool {
 		Name:        "perses_update_global_role",
 		Description: "Update an existing global role with specified permissions",
 		InputSchema: &jsonschema.Schema{
-			Type: "object",
+			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
-				"name": {
-					Type:        "string",
+				tools.ResourceName: {
+					Type:        tools.SchemaTypeString,
 					Description: "Global Role name",
 					MinLength:   new(1),
 					MaxLength:   new(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					Pattern:     tools.PatternResourceName,
 				},
 				"actions": {
-					Type:        "array",
+					Type:        tools.SchemaTypeArray,
 					Description: "List of actions (e.g., read, create, update, delete)",
 					Items: &jsonschema.Schema{
-						Type: "string",
+						Type: tools.SchemaTypeString,
 					},
 				},
 				"scopes": {
-					Type:        "array",
+					Type:        tools.SchemaTypeArray,
 					Description: "List of scopes (resource kinds the role applies to)",
 					Items: &jsonschema.Schema{
-						Type: "string",
+						Type: tools.SchemaTypeString,
 					},
 				},
 			},
-			Required: []string{"name", "actions", "scopes"},
+			Required: []string{tools.ResourceName, "actions", "scopes"},
 		},
 		Annotations: &mcp.ToolAnnotations{
 			DestructiveHint: new(false),
@@ -347,17 +347,17 @@ func (g *globalRole) Delete() *tools.Tool {
 		Name:        "perses_delete_global_role",
 		Description: "Delete a global role",
 		InputSchema: &jsonschema.Schema{
-			Type: "object",
+			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
-				"name": {
-					Type:        "string",
+				tools.ResourceName: {
+					Type:        tools.SchemaTypeString,
 					Description: "Global Role name",
 					MinLength:   new(1),
 					MaxLength:   new(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					Pattern:     tools.PatternResourceName,
 				},
 			},
-			Required: []string{"name"},
+			Required: []string{tools.ResourceName},
 		},
 		Annotations: &mcp.ToolAnnotations{
 			DestructiveHint: new(true),

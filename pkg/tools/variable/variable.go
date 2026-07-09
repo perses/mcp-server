@@ -63,17 +63,17 @@ func (v *projectVariable) List() *tools.Tool {
 			OpenWorldHint:   new(false),
 		},
 		InputSchema: &jsonschema.Schema{
-			Type: "object",
+			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
-				"project": {
-					Type:        "string",
+				string(tools.ProjectResource): {
+					Type:        tools.SchemaTypeString,
 					Description: "Project name",
 					MinLength:   new(1),
 					MaxLength:   new(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					Pattern:     tools.PatternResourceName,
 				},
 			},
-			Required: []string{"project"},
+			Required: []string{string(tools.ProjectResource)},
 		},
 	}
 
@@ -121,24 +121,24 @@ func (v *projectVariable) Get() *tools.Tool {
 			OpenWorldHint:   new(false),
 		},
 		InputSchema: &jsonschema.Schema{
-			Type: "object",
+			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
-				"project": {
-					Type:        "string",
+				string(tools.ProjectResource): {
+					Type:        tools.SchemaTypeString,
 					Description: "Project name",
 					MinLength:   new(1),
 					MaxLength:   new(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					Pattern:     tools.PatternResourceName,
 				},
-				"name": {
-					Type:        "string",
+				tools.ResourceName: {
+					Type:        tools.SchemaTypeString,
 					Description: "Variable name",
 					MinLength:   new(1),
 					MaxLength:   new(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					Pattern:     tools.PatternResourceName,
 				},
 			},
-			Required: []string{"project", "name"},
+			Required: []string{string(tools.ProjectResource), tools.ResourceName},
 		},
 	}
 
@@ -186,24 +186,24 @@ func (v *projectVariable) Create() *tools.Tool {
 			OpenWorldHint:   new(false),
 		},
 		InputSchema: &jsonschema.Schema{
-			Type: "object",
+			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
-				"name": {
-					Type:        "string",
+				tools.ResourceName: {
+					Type:        tools.SchemaTypeString,
 					Description: "Variable name",
 					MinLength:   new(1),
 					MaxLength:   new(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					Pattern:     tools.PatternResourceName,
 				},
-				"project": {
-					Type:        "string",
+				string(tools.ProjectResource): {
+					Type:        tools.SchemaTypeString,
 					Description: "Project name",
 					MinLength:   new(1),
 					MaxLength:   new(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					Pattern:     tools.PatternResourceName,
 				},
 			},
-			Required: []string{"name", "project"},
+			Required: []string{tools.ResourceName, string(tools.ProjectResource)},
 		},
 	}
 
@@ -271,28 +271,28 @@ func (v *projectVariable) Update() *tools.Tool {
 			OpenWorldHint:   new(false),
 		},
 		InputSchema: &jsonschema.Schema{
-			Type: "object",
+			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
-				"name": {
-					Type:        "string",
+				tools.ResourceName: {
+					Type:        tools.SchemaTypeString,
 					Description: "Variable name",
 					MinLength:   new(1),
 					MaxLength:   new(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					Pattern:     tools.PatternResourceName,
 				},
-				"project": {
-					Type:        "string",
+				string(tools.ProjectResource): {
+					Type:        tools.SchemaTypeString,
 					Description: "Project name",
 					MinLength:   new(1),
 					MaxLength:   new(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					Pattern:     tools.PatternResourceName,
 				},
 				"value": {
-					Type:        "string",
+					Type:        tools.SchemaTypeString,
 					Description: "Variable value",
 				},
 			},
-			Required: []string{"name", "project", "value"},
+			Required: []string{tools.ResourceName, string(tools.ProjectResource), "value"},
 		},
 	}
 
@@ -359,24 +359,24 @@ func (v *projectVariable) Delete() *tools.Tool {
 			OpenWorldHint:   new(false),
 		},
 		InputSchema: &jsonschema.Schema{
-			Type: "object",
+			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
-				"name": {
-					Type:        "string",
+				tools.ResourceName: {
+					Type:        tools.SchemaTypeString,
 					Description: "Variable name",
 					MinLength:   new(1),
 					MaxLength:   new(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					Pattern:     tools.PatternResourceName,
 				},
-				"project": {
-					Type:        "string",
+				string(tools.ProjectResource): {
+					Type:        tools.SchemaTypeString,
 					Description: "Project name",
 					MinLength:   new(1),
 					MaxLength:   new(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					Pattern:     tools.PatternResourceName,
 				},
 			},
-			Required: []string{"name", "project"},
+			Required: []string{tools.ResourceName, string(tools.ProjectResource)},
 		},
 	}
 

@@ -21,7 +21,7 @@ import (
 	"github.com/perses/common/set"
 	"github.com/perses/mcp-server/pkg/tools"
 	"github.com/perses/perses/pkg/client/config"
-	"github.com/perses/perses/pkg/model/api/v1/common"
+	"github.com/perses/spec/go/common"
 )
 
 type Transport string

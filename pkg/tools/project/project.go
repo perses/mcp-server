@@ -54,26 +54,26 @@ func (p *project) Create() *tools.Tool {
 		},
 		Description: "Create a new Perses Project",
 		InputSchema: &jsonschema.Schema{
-			Type: "object",
+			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
 				"project": {
-					Type:        "string",
+					Type:        tools.SchemaTypeString,
 					Description: "Name of the project to create",
 					MinLength:   new(1),
 					MaxLength:   new(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					Pattern:     tools.PatternResourceName,
 				},
 				"displayName": {
-					Type:        "string",
+					Type:        tools.SchemaTypeString,
 					Description: "Display name for the project",
 					MinLength:   new(1),
 					MaxLength:   new(75),
 				},
 				"description": {
-					Type:        "string",
+					Type:        tools.SchemaTypeString,
 					Description: "Description for the project",
 					MaxLength:   new(200),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					Pattern:     tools.PatternResourceName,
 				},
 			},
 			Required: []string{"project"},
@@ -178,28 +178,28 @@ func (p *project) Update() *tools.Tool {
 			OpenWorldHint:   new(false),
 		},
 		InputSchema: &jsonschema.Schema{
-			Type: "object",
+			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
-				"name": {
-					Type:        "string",
+				tools.ResourceName: {
+					Type:        tools.SchemaTypeString,
 					Description: "Name of the project to update",
 					MinLength:   new(1),
 					MaxLength:   new(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					Pattern:     tools.PatternResourceName,
 				},
 				"displayName": {
-					Type:        "string",
+					Type:        tools.SchemaTypeString,
 					Description: "Display name for the project",
 					MinLength:   new(1),
 					MaxLength:   new(75),
 				},
 				"description": {
-					Type:        "string",
+					Type:        tools.SchemaTypeString,
 					Description: "Description for the project",
 					MaxLength:   new(200),
 				},
 			},
-			Required: []string{"name"},
+			Required: []string{tools.ResourceName},
 		},
 	}
 	handler := func(_ context.Context, _ *mcp.CallToolRequest, input UpdateProjectInput) (*mcp.CallToolResult, any, error) { //nolint:unparam
@@ -257,17 +257,17 @@ func (p *project) Delete() *tools.Tool {
 			OpenWorldHint:   new(false),
 		},
 		InputSchema: &jsonschema.Schema{
-			Type: "object",
+			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
-				"name": {
-					Type:        "string",
+				tools.ResourceName: {
+					Type:        tools.SchemaTypeString,
 					Description: "Name of the project to delete",
 					MinLength:   new(1),
 					MaxLength:   new(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					Pattern:     tools.PatternResourceName,
 				},
 			},
-			Required: []string{"name"},
+			Required: []string{tools.ResourceName},
 		},
 	}
 	handler := func(_ context.Context, _ *mcp.CallToolRequest, input DeleteProjectInput) (*mcp.CallToolResult, any, error) { //nolint:unparam
@@ -309,17 +309,17 @@ func (p *project) Get() *tools.Tool {
 			OpenWorldHint:   new(false),
 		},
 		InputSchema: &jsonschema.Schema{
-			Type: "object",
+			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
-				"name": {
-					Type:        "string",
+				tools.ResourceName: {
+					Type:        tools.SchemaTypeString,
 					Description: "Name of the project to retrieve",
 					MinLength:   new(1),
 					MaxLength:   new(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					Pattern:     tools.PatternResourceName,
 				},
 			},
-			Required: []string{"name"},
+			Required: []string{tools.ResourceName},
 		},
 	}
 	handler := func(_ context.Context, _ *mcp.CallToolRequest, input GetProjectInput) (*mcp.CallToolResult, any, error) { //nolint:unparam

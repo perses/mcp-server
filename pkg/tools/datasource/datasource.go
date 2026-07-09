@@ -62,17 +62,17 @@ func (d *datasource) List() *tools.Tool {
 			OpenWorldHint:   new(false),
 		},
 		InputSchema: &jsonschema.Schema{
-			Type: "object",
+			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
-				"project": {
-					Type:        "string",
+				string(tools.ProjectResource): {
+					Type:        tools.SchemaTypeString,
 					Description: "Project name",
 					MinLength:   new(1),
 					MaxLength:   new(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					Pattern:     tools.PatternResourceName,
 				},
 			},
-			Required: []string{"project"},
+			Required: []string{string(tools.ProjectResource)},
 		},
 	}
 
@@ -120,24 +120,24 @@ func (d *datasource) Get() *tools.Tool {
 			OpenWorldHint:   new(false),
 		},
 		InputSchema: &jsonschema.Schema{
-			Type: "object",
+			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
-				"project": {
-					Type:        "string",
+				string(tools.ProjectResource): {
+					Type:        tools.SchemaTypeString,
 					Description: "Project name",
 					MinLength:   new(1),
 					MaxLength:   new(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					Pattern:     tools.PatternResourceName,
 				},
-				"name": {
-					Type:        "string",
+				tools.ResourceName: {
+					Type:        tools.SchemaTypeString,
 					Description: "Datasource name",
 					MinLength:   new(1),
 					MaxLength:   new(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					Pattern:     tools.PatternResourceName,
 				},
 			},
-			Required: []string{"project", "name"},
+			Required: []string{string(tools.ProjectResource), tools.ResourceName},
 		},
 	}
 
@@ -178,21 +178,21 @@ func (d *datasource) Create() *tools.Tool {
 		Name:        "perses_create_project_datasource",
 		Description: "Create a new datasource in a specific project",
 		InputSchema: &jsonschema.Schema{
-			Type: "object",
+			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
-				"project": {
-					Type:        "string",
+				string(tools.ProjectResource): {
+					Type:        tools.SchemaTypeString,
 					Description: "Project name",
 					MinLength:   new(1),
 					MaxLength:   new(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					Pattern:     tools.PatternResourceName,
 				},
-				"datasource": {
-					Type:        "string",
+				string(tools.DatasourceResource): {
+					Type:        tools.SchemaTypeString,
 					Description: "Datasource JSON as string",
 				},
 			},
-			Required: []string{"project", "datasource"},
+			Required: []string{string(tools.ProjectResource), string(tools.DatasourceResource)},
 		},
 		Annotations: &mcp.ToolAnnotations{
 			DestructiveHint: new(false),
@@ -245,21 +245,21 @@ func (d *datasource) Update() *tools.Tool {
 		Name:        "perses_update_project_datasource",
 		Description: "Update an existing datasource in a specific project",
 		InputSchema: &jsonschema.Schema{
-			Type: "object",
+			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
-				"project": {
-					Type:        "string",
+				string(tools.ProjectResource): {
+					Type:        tools.SchemaTypeString,
 					Description: "Project name",
 					MinLength:   new(1),
 					MaxLength:   new(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					Pattern:     tools.PatternResourceName,
 				},
-				"datasource": {
-					Type:        "string",
+				string(tools.DatasourceResource): {
+					Type:        tools.SchemaTypeString,
 					Description: "Datasource JSON as string",
 				},
 			},
-			Required: []string{"project", "datasource"},
+			Required: []string{string(tools.ProjectResource), string(tools.DatasourceResource)},
 		},
 		Annotations: &mcp.ToolAnnotations{
 			DestructiveHint: new(false),
@@ -312,24 +312,24 @@ func (d *datasource) Delete() *tools.Tool {
 		Name:        "perses_delete_project_datasource",
 		Description: "Delete a datasource from a specific project",
 		InputSchema: &jsonschema.Schema{
-			Type: "object",
+			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
-				"project": {
-					Type:        "string",
+				string(tools.ProjectResource): {
+					Type:        tools.SchemaTypeString,
 					Description: "Project name",
 					MinLength:   new(1),
 					MaxLength:   new(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					Pattern:     tools.PatternResourceName,
 				},
-				"name": {
-					Type:        "string",
+				tools.ResourceName: {
+					Type:        tools.SchemaTypeString,
 					Description: "Datasource name",
 					MinLength:   new(1),
 					MaxLength:   new(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					Pattern:     tools.PatternResourceName,
 				},
 			},
-			Required: []string{"project", "name"},
+			Required: []string{string(tools.ProjectResource), tools.ResourceName},
 		},
 		Annotations: &mcp.ToolAnnotations{
 			DestructiveHint: new(true),

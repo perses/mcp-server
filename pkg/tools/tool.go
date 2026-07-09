@@ -15,6 +15,17 @@ package tools
 
 import "github.com/modelcontextprotocol/go-sdk/mcp"
 
+const (
+	SchemaTypeObject = "object"
+	SchemaTypeString = "string"
+	SchemaTypeArray  = "array"
+)
+
+const (
+	ResourceName        = "name"
+	PatternResourceName = "^[a-zA-Z0-9_.-]+$"
+)
+
 type Resource string
 
 const (

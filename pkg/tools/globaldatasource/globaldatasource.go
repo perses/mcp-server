@@ -24,11 +24,11 @@ import (
 	"github.com/perses/mcp-server/pkg/tools/resource"
 	apiClient "github.com/perses/perses/pkg/client/api/v1"
 	v1 "github.com/perses/perses/pkg/model/api/v1"
-	"github.com/perses/perses/pkg/model/api/v1/common"
 	"github.com/perses/perses/pkg/model/api/v1/datasource"
-	"github.com/perses/perses/pkg/model/api/v1/datasource/http"
-	commonSpec "github.com/perses/spec/go/common"
+	"github.com/perses/spec/go/common"
 	datasourceSpec "github.com/perses/spec/go/datasource"
+	"github.com/perses/spec/go/datasource/proxy/http"
+	"github.com/perses/spec/go/plugin"
 )
 
 type globalDatasource struct {
@@ -107,17 +107,17 @@ func (g *globalDatasource) Get() *tools.Tool {
 			OpenWorldHint:   new(false),
 		},
 		InputSchema: &jsonschema.Schema{
-			Type: "object",
+			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
-				"name": {
-					Type:        "string",
+				tools.ResourceName: {
+					Type:        tools.SchemaTypeString,
 					Description: "Global Datasource name",
 					MinLength:   new(1),
 					MaxLength:   new(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					Pattern:     tools.PatternResourceName,
 				},
 			},
-			Required: []string{"name"},
+			Required: []string{tools.ResourceName},
 		},
 	}
 
@@ -168,36 +168,36 @@ func (g *globalDatasource) Create() *tools.Tool {
 			OpenWorldHint:   new(false),
 		},
 		InputSchema: &jsonschema.Schema{
-			Type: "object",
+			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
-				"name": {
-					Type:        "string",
+				tools.ResourceName: {
+					Type:        tools.SchemaTypeString,
 					Description: "Global Datasource name",
 					MinLength:   new(1),
 					MaxLength:   new(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					Pattern:     tools.PatternResourceName,
 				},
 				"type": {
-					Type:        "string",
+					Type:        tools.SchemaTypeString,
 					Description: "Type of datasource",
 					Enum:        []any{"PrometheusDatasource", "TempoDatasource"},
 				},
 				"url": {
-					Type:        "string",
+					Type:        tools.SchemaTypeString,
 					Description: "Datasource URL",
 					MinLength:   new(1),
 				},
 				"display_name": {
-					Type:        "string",
+					Type:        tools.SchemaTypeString,
 					Description: "Display name for the datasource (optional, defaults to name)",
 				},
 				"proxy_type": {
-					Type:        "string",
+					Type:        tools.SchemaTypeString,
 					Description: "Proxy type: HTTPProxy for server-side proxy, direct for browser direct access (optional, defaults to HTTPProxy)",
 					Enum:        []any{"HTTPProxy", "direct"},
 				},
 			},
-			Required: []string{"name", "type", "url"},
+			Required: []string{tools.ResourceName, "type", "url"},
 		},
 	}
 
@@ -242,11 +242,11 @@ func (g *globalDatasource) Create() *tools.Tool {
 				Name: input.Name,
 			},
 			Spec: datasourceSpec.Spec{
-				Display: &commonSpec.Display{
+				Display: &common.Display{
 					Name: displayName,
 				},
 				Default: false, // Default to false, can be updated later
-				Plugin: commonSpec.Plugin{
+				Plugin: plugin.Plugin{
 					Kind: input.Type,
 					Spec: pluginSpec,
 				},
@@ -299,36 +299,36 @@ func (g *globalDatasource) Update() *tools.Tool {
 			OpenWorldHint:   new(false),
 		},
 		InputSchema: &jsonschema.Schema{
-			Type: "object",
+			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
-				"name": {
-					Type:        "string",
+				tools.ResourceName: {
+					Type:        tools.SchemaTypeString,
 					Description: "Global Datasource name",
 					MinLength:   new(1),
 					MaxLength:   new(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					Pattern:     tools.PatternResourceName,
 				},
 				"type": {
-					Type:        "string",
+					Type:        tools.SchemaTypeString,
 					Description: "Type of datasource",
 					Enum:        []any{"PrometheusDatasource", "TempoDatasource"},
 				},
 				"url": {
-					Type:        "string",
+					Type:        tools.SchemaTypeString,
 					Description: "Datasource URL",
 					MinLength:   new(1),
 				},
 				"display_name": {
-					Type:        "string",
+					Type:        tools.SchemaTypeString,
 					Description: "Display name for the datasource (optional, defaults to name)",
 				},
 				"proxy_type": {
-					Type:        "string",
+					Type:        tools.SchemaTypeString,
 					Description: "Proxy type: HTTPProxy for server-side proxy, direct for browser direct access (optional, defaults to HTTPProxy)",
 					Enum:        []any{"HTTPProxy", "direct"},
 				},
 			},
-			Required: []string{"name", "type", "url"},
+			Required: []string{tools.ResourceName, "type", "url"},
 		},
 	}
 
@@ -372,11 +372,11 @@ func (g *globalDatasource) Update() *tools.Tool {
 				Name: input.Name,
 			},
 			Spec: datasourceSpec.Spec{
-				Display: &commonSpec.Display{
+				Display: &common.Display{
 					Name: displayName,
 				},
 				Default: false, // Default to false, can be updated later
-				Plugin: commonSpec.Plugin{
+				Plugin: plugin.Plugin{
 					Kind: input.Type,
 					Spec: pluginSpec,
 				},
@@ -425,17 +425,17 @@ func (g *globalDatasource) Delete() *tools.Tool {
 			OpenWorldHint:   new(false),
 		},
 		InputSchema: &jsonschema.Schema{
-			Type: "object",
+			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
-				"name": {
-					Type:        "string",
+				tools.ResourceName: {
+					Type:        tools.SchemaTypeString,
 					Description: "Global Datasource name",
 					MinLength:   new(1),
 					MaxLength:   new(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					Pattern:     tools.PatternResourceName,
 				},
 			},
-			Required: []string{"name"},
+			Required: []string{tools.ResourceName},
 		},
 	}
 

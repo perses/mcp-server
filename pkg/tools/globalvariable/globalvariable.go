@@ -103,17 +103,17 @@ func (g *globalVariable) Get() *tools.Tool {
 			OpenWorldHint:   new(false),
 		},
 		InputSchema: &jsonschema.Schema{
-			Type: "object",
+			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
-				"name": {
-					Type:        "string",
+				tools.ResourceName: {
+					Type:        tools.SchemaTypeString,
 					Description: "Global Variable name",
 					MinLength:   new(1),
 					MaxLength:   new(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					Pattern:     tools.PatternResourceName,
 				},
 			},
-			Required: []string{"name"},
+			Required: []string{tools.ResourceName},
 		},
 	}
 
@@ -154,21 +154,21 @@ func (g *globalVariable) Create() *tools.Tool {
 		Name:        "perses_create_global_variable",
 		Description: "Create a global variable (TextVariable type)",
 		InputSchema: &jsonschema.Schema{
-			Type: "object",
+			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
-				"name": {
-					Type:        "string",
+				tools.ResourceName: {
+					Type:        tools.SchemaTypeString,
 					Description: "Global Variable name",
 					MinLength:   new(1),
 					MaxLength:   new(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					Pattern:     tools.PatternResourceName,
 				},
 				"value": {
-					Type:        "string",
+					Type:        tools.SchemaTypeString,
 					Description: "Variable value",
 				},
 			},
-			Required: []string{"name", "value"},
+			Required: []string{tools.ResourceName, "value"},
 		},
 		Annotations: &mcp.ToolAnnotations{
 			DestructiveHint: new(false),
@@ -229,21 +229,21 @@ func (g *globalVariable) Update() *tools.Tool {
 		Name:        "perses_update_global_variable",
 		Description: "Update an existing global variable (TextVariable type)",
 		InputSchema: &jsonschema.Schema{
-			Type: "object",
+			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
-				"name": {
-					Type:        "string",
+				tools.ResourceName: {
+					Type:        tools.SchemaTypeString,
 					Description: "Global Variable name",
 					MinLength:   new(1),
 					MaxLength:   new(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					Pattern:     tools.PatternResourceName,
 				},
 				"value": {
-					Type:        "string",
+					Type:        tools.SchemaTypeString,
 					Description: "Variable value",
 				},
 			},
-			Required: []string{"name", "value"},
+			Required: []string{tools.ResourceName, "value"},
 		},
 		Annotations: &mcp.ToolAnnotations{
 			DestructiveHint: new(false),
@@ -303,17 +303,17 @@ func (g *globalVariable) Delete() *tools.Tool {
 		Name:        "perses_delete_global_variable",
 		Description: "Delete a global variable",
 		InputSchema: &jsonschema.Schema{
-			Type: "object",
+			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
-				"name": {
-					Type:        "string",
+				tools.ResourceName: {
+					Type:        tools.SchemaTypeString,
 					Description: "Global Variable name",
 					MinLength:   new(1),
 					MaxLength:   new(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					Pattern:     tools.PatternResourceName,
 				},
 			},
-			Required: []string{"name"},
+			Required: []string{tools.ResourceName},
 		},
 		Annotations: &mcp.ToolAnnotations{
 			DestructiveHint: new(true),

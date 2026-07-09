@@ -102,17 +102,17 @@ func (g *globalRoleBinding) Get() *tools.Tool {
 			OpenWorldHint:   new(false),
 		},
 		InputSchema: &jsonschema.Schema{
-			Type: "object",
+			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
-				"name": {
-					Type:        "string",
+				tools.ResourceName: {
+					Type:        tools.SchemaTypeString,
 					Description: "Global Role Binding name",
 					MinLength:   new(1),
 					MaxLength:   new(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					Pattern:     tools.PatternResourceName,
 				},
 			},
-			Required: []string{"name"},
+			Required: []string{tools.ResourceName},
 		},
 	}
 
@@ -154,17 +154,17 @@ func (g *globalRoleBinding) Create() *tools.Tool {
 		Name:        "perses_create_global_role_binding",
 		Description: "Create a global role binding that binds users to a global role",
 		InputSchema: &jsonschema.Schema{
-			Type: "object",
+			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
-				"name": {
-					Type:        "string",
+				tools.ResourceName: {
+					Type:        tools.SchemaTypeString,
 					Description: "Global Role Binding name",
 					MinLength:   new(1),
 					MaxLength:   new(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					Pattern:     tools.PatternResourceName,
 				},
 				"role": {
-					Type:        "string",
+					Type:        tools.SchemaTypeString,
 					Description: "Name of the GlobalRole to bind",
 					MinLength:   new(1),
 				},
@@ -172,11 +172,11 @@ func (g *globalRoleBinding) Create() *tools.Tool {
 					Type:        "array",
 					Description: "List of user names to bind to the role",
 					Items: &jsonschema.Schema{
-						Type: "string",
+						Type: tools.SchemaTypeString,
 					},
 				},
 			},
-			Required: []string{"name", "role", "subjects"},
+			Required: []string{tools.ResourceName, "role", "subjects"},
 		},
 		Annotations: &mcp.ToolAnnotations{
 			DestructiveHint: new(false),
@@ -244,17 +244,17 @@ func (g *globalRoleBinding) Update() *tools.Tool {
 		Name:        "perses_update_global_role_binding",
 		Description: "Update an existing global role binding",
 		InputSchema: &jsonschema.Schema{
-			Type: "object",
+			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
-				"name": {
-					Type:        "string",
+				tools.ResourceName: {
+					Type:        tools.SchemaTypeString,
 					Description: "Global Role Binding name",
 					MinLength:   new(1),
 					MaxLength:   new(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					Pattern:     tools.PatternResourceName,
 				},
 				"role": {
-					Type:        "string",
+					Type:        tools.SchemaTypeString,
 					Description: "Name of the GlobalRole to bind",
 					MinLength:   new(1),
 				},
@@ -262,11 +262,11 @@ func (g *globalRoleBinding) Update() *tools.Tool {
 					Type:        "array",
 					Description: "List of user names to bind to the role",
 					Items: &jsonschema.Schema{
-						Type: "string",
+						Type: tools.SchemaTypeString,
 					},
 				},
 			},
-			Required: []string{"name", "role", "subjects"},
+			Required: []string{tools.ResourceName, "role", "subjects"},
 		},
 		Annotations: &mcp.ToolAnnotations{
 			DestructiveHint: new(false),
@@ -332,17 +332,17 @@ func (g *globalRoleBinding) Delete() *tools.Tool {
 		Name:        "perses_delete_global_role_binding",
 		Description: "Delete a global role binding",
 		InputSchema: &jsonschema.Schema{
-			Type: "object",
+			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
-				"name": {
-					Type:        "string",
+				tools.ResourceName: {
+					Type:        tools.SchemaTypeString,
 					Description: "Global Role Binding name",
 					MinLength:   new(1),
 					MaxLength:   new(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					Pattern:     tools.PatternResourceName,
 				},
 			},
-			Required: []string{"name"},
+			Required: []string{tools.ResourceName},
 		},
 		Annotations: &mcp.ToolAnnotations{
 			DestructiveHint: new(true),
