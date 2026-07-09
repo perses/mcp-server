@@ -17,10 +17,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/perses/mcp-server/pkg/tools"
+	"github.com/perses/mcp-server/pkg/tools/internal/proxy"
 	"github.com/perses/mcp-server/pkg/tools/resource"
 	apiClient "github.com/perses/perses/pkg/client/api/v1"
 	v1 "github.com/perses/perses/pkg/model/api/v1"
@@ -40,9 +42,122 @@ func (d *datasource) GetTools() []*tools.Tool {
 	return []*tools.Tool{
 		d.List(),
 		d.Get(),
+		d.Query(),
 		d.Create(),
 		d.Update(),
 		d.Delete(),
+	}
+}
+
+type QueryProjectDatasourceInput struct {
+	Project        string            `json:"project" jsonschema:"Project name"`
+	DatasourceName string            `json:"datasource_name" jsonschema:"Datasource name"`
+	Method         string            `json:"method,omitempty" jsonschema:"HTTP method (default GET)"`
+	Path           string            `json:"path,omitempty" jsonschema:"Datasource endpoint path (e.g. /api/v1/query_range)"`
+	QueryParams    map[string]string `json:"query_params,omitempty" jsonschema:"Query string parameters"`
+	Body           string            `json:"body,omitempty" jsonschema:"Raw request body (JSON or form payload)"`
+	Headers        map[string]string `json:"headers,omitempty" jsonschema:"Optional additional request headers"`
+}
+
+func (d *datasource) Query() *tools.Tool {
+	tool := &mcp.Tool{
+		Name:        "perses_query_project_datasource",
+		Description: "Query a project datasource through Perses proxy",
+		Annotations: &mcp.ToolAnnotations{
+			Title:           "Queries a project datasource through Perses proxy",
+			ReadOnlyHint:    true,
+			DestructiveHint: jsonschema.Ptr(false),
+			IdempotentHint:  true,
+			OpenWorldHint:   jsonschema.Ptr(false),
+		},
+		InputSchema: &jsonschema.Schema{
+			Type: "object",
+			Properties: map[string]*jsonschema.Schema{
+				"project": {
+					Type:        "string",
+					Description: "Project name",
+					MinLength:   jsonschema.Ptr(1),
+					MaxLength:   jsonschema.Ptr(75),
+					Pattern:     "^[a-zA-Z0-9_.-]+$",
+				},
+				"datasource_name": {
+					Type:        "string",
+					Description: "Datasource name",
+					MinLength:   jsonschema.Ptr(1),
+					MaxLength:   jsonschema.Ptr(75),
+					Pattern:     "^[a-zA-Z0-9_.-]+$",
+				},
+				"method": {
+					Type:        "string",
+					Description: "HTTP method (default GET)",
+					Enum:        []any{http.MethodGet, http.MethodPost},
+				},
+				"path": {
+					Type:        "string",
+					Description: "Datasource endpoint path",
+				},
+				"query_params": {
+					Type:        "object",
+					Description: "Query string parameters",
+					AdditionalProperties: &jsonschema.Schema{
+						Type: "string",
+					},
+				},
+				"body": {
+					Type:        "string",
+					Description: "Raw request body (JSON or form payload)",
+				},
+				"headers": {
+					Type:        "object",
+					Description: "Optional additional request headers",
+					AdditionalProperties: &jsonschema.Schema{
+						Type: "string",
+					},
+				},
+			},
+			Required: []string{"project", "datasource_name"},
+		},
+	}
+
+	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input QueryProjectDatasourceInput) (*mcp.CallToolResult, any, error) {
+
+		helper := proxy.New(d.client)
+
+		sharedInput := proxy.ProxyQuery{
+			Method:      input.Method,
+			Path:        proxy.ProjectDatasourceProxyPath(input.Project, input.DatasourceName, input.Path),
+			QueryParams: input.QueryParams,
+			Body:        input.Body,
+			Headers:     input.Headers,
+		}
+
+		req, err := helper.BuildRequest(ctx, d.client.RESTClient().BaseURL.String(), sharedInput)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		result, err := helper.Execute(req)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		resultJSON, err := json.Marshal(result)
+		if err != nil {
+			return nil, nil, fmt.Errorf("error marshalling datasource query result: %w", err)
+		}
+
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{Text: string(resultJSON)},
+			},
+		}, nil, nil
+	}
+
+	return &tools.Tool{
+		MCPTool:      tool,
+		IsWriteTool:  false,
+		ResourceType: tools.DatasourceResource,
+		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, tool, handler) },
 	}
 }
 
