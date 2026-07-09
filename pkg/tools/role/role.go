@@ -58,20 +58,20 @@ func (r *role) List() *tools.Tool {
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Lists roles for a specific project in Perses",
 			ReadOnlyHint:    true,
-			DestructiveHint: jsonschema.Ptr(false),
+			DestructiveHint: new(false),
 			IdempotentHint:  true,
-			OpenWorldHint:   jsonschema.Ptr(false),
+			OpenWorldHint:   new(false),
 		},
 		InputSchema: &jsonschema.Schema{
-			Type: "object",
+			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
-				"project": {
-					Type:        "string",
+				string(tools.ProjectResource): {
+					Type:        tools.SchemaTypeString,
 					Description: "Project name",
-					MinLength:   jsonschema.Ptr(1),
+					MinLength:   new(1),
 				},
 			},
-			Required: []string{"project"},
+			Required: []string{string(tools.ProjectResource)},
 		},
 	}
 
@@ -114,29 +114,29 @@ func (r *role) Get() *tools.Tool {
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Gets a role by name in a specific project in Perses",
 			ReadOnlyHint:    true,
-			DestructiveHint: jsonschema.Ptr(false),
+			DestructiveHint: new(false),
 			IdempotentHint:  true,
-			OpenWorldHint:   jsonschema.Ptr(false),
+			OpenWorldHint:   new(false),
 		},
 		InputSchema: &jsonschema.Schema{
-			Type: "object",
+			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
-				"project": {
-					Type:        "string",
+				string(tools.ProjectResource): {
+					Type:        tools.SchemaTypeString,
 					Description: "Project name",
-					MinLength:   jsonschema.Ptr(1),
-					MaxLength:   jsonschema.Ptr(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					MinLength:   new(1),
+					MaxLength:   new(75),
+					Pattern:     tools.PatternResourceName,
 				},
-				"name": {
-					Type:        "string",
+				tools.ResourceName: {
+					Type:        tools.SchemaTypeString,
 					Description: "Role name",
-					MinLength:   jsonschema.Ptr(1),
-					MaxLength:   jsonschema.Ptr(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					MinLength:   new(1),
+					MaxLength:   new(75),
+					Pattern:     tools.PatternResourceName,
 				},
 			},
-			Required: []string{"project", "name"},
+			Required: []string{string(tools.ProjectResource), tools.ResourceName},
 		},
 	}
 
@@ -179,43 +179,43 @@ func (r *role) Create() *tools.Tool {
 		Name:        "perses_create_project_role",
 		Description: "Create a project role with specified permissions",
 		InputSchema: &jsonschema.Schema{
-			Type: "object",
+			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
-				"project": {
-					Type:        "string",
+				string(tools.ProjectResource): {
+					Type:        tools.SchemaTypeString,
 					Description: "Project name",
-					MinLength:   jsonschema.Ptr(1),
-					MaxLength:   jsonschema.Ptr(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					MinLength:   new(1),
+					MaxLength:   new(75),
+					Pattern:     tools.PatternResourceName,
 				},
-				"name": {
-					Type:        "string",
+				tools.ResourceName: {
+					Type:        tools.SchemaTypeString,
 					Description: "Role name",
-					MinLength:   jsonschema.Ptr(1),
-					MaxLength:   jsonschema.Ptr(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					MinLength:   new(1),
+					MaxLength:   new(75),
+					Pattern:     tools.PatternResourceName,
 				},
 				"actions": {
-					Type:        "array",
+					Type:        tools.SchemaTypeArray,
 					Description: "List of actions (e.g., read, create, update, delete)",
 					Items: &jsonschema.Schema{
-						Type: "string",
+						Type: tools.SchemaTypeString,
 					},
 				},
 				"scopes": {
-					Type:        "array",
+					Type:        tools.SchemaTypeArray,
 					Description: "List of scopes (resource kinds the role applies to, must not be global scopes)",
 					Items: &jsonschema.Schema{
-						Type: "string",
+						Type: tools.SchemaTypeString,
 					},
 				},
 			},
-			Required: []string{"project", "name", "actions", "scopes"},
+			Required: []string{string(tools.ProjectResource), tools.ResourceName, "actions", "scopes"},
 		},
 		Annotations: &mcp.ToolAnnotations{
-			DestructiveHint: jsonschema.Ptr(false),
+			DestructiveHint: new(false),
 			IdempotentHint:  true,
-			OpenWorldHint:   jsonschema.Ptr(false),
+			OpenWorldHint:   new(false),
 			ReadOnlyHint:    false,
 			Title:           "Creates a project role in Perses",
 		},
@@ -289,43 +289,43 @@ func (r *role) Update() *tools.Tool {
 		Name:        "perses_update_project_role",
 		Description: "Update an existing project role with specified permissions",
 		InputSchema: &jsonschema.Schema{
-			Type: "object",
+			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
-				"project": {
-					Type:        "string",
+				string(tools.ProjectResource): {
+					Type:        tools.SchemaTypeString,
 					Description: "Project name",
-					MinLength:   jsonschema.Ptr(1),
-					MaxLength:   jsonschema.Ptr(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					MinLength:   new(1),
+					MaxLength:   new(75),
+					Pattern:     tools.PatternResourceName,
 				},
-				"name": {
-					Type:        "string",
+				tools.ResourceName: {
+					Type:        tools.SchemaTypeString,
 					Description: "Role name",
-					MinLength:   jsonschema.Ptr(1),
-					MaxLength:   jsonschema.Ptr(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					MinLength:   new(1),
+					MaxLength:   new(75),
+					Pattern:     tools.PatternResourceName,
 				},
 				"actions": {
-					Type:        "array",
+					Type:        tools.SchemaTypeArray,
 					Description: "List of actions (e.g., read, create, update, delete)",
 					Items: &jsonschema.Schema{
-						Type: "string",
+						Type: tools.SchemaTypeString,
 					},
 				},
 				"scopes": {
-					Type:        "array",
+					Type:        tools.SchemaTypeArray,
 					Description: "List of scopes (resource kinds the role applies to, must not be global scopes)",
 					Items: &jsonschema.Schema{
-						Type: "string",
+						Type: tools.SchemaTypeString,
 					},
 				},
 			},
-			Required: []string{"project", "name", "actions", "scopes"},
+			Required: []string{string(tools.ProjectResource), tools.ResourceName, "actions", "scopes"},
 		},
 		Annotations: &mcp.ToolAnnotations{
-			DestructiveHint: jsonschema.Ptr(false),
+			DestructiveHint: new(false),
 			IdempotentHint:  true,
-			OpenWorldHint:   jsonschema.Ptr(false),
+			OpenWorldHint:   new(false),
 			ReadOnlyHint:    false,
 			Title:           "Updates an existing project role in Perses",
 		},
@@ -397,29 +397,29 @@ func (r *role) Delete() *tools.Tool {
 		Name:        "perses_delete_project_role",
 		Description: "Delete a project role",
 		InputSchema: &jsonschema.Schema{
-			Type: "object",
+			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
-				"project": {
-					Type:        "string",
+				string(tools.ProjectResource): {
+					Type:        tools.SchemaTypeString,
 					Description: "Project name",
-					MinLength:   jsonschema.Ptr(1),
-					MaxLength:   jsonschema.Ptr(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					MinLength:   new(1),
+					MaxLength:   new(75),
+					Pattern:     tools.PatternResourceName,
 				},
-				"name": {
-					Type:        "string",
+				tools.ResourceName: {
+					Type:        tools.SchemaTypeString,
 					Description: "Role name",
-					MinLength:   jsonschema.Ptr(1),
-					MaxLength:   jsonschema.Ptr(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					MinLength:   new(1),
+					MaxLength:   new(75),
+					Pattern:     tools.PatternResourceName,
 				},
 			},
-			Required: []string{"project", "name"},
+			Required: []string{string(tools.ProjectResource), tools.ResourceName},
 		},
 		Annotations: &mcp.ToolAnnotations{
-			DestructiveHint: jsonschema.Ptr(true),
+			DestructiveHint: new(true),
 			IdempotentHint:  true,
-			OpenWorldHint:   jsonschema.Ptr(false),
+			OpenWorldHint:   new(false),
 			ReadOnlyHint:    false,
 			Title:           "Deletes a project role in Perses",
 		},

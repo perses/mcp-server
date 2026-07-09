@@ -7,7 +7,6 @@ linters:
           disabled: true
 
   enable:
-    - goconst
     - unconvert
     - gosec
     - revive

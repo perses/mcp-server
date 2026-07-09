@@ -24,7 +24,7 @@ import (
 	"github.com/perses/mcp-server/pkg/tools/resource"
 	apiClient "github.com/perses/perses/pkg/client/api/v1"
 	v1 "github.com/perses/perses/pkg/model/api/v1"
-	"github.com/perses/perses/pkg/model/api/v1/variable"
+	"github.com/perses/spec/go/dashboard/variable"
 )
 
 type projectVariable struct {
@@ -58,22 +58,22 @@ func (v *projectVariable) List() *tools.Tool {
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Lists variables for a specific project in Perses",
 			ReadOnlyHint:    true,
-			DestructiveHint: jsonschema.Ptr(false),
+			DestructiveHint: new(false),
 			IdempotentHint:  true,
-			OpenWorldHint:   jsonschema.Ptr(false),
+			OpenWorldHint:   new(false),
 		},
 		InputSchema: &jsonschema.Schema{
-			Type: "object",
+			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
-				"project": {
-					Type:        "string",
+				string(tools.ProjectResource): {
+					Type:        tools.SchemaTypeString,
 					Description: "Project name",
-					MinLength:   jsonschema.Ptr(1),
-					MaxLength:   jsonschema.Ptr(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					MinLength:   new(1),
+					MaxLength:   new(75),
+					Pattern:     tools.PatternResourceName,
 				},
 			},
-			Required: []string{"project"},
+			Required: []string{string(tools.ProjectResource)},
 		},
 	}
 
@@ -116,29 +116,29 @@ func (v *projectVariable) Get() *tools.Tool {
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Gets a variable by name in a specific project in Perses",
 			ReadOnlyHint:    true,
-			DestructiveHint: jsonschema.Ptr(false),
+			DestructiveHint: new(false),
 			IdempotentHint:  true,
-			OpenWorldHint:   jsonschema.Ptr(false),
+			OpenWorldHint:   new(false),
 		},
 		InputSchema: &jsonschema.Schema{
-			Type: "object",
+			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
-				"project": {
-					Type:        "string",
+				string(tools.ProjectResource): {
+					Type:        tools.SchemaTypeString,
 					Description: "Project name",
-					MinLength:   jsonschema.Ptr(1),
-					MaxLength:   jsonschema.Ptr(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					MinLength:   new(1),
+					MaxLength:   new(75),
+					Pattern:     tools.PatternResourceName,
 				},
-				"name": {
-					Type:        "string",
+				tools.ResourceName: {
+					Type:        tools.SchemaTypeString,
 					Description: "Variable name",
-					MinLength:   jsonschema.Ptr(1),
-					MaxLength:   jsonschema.Ptr(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					MinLength:   new(1),
+					MaxLength:   new(75),
+					Pattern:     tools.PatternResourceName,
 				},
 			},
-			Required: []string{"project", "name"},
+			Required: []string{string(tools.ProjectResource), tools.ResourceName},
 		},
 	}
 
@@ -181,29 +181,29 @@ func (v *projectVariable) Create() *tools.Tool {
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Creates a project level variable in Perses",
 			ReadOnlyHint:    false,
-			DestructiveHint: jsonschema.Ptr(false),
+			DestructiveHint: new(false),
 			IdempotentHint:  true,
-			OpenWorldHint:   jsonschema.Ptr(false),
+			OpenWorldHint:   new(false),
 		},
 		InputSchema: &jsonschema.Schema{
-			Type: "object",
+			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
-				"name": {
-					Type:        "string",
+				tools.ResourceName: {
+					Type:        tools.SchemaTypeString,
 					Description: "Variable name",
-					MinLength:   jsonschema.Ptr(1),
-					MaxLength:   jsonschema.Ptr(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					MinLength:   new(1),
+					MaxLength:   new(75),
+					Pattern:     tools.PatternResourceName,
 				},
-				"project": {
-					Type:        "string",
+				string(tools.ProjectResource): {
+					Type:        tools.SchemaTypeString,
 					Description: "Project name",
-					MinLength:   jsonschema.Ptr(1),
-					MaxLength:   jsonschema.Ptr(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					MinLength:   new(1),
+					MaxLength:   new(75),
+					Pattern:     tools.PatternResourceName,
 				},
 			},
-			Required: []string{"name", "project"},
+			Required: []string{tools.ResourceName, string(tools.ProjectResource)},
 		},
 	}
 
@@ -266,33 +266,33 @@ func (v *projectVariable) Update() *tools.Tool {
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Updates a project level variable in Perses",
 			ReadOnlyHint:    false,
-			DestructiveHint: jsonschema.Ptr(false),
+			DestructiveHint: new(false),
 			IdempotentHint:  true,
-			OpenWorldHint:   jsonschema.Ptr(false),
+			OpenWorldHint:   new(false),
 		},
 		InputSchema: &jsonschema.Schema{
-			Type: "object",
+			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
-				"name": {
-					Type:        "string",
+				tools.ResourceName: {
+					Type:        tools.SchemaTypeString,
 					Description: "Variable name",
-					MinLength:   jsonschema.Ptr(1),
-					MaxLength:   jsonschema.Ptr(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					MinLength:   new(1),
+					MaxLength:   new(75),
+					Pattern:     tools.PatternResourceName,
 				},
-				"project": {
-					Type:        "string",
+				string(tools.ProjectResource): {
+					Type:        tools.SchemaTypeString,
 					Description: "Project name",
-					MinLength:   jsonschema.Ptr(1),
-					MaxLength:   jsonschema.Ptr(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					MinLength:   new(1),
+					MaxLength:   new(75),
+					Pattern:     tools.PatternResourceName,
 				},
 				"value": {
-					Type:        "string",
+					Type:        tools.SchemaTypeString,
 					Description: "Variable value",
 				},
 			},
-			Required: []string{"name", "project", "value"},
+			Required: []string{tools.ResourceName, string(tools.ProjectResource), "value"},
 		},
 	}
 
@@ -354,29 +354,29 @@ func (v *projectVariable) Delete() *tools.Tool {
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Deletes a project level variable in Perses",
 			ReadOnlyHint:    false,
-			DestructiveHint: jsonschema.Ptr(true),
+			DestructiveHint: new(true),
 			IdempotentHint:  true,
-			OpenWorldHint:   jsonschema.Ptr(false),
+			OpenWorldHint:   new(false),
 		},
 		InputSchema: &jsonschema.Schema{
-			Type: "object",
+			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
-				"name": {
-					Type:        "string",
+				tools.ResourceName: {
+					Type:        tools.SchemaTypeString,
 					Description: "Variable name",
-					MinLength:   jsonschema.Ptr(1),
-					MaxLength:   jsonschema.Ptr(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					MinLength:   new(1),
+					MaxLength:   new(75),
+					Pattern:     tools.PatternResourceName,
 				},
-				"project": {
-					Type:        "string",
+				string(tools.ProjectResource): {
+					Type:        tools.SchemaTypeString,
 					Description: "Project name",
-					MinLength:   jsonschema.Ptr(1),
-					MaxLength:   jsonschema.Ptr(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					MinLength:   new(1),
+					MaxLength:   new(75),
+					Pattern:     tools.PatternResourceName,
 				},
 			},
-			Required: []string{"name", "project"},
+			Required: []string{tools.ResourceName, string(tools.ProjectResource)},
 		},
 	}
 

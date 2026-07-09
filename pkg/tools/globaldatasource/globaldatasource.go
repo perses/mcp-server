@@ -24,9 +24,11 @@ import (
 	"github.com/perses/mcp-server/pkg/tools/resource"
 	apiClient "github.com/perses/perses/pkg/client/api/v1"
 	v1 "github.com/perses/perses/pkg/model/api/v1"
-	"github.com/perses/perses/pkg/model/api/v1/common"
 	"github.com/perses/perses/pkg/model/api/v1/datasource"
-	"github.com/perses/perses/pkg/model/api/v1/datasource/http"
+	"github.com/perses/spec/go/common"
+	datasourceSpec "github.com/perses/spec/go/datasource"
+	"github.com/perses/spec/go/datasource/proxy/http"
+	"github.com/perses/spec/go/plugin"
 )
 
 type globalDatasource struct {
@@ -56,9 +58,9 @@ func (g *globalDatasource) List() *tools.Tool {
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Lists all global datasources in Perses",
 			ReadOnlyHint:    true,
-			DestructiveHint: jsonschema.Ptr(false),
+			DestructiveHint: new(false),
 			IdempotentHint:  true,
-			OpenWorldHint:   jsonschema.Ptr(false),
+			OpenWorldHint:   new(false),
 		},
 	}
 
@@ -100,22 +102,22 @@ func (g *globalDatasource) Get() *tools.Tool {
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Gets a global datasource by name in Perses",
 			ReadOnlyHint:    true,
-			DestructiveHint: jsonschema.Ptr(false),
+			DestructiveHint: new(false),
 			IdempotentHint:  true,
-			OpenWorldHint:   jsonschema.Ptr(false),
+			OpenWorldHint:   new(false),
 		},
 		InputSchema: &jsonschema.Schema{
-			Type: "object",
+			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
-				"name": {
-					Type:        "string",
+				tools.ResourceName: {
+					Type:        tools.SchemaTypeString,
 					Description: "Global Datasource name",
-					MinLength:   jsonschema.Ptr(1),
-					MaxLength:   jsonschema.Ptr(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					MinLength:   new(1),
+					MaxLength:   new(75),
+					Pattern:     tools.PatternResourceName,
 				},
 			},
-			Required: []string{"name"},
+			Required: []string{tools.ResourceName},
 		},
 	}
 
@@ -161,41 +163,41 @@ func (g *globalDatasource) Create() *tools.Tool {
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Creates a new global datasource in Perses",
 			ReadOnlyHint:    false,
-			DestructiveHint: jsonschema.Ptr(false),
+			DestructiveHint: new(false),
 			IdempotentHint:  true,
-			OpenWorldHint:   jsonschema.Ptr(false),
+			OpenWorldHint:   new(false),
 		},
 		InputSchema: &jsonschema.Schema{
-			Type: "object",
+			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
-				"name": {
-					Type:        "string",
+				tools.ResourceName: {
+					Type:        tools.SchemaTypeString,
 					Description: "Global Datasource name",
-					MinLength:   jsonschema.Ptr(1),
-					MaxLength:   jsonschema.Ptr(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					MinLength:   new(1),
+					MaxLength:   new(75),
+					Pattern:     tools.PatternResourceName,
 				},
 				"type": {
-					Type:        "string",
+					Type:        tools.SchemaTypeString,
 					Description: "Type of datasource",
 					Enum:        []any{"PrometheusDatasource", "TempoDatasource"},
 				},
 				"url": {
-					Type:        "string",
+					Type:        tools.SchemaTypeString,
 					Description: "Datasource URL",
-					MinLength:   jsonschema.Ptr(1),
+					MinLength:   new(1),
 				},
 				"display_name": {
-					Type:        "string",
+					Type:        tools.SchemaTypeString,
 					Description: "Display name for the datasource (optional, defaults to name)",
 				},
 				"proxy_type": {
-					Type:        "string",
+					Type:        tools.SchemaTypeString,
 					Description: "Proxy type: HTTPProxy for server-side proxy, direct for browser direct access (optional, defaults to HTTPProxy)",
 					Enum:        []any{"HTTPProxy", "direct"},
 				},
 			},
-			Required: []string{"name", "type", "url"},
+			Required: []string{tools.ResourceName, "type", "url"},
 		},
 	}
 
@@ -239,12 +241,12 @@ func (g *globalDatasource) Create() *tools.Tool {
 			Metadata: v1.Metadata{
 				Name: input.Name,
 			},
-			Spec: v1.DatasourceSpec{
+			Spec: datasourceSpec.Spec{
 				Display: &common.Display{
 					Name: displayName,
 				},
 				Default: false, // Default to false, can be updated later
-				Plugin: common.Plugin{
+				Plugin: plugin.Plugin{
 					Kind: input.Type,
 					Spec: pluginSpec,
 				},
@@ -292,41 +294,41 @@ func (g *globalDatasource) Update() *tools.Tool {
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Updates an existing global datasource in Perses",
 			ReadOnlyHint:    false,
-			DestructiveHint: jsonschema.Ptr(false),
+			DestructiveHint: new(false),
 			IdempotentHint:  true,
-			OpenWorldHint:   jsonschema.Ptr(false),
+			OpenWorldHint:   new(false),
 		},
 		InputSchema: &jsonschema.Schema{
-			Type: "object",
+			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
-				"name": {
-					Type:        "string",
+				tools.ResourceName: {
+					Type:        tools.SchemaTypeString,
 					Description: "Global Datasource name",
-					MinLength:   jsonschema.Ptr(1),
-					MaxLength:   jsonschema.Ptr(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					MinLength:   new(1),
+					MaxLength:   new(75),
+					Pattern:     tools.PatternResourceName,
 				},
 				"type": {
-					Type:        "string",
+					Type:        tools.SchemaTypeString,
 					Description: "Type of datasource",
 					Enum:        []any{"PrometheusDatasource", "TempoDatasource"},
 				},
 				"url": {
-					Type:        "string",
+					Type:        tools.SchemaTypeString,
 					Description: "Datasource URL",
-					MinLength:   jsonschema.Ptr(1),
+					MinLength:   new(1),
 				},
 				"display_name": {
-					Type:        "string",
+					Type:        tools.SchemaTypeString,
 					Description: "Display name for the datasource (optional, defaults to name)",
 				},
 				"proxy_type": {
-					Type:        "string",
+					Type:        tools.SchemaTypeString,
 					Description: "Proxy type: HTTPProxy for server-side proxy, direct for browser direct access (optional, defaults to HTTPProxy)",
 					Enum:        []any{"HTTPProxy", "direct"},
 				},
 			},
-			Required: []string{"name", "type", "url"},
+			Required: []string{tools.ResourceName, "type", "url"},
 		},
 	}
 
@@ -369,12 +371,12 @@ func (g *globalDatasource) Update() *tools.Tool {
 			Metadata: v1.Metadata{
 				Name: input.Name,
 			},
-			Spec: v1.DatasourceSpec{
+			Spec: datasourceSpec.Spec{
 				Display: &common.Display{
 					Name: displayName,
 				},
 				Default: false, // Default to false, can be updated later
-				Plugin: common.Plugin{
+				Plugin: plugin.Plugin{
 					Kind: input.Type,
 					Spec: pluginSpec,
 				},
@@ -418,22 +420,22 @@ func (g *globalDatasource) Delete() *tools.Tool {
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Deletes a global datasource in Perses",
 			ReadOnlyHint:    false,
-			DestructiveHint: jsonschema.Ptr(true),
+			DestructiveHint: new(true),
 			IdempotentHint:  true,
-			OpenWorldHint:   jsonschema.Ptr(false),
+			OpenWorldHint:   new(false),
 		},
 		InputSchema: &jsonschema.Schema{
-			Type: "object",
+			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
-				"name": {
-					Type:        "string",
+				tools.ResourceName: {
+					Type:        tools.SchemaTypeString,
 					Description: "Global Datasource name",
-					MinLength:   jsonschema.Ptr(1),
-					MaxLength:   jsonschema.Ptr(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					MinLength:   new(1),
+					MaxLength:   new(75),
+					Pattern:     tools.PatternResourceName,
 				},
 			},
-			Required: []string{"name"},
+			Required: []string{tools.ResourceName},
 		},
 	}
 
