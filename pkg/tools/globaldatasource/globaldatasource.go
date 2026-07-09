@@ -26,8 +26,11 @@ import (
 	"github.com/perses/mcp-server/pkg/tools/resource"
 	apiClient "github.com/perses/perses/pkg/client/api/v1"
 	v1 "github.com/perses/perses/pkg/model/api/v1"
-	"github.com/perses/perses/pkg/model/api/v1/common"
 	"github.com/perses/perses/pkg/model/api/v1/datasource"
+	speccommon "github.com/perses/spec/go/common"
+	specDatasource "github.com/perses/spec/go/datasource"
+	spechttp "github.com/perses/spec/go/datasource/proxy/http"
+	specplugin "github.com/perses/spec/go/plugin"
 )
 
 type globalDatasource struct {
@@ -306,7 +309,7 @@ func (g *globalDatasource) Create() *tools.Tool {
 
 	handler := func(_ context.Context, _ *mcp.CallToolRequest, input CreateGlobalDatasourceInput) (*mcp.CallToolResult, any, error) { //nolint:unparam
 		// Parse the URL
-		parsedURL, err := common.ParseURL(input.URL)
+		parsedURL, err := speccommon.ParseURL(input.URL)
 		if err != nil {
 			return nil, nil, fmt.Errorf("invalid URL '%s': %w", input.URL, err)
 		}
@@ -330,9 +333,9 @@ func (g *globalDatasource) Create() *tools.Tool {
 		} else {
 			// Server-side proxy (default)
 			pluginSpec = &datasource.Prometheus{
-				Proxy: http.{
-					Kind: "HTTPProxy",
-					Spec: http.Config{
+				Proxy: &spechttp.Proxy{
+					Kind: spechttp.ProxyKindName,
+					Spec: spechttp.Config{
 						URL: parsedURL,
 					},
 				},
@@ -344,12 +347,12 @@ func (g *globalDatasource) Create() *tools.Tool {
 			Metadata: v1.Metadata{
 				Name: input.Name,
 			},
-			Spec: v1.DatasourceSpec{
-				Display: &common.Display{
+			Spec: specDatasource.Spec{
+				Display: &speccommon.Display{
 					Name: displayName,
 				},
-				Default: false, // Default to false, can be updated later
-				Plugin: common.Plugin{
+				Default: false,
+				Plugin: specplugin.Plugin{
 					Kind: input.Type,
 					Spec: pluginSpec,
 				},
@@ -437,7 +440,7 @@ func (g *globalDatasource) Update() *tools.Tool {
 
 	handler := func(_ context.Context, _ *mcp.CallToolRequest, input UpdateGlobalDatasourceInput) (*mcp.CallToolResult, any, error) { //nolint:unparam
 		// Parse the URL
-		parsedURL, err := common.ParseURL(input.URL)
+		parsedURL, err := speccommon.ParseURL(input.URL)
 		if err != nil {
 			return nil, nil, fmt.Errorf("invalid URL '%s': %w", input.URL, err)
 		}
@@ -460,9 +463,9 @@ func (g *globalDatasource) Update() *tools.Tool {
 		} else {
 			// Server-side proxy (default)
 			pluginSpec = &datasource.Prometheus{
-				Proxy: &datasourcehttp.Proxy{
-					Kind: "HTTPProxy",
-					Spec: datasourcehttp.Config{
+				Proxy: &spechttp.Proxy{
+					Kind: spechttp.ProxyKindName,
+					Spec: spechttp.Config{
 						URL: parsedURL,
 					},
 				},
@@ -474,12 +477,12 @@ func (g *globalDatasource) Update() *tools.Tool {
 			Metadata: v1.Metadata{
 				Name: input.Name,
 			},
-			Spec: v1.DatasourceSpec{
-				Display: &common.Display{
+			Spec: specDatasource.Spec{
+				Display: &speccommon.Display{
 					Name: displayName,
 				},
-				Default: false, // Default to false, can be updated later
-				Plugin: common.Plugin{
+				Default: false,
+				Plugin: specplugin.Plugin{
 					Kind: input.Type,
 					Spec: pluginSpec,
 				},
