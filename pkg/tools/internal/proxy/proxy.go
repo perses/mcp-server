@@ -148,6 +148,17 @@ func (h *Helper) Execute(req *http.Request) (*QueryResult, error) {
 	if restClient == nil || restClient.Client == nil {
 		return nil, fmt.Errorf("perses REST client is not configured")
 	}
+	if restClient.BaseURL == nil {
+		return nil, fmt.Errorf("perses REST client base URL is not configured")
+	}
+	if req == nil || req.URL == nil {
+		return nil, fmt.Errorf("request URL is not configured")
+	}
+
+	// Enforce proxy requests against the configured Perses base URL to avoid SSRF.
+	if !strings.EqualFold(req.URL.Scheme, restClient.BaseURL.Scheme) || !strings.EqualFold(req.URL.Host, restClient.BaseURL.Host) {
+		return nil, fmt.Errorf("request URL must target configured Perses host")
+	}
 
 	for key, value := range restClient.Headers {
 		if req.Header.Get(key) == "" {
@@ -155,11 +166,14 @@ func (h *Helper) Execute(req *http.Request) (*QueryResult, error) {
 		}
 	}
 
+	// #nosec G704 -- req URL is built from configured base URL and validated above.
 	resp, err := restClient.Client.Do(req)
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxBodyBytes))
 	if err != nil {

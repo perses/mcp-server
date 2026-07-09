@@ -17,7 +17,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
 
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -66,34 +65,34 @@ func (d *datasource) Query() *tools.Tool {
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Queries a project datasource through Perses proxy",
 			ReadOnlyHint:    true,
-			DestructiveHint: jsonschema.Ptr(false),
+			DestructiveHint: new(false),
 			IdempotentHint:  true,
-			OpenWorldHint:   jsonschema.Ptr(false),
+			OpenWorldHint:   new(false),
 		},
 		InputSchema: &jsonschema.Schema{
-			Type: "object",
+			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
 				"project": {
-					Type:        "string",
+					Type:        tools.SchemaTypeString,
 					Description: "Project name",
-					MinLength:   jsonschema.Ptr(1),
-					MaxLength:   jsonschema.Ptr(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					MinLength:   new(1),
+					MaxLength:   new(75),
+					Pattern:     tools.PatternResourceName,
 				},
 				"datasource_name": {
-					Type:        "string",
+					Type:        tools.SchemaTypeString,
 					Description: "Datasource name",
-					MinLength:   jsonschema.Ptr(1),
-					MaxLength:   jsonschema.Ptr(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					MinLength:   new(1),
+					MaxLength:   new(75),
+					Pattern:     tools.PatternResourceName,
 				},
 				"method": {
-					Type:        "string",
+					Type:        tools.SchemaTypeString,
 					Description: "HTTP method (default GET)",
-					Enum:        []any{http.MethodGet, http.MethodPost},
+					Enum:        []any{"http.MethodGet", "http.MethodPost"},
 				},
 				"path": {
-					Type:        "string",
+					Type:        tools.SchemaTypeString,
 					Description: "Datasource endpoint path",
 				},
 				"query_params": {
@@ -104,7 +103,7 @@ func (d *datasource) Query() *tools.Tool {
 					},
 				},
 				"body": {
-					Type:        "string",
+					Type:        tools.SchemaTypeString,
 					Description: "Raw request body (JSON or form payload)",
 				},
 				"headers": {
@@ -119,8 +118,7 @@ func (d *datasource) Query() *tools.Tool {
 		},
 	}
 
-	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input QueryProjectDatasourceInput) (*mcp.CallToolResult, any, error) {
-
+	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input QueryProjectDatasourceInput) (*mcp.CallToolResult, any, error) { //nolint:unparam
 		helper := proxy.New(d.client)
 
 		sharedInput := proxy.ProxyQuery{
