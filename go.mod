@@ -5,9 +5,9 @@ go 1.26.2
 require (
 	github.com/google/jsonschema-go v0.4.3
 	github.com/modelcontextprotocol/go-sdk v1.6.1
-	github.com/perses/common v0.31.1
+	github.com/perses/common v0.31.2
 	github.com/perses/perses v0.54.0-beta.3
-	github.com/perses/spec v0.2.0-beta.6
+	github.com/perses/spec v0.2.0-beta.9
 	github.com/sirupsen/logrus v1.9.4
 )
 
