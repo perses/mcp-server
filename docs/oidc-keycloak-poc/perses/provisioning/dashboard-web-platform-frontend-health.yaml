@@ -1,0 +1,37 @@
+kind: Dashboard
+metadata:
+  name: frontend-health
+  project: web-platform
+spec:
+  display:
+    name: Frontend Health
+    description: Core web vitals and error rates for the web tier.
+  duration: 1h
+  panels:
+    vitals:
+      kind: Panel
+      spec:
+        display:
+          name: Core Web Vitals
+        plugin:
+          kind: Markdown
+          spec:
+            text: |
+              #### Core Web Vitals
+              - LCP: good
+              - CLS: good
+              - INP: needs improvement
+  layouts:
+    - kind: Grid
+      spec:
+        display:
+          title: Vitals
+          collapse:
+            open: true
+        items:
+          - x: 0
+            y: 0
+            width: 24
+            height: 6
+            content:
+              $ref: "#/spec/panels/vitals"

@@ -1,0 +1,46 @@
+# OIDC / Keycloak client-credentials POC for the Perses Remote MCP Server.
+#
+#   keycloak  -> OIDC provider (realm "perses", confidential client "perses-mcp")
+#   perses    -> Perses backend, auth enabled, Keycloak registered as OIDC provider
+#
+# The MCP server itself runs on the HOST (not in compose) so you can point your
+# MCP client / IDE at it. See permcp.yaml and the README in this folder.
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.1
+    container_name: poc-keycloak
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_HTTP_ENABLED: "true"
+      KC_HOSTNAME_STRICT: "false"
+      KC_HEALTH_ENABLED: "true"
+    volumes:
+      - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm.json:ro
+    ports:
+      - "8080:8080"   # Keycloak admin console + token endpoint (host access, optional)
+    networks:
+      - persesnet
+
+  perses:
+    image: persesdev/perses:v0.54.0-debug
+    container_name: poc-perses
+    command: ["--config=/perses/config.yaml"]
+    volumes:
+      - ./perses/config.yaml:/perses/config.yaml:ro
+      - ./perses/provisioning:/perses/provisioning:ro
+      - ./perses/db:/perses/db
+    ports:
+      - "8082:8080"   # Perses API/UI on the host
+    depends_on:
+      - keycloak
+    # Perses performs OIDC discovery against Keycloak at startup. If Keycloak is
+    # not ready yet the container exits; this policy retries until it succeeds.
+    restart: unless-stopped
+    networks:
+      - persesnet
+
+networks:
+  persesnet:
+    driver: bridge

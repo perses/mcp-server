@@ -1,0 +1,7 @@
+kind: Project
+metadata:
+  name: poc-demo
+spec:
+  display:
+    name: POC Demo Project
+    description: Sample project provisioned for the OIDC client-credentials POC.

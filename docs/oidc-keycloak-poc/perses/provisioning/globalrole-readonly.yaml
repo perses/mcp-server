@@ -1,0 +1,9 @@
+kind: GlobalRole
+metadata:
+  name: readonly
+spec:
+  permissions:
+    - actions:
+        - read
+      scopes:
+        - "*"

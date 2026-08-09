@@ -1,0 +1,12 @@
+# Perses Remote MCP Server config for the OIDC POC — HTTP (Streamable HTTP) transport,
+# so it can be used as a *remote* MCP server (e.g. by OpenCode).
+transport: http
+listen_address: ":8000"
+
+perses_server:
+  url: "http://localhost:8082"
+  oauth:
+    clientID: "perses-mcp"
+    clientSecret: "perses-mcp-secret"
+    tokenURL: "http://localhost:8082/api/auth/providers/oidc/keycloak/token"
+    authStyle: 2

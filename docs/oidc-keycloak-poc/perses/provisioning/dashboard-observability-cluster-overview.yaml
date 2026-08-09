@@ -1,0 +1,52 @@
+kind: Dashboard
+metadata:
+  name: cluster-overview
+  project: observability
+spec:
+  display:
+    name: Cluster Overview
+    description: High-level cluster health summary.
+  duration: 6h
+  panels:
+    summary:
+      kind: Panel
+      spec:
+        display:
+          name: Cluster Summary
+        plugin:
+          kind: Markdown
+          spec:
+            text: |
+              ## Cluster Overview
+              - Nodes: 5
+              - Namespaces: 12
+              - Status: healthy
+    notes:
+      kind: Panel
+      spec:
+        display:
+          name: Notes
+        plugin:
+          kind: Markdown
+          spec:
+            text: "Placeholder panel — wire a Prometheus datasource to show real metrics."
+  layouts:
+    - kind: Grid
+      spec:
+        display:
+          title: Health
+          collapse:
+            open: true
+        items:
+          - x: 0
+            y: 0
+            width: 12
+            height: 6
+            content:
+              $ref: "#/spec/panels/summary"
+          - x: 12
+            y: 0
+            width: 12
+            height: 6
+            content:
+              $ref: "#/spec/panels/notes"

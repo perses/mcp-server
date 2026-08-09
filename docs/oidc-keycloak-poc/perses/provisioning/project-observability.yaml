@@ -1,0 +1,7 @@
+kind: Project
+metadata:
+  name: observability
+spec:
+  display:
+    name: Observability
+    description: Dashboards for cluster and service monitoring.

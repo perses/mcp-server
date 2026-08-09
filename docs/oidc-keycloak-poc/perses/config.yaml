@@ -1,0 +1,44 @@
+# Perses server configuration for the OIDC / Keycloak client-credentials POC.
+security:
+  # Turn on authentication + RBAC. All API endpoints now require a valid Perses JWT.
+  enable_auth: true
+  # AES-256 key (must be exactly 32 bytes) used to encrypt secrets at rest.
+  encryption_key: "=tW$56zytgB&3jN2E%7-+qrGZE?v6LCc"
+
+  authentication:
+    providers:
+      # Native (login/password) is not used in this POC.
+      enable_native: false
+      # Register Keycloak as an OIDC provider.
+      oidc:
+        - slug_id: keycloak
+          name: Keycloak
+          # The client Perses uses as an OIDC relying party. For this POC the MCP
+          # server authenticates with the *same* client, so the Perses user that
+          # gets synced on login is "perses-mcp".
+          client_id: perses-mcp
+          client_secret: perses-mcp-secret
+          # Reachable from INSIDE the Perses container over the compose network.
+          issuer: http://keycloak:8080/realms/perses
+          scopes:
+            - openid
+            - profile
+            - email
+
+  authorization:
+    provider:
+      native:
+        # No blanket guest permissions: an authenticated user has *zero* access
+        # unless an explicit (Global)RoleBinding grants it. This is what makes the
+        # "perses-mcp" technical user strictly read-only (see provisioning/).
+        guest_permissions: []
+
+database:
+  file:
+    folder: /perses/db
+    extension: json
+
+# Load the read-only role, its binding, and a sample project at startup.
+provisioning:
+  folders:
+    - /perses/provisioning

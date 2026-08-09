@@ -1,0 +1,7 @@
+kind: Project
+metadata:
+  name: web-platform
+spec:
+  display:
+    name: Web Platform
+    description: Frontend and web-tier dashboards.

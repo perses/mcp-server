@@ -1,0 +1,36 @@
+kind: Dashboard
+metadata:
+  name: welcome
+  project: poc-demo
+spec:
+  display:
+    name: Welcome
+    description: Landing dashboard for the POC demo project.
+  duration: 1h
+  panels:
+    intro:
+      kind: Panel
+      spec:
+        display:
+          name: Getting Started
+          description: Intro panel
+        plugin:
+          kind: Markdown
+          spec:
+            text: |
+              # Welcome to the POC
+              This dashboard was provisioned for the OIDC client-credentials POC.
+  layouts:
+    - kind: Grid
+      spec:
+        display:
+          title: Overview
+          collapse:
+            open: true
+        items:
+          - x: 0
+            y: 0
+            width: 24
+            height: 6
+            content:
+              $ref: "#/spec/panels/intro"

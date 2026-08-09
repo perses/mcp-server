@@ -1,0 +1,35 @@
+kind: Dashboard
+metadata:
+  name: api-latency
+  project: observability
+spec:
+  display:
+    name: API Latency
+    description: Request latency overview for backend services.
+  duration: 3h
+  panels:
+    p99:
+      kind: Panel
+      spec:
+        display:
+          name: p99 Latency (SLO)
+        plugin:
+          kind: Markdown
+          spec:
+            text: |
+              ### API Latency SLO
+              Target p99 < 300ms across all services.
+  layouts:
+    - kind: Grid
+      spec:
+        display:
+          title: Latency
+          collapse:
+            open: true
+        items:
+          - x: 0
+            y: 0
+            width: 24
+            height: 6
+            content:
+              $ref: "#/spec/panels/p99"

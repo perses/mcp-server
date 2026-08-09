@@ -1,0 +1,27 @@
+{
+  "realm": "perses",
+  "enabled": true,
+  "displayName": "Perses POC Realm",
+  "clients": [
+    {
+      "clientId": "perses-mcp",
+      "name": "Perses MCP technical user",
+      "description": "Confidential client used by the Perses Remote MCP Server (OAuth2 client credentials / service account).",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "perses-mcp-secret",
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "fullScopeAllowed": true,
+      "redirectUris": [],
+      "webOrigins": [],
+      "attributes": {
+        "oauth2.device.authorization.grant.enabled": "false"
+      }
+    }
+  ]
+}

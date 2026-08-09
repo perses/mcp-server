@@ -1,0 +1,8 @@
+kind: GlobalRoleBinding
+metadata:
+  name: mcp-readonly
+spec:
+  role: readonly
+  subjects:
+    - kind: User
+      name: perses-mcp
