@@ -7,7 +7,7 @@ require (
 	github.com/modelcontextprotocol/go-sdk v1.7.0
 	github.com/perses/common v0.31.2
 	github.com/perses/perses v0.54.0
-	github.com/perses/spec v0.2.0-rc.0
+	github.com/perses/spec v0.3.0-beta.0
 	github.com/sirupsen/logrus v1.9.4
 )
 
