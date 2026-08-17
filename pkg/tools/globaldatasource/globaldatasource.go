@@ -86,17 +86,17 @@ func (g *globalDatasource) Query() *tools.Tool {
 				"method": {
 					Type:        tools.SchemaTypeString,
 					Description: "HTTP method (default GET)",
-					Enum:        []any{"http.MethodGet", "http.MethodPost"},
+					Enum:        []any{"GET", "POST"},
 				},
 				"path": {
 					Type:        tools.SchemaTypeString,
 					Description: "Datasource endpoint path",
 				},
 				"query_params": {
-					Type:        "object",
+					Type:        tools.SchemaTypeObject,
 					Description: "Query string parameters",
 					AdditionalProperties: &jsonschema.Schema{
-						Type: "string",
+						Type: tools.SchemaTypeString,
 					},
 				},
 				"body": {
@@ -104,10 +104,10 @@ func (g *globalDatasource) Query() *tools.Tool {
 					Description: "Raw request body (JSON or form payload)",
 				},
 				"headers": {
-					Type:        "object",
+					Type:        tools.SchemaTypeObject,
 					Description: "Optional additional request headers",
 					AdditionalProperties: &jsonschema.Schema{
-						Type: "string",
+						Type: tools.SchemaTypeString,
 					},
 				},
 			},
@@ -126,12 +126,7 @@ func (g *globalDatasource) Query() *tools.Tool {
 			Headers:     input.Headers,
 		}
 
-		req, err := helper.BuildRequest(ctx, g.client.RESTClient().BaseURL.String(), sharedInput)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		result, err := helper.Execute(req)
+		result, err := helper.Do(ctx, sharedInput)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error querying global datasource '%s': %w", input.DatasourceName, err)
 		}
@@ -169,7 +164,7 @@ func (g *globalDatasource) List() *tools.Tool {
 		},
 	}
 
-	handler := func(_ context.Context, _ *mcp.CallToolRequest, input map[string]any) (*mcp.CallToolResult, any, error) { //nolint:unparam
+	handler := func(_ context.Context, _ *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, any, error) { //nolint:unparam
 		globalDatasources, err := g.client.GlobalDatasource().List("")
 		if err != nil {
 			return nil, nil, fmt.Errorf("error retrieving global datasources: %w", err)
@@ -275,12 +270,12 @@ func (g *globalDatasource) Create() *tools.Tool {
 		InputSchema: &jsonschema.Schema{
 			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
-				"name": {
+				tools.ResourceName: {
 					Type:        tools.SchemaTypeString,
 					Description: "Global Datasource name",
 					MinLength:   new(1),
 					MaxLength:   new(75),
-					Pattern:     "^[a-zA-Z0-9_.-]+$",
+					Pattern:     tools.PatternResourceName,
 				},
 				"type": {
 					Type:        tools.SchemaTypeString,
@@ -302,60 +297,14 @@ func (g *globalDatasource) Create() *tools.Tool {
 					Enum:        []any{"HTTPProxy", "direct"},
 				},
 			},
-			Required: []string{"name", "type", "url"},
+			Required: []string{tools.ResourceName, "type", "url"},
 		},
 	}
 
 	handler := func(_ context.Context, _ *mcp.CallToolRequest, input CreateGlobalDatasourceInput) (*mcp.CallToolResult, any, error) { //nolint:unparam
-		// Parse the URL
-		parsedURL, err := common.ParseURL(input.URL)
+		newGlobalDatasource, err := buildGlobalDatasourceObject(input.Name, input.Type, input.URL, input.DisplayName, input.ProxyType)
 		if err != nil {
-			return nil, nil, fmt.Errorf("invalid URL '%s': %w", input.URL, err)
-		}
-
-		// Set defaults
-		displayName := input.DisplayName
-		if displayName == "" {
-			displayName = input.Name
-		}
-		proxyType := input.ProxyType
-		if proxyType == "" {
-			proxyType = "HTTPProxy"
-		}
-
-		// Create the datasource spec based on proxy type
-		var pluginSpec any
-		if proxyType == "direct" {
-			pluginSpec = &datasource.Prometheus{
-				DirectURL: parsedURL.URL,
-			}
-		} else {
-			// Server-side proxy (default)
-			pluginSpec = &datasource.Prometheus{
-				Proxy: &http.Proxy{
-					Kind: "HTTPProxy",
-					Spec: http.Config{
-						URL: parsedURL,
-					},
-				},
-			}
-		}
-
-		newGlobalDatasource := &v1.GlobalDatasource{
-			Kind: v1.KindGlobalDatasource,
-			Metadata: v1.Metadata{
-				Name: input.Name,
-			},
-			Spec: datasourceSpec.Spec{
-				Display: &common.Display{
-					Name: displayName,
-				},
-				Default: false, // Default to false, can be updated later
-				Plugin: plugin.Plugin{
-					Kind: input.Type,
-					Spec: pluginSpec,
-				},
-			},
+			return nil, nil, err
 		}
 
 		response, err := g.client.GlobalDatasource().Create(newGlobalDatasource)
@@ -438,54 +387,9 @@ func (g *globalDatasource) Update() *tools.Tool {
 	}
 
 	handler := func(_ context.Context, _ *mcp.CallToolRequest, input UpdateGlobalDatasourceInput) (*mcp.CallToolResult, any, error) { //nolint:unparam
-		// Parse the URL
-		parsedURL, err := common.ParseURL(input.URL)
+		updatedGlobalDatasource, err := buildGlobalDatasourceObject(input.Name, input.Type, input.URL, input.DisplayName, input.ProxyType)
 		if err != nil {
-			return nil, nil, fmt.Errorf("invalid URL '%s': %w", input.URL, err)
-		}
-
-		// Set defaults
-		displayName := input.DisplayName
-		if displayName == "" {
-			displayName = input.Name
-		}
-		proxyType := input.ProxyType
-		if proxyType == "" {
-			proxyType = "HTTPProxy"
-		}
-
-		var pluginSpec any
-		if proxyType == "direct" {
-			pluginSpec = &datasource.Prometheus{
-				DirectURL: parsedURL.URL,
-			}
-		} else {
-			// Server-side proxy (default)
-			pluginSpec = &datasource.Prometheus{
-				Proxy: &http.Proxy{
-					Kind: "HTTPProxy",
-					Spec: http.Config{
-						URL: parsedURL,
-					},
-				},
-			}
-		}
-
-		updatedGlobalDatasource := &v1.GlobalDatasource{
-			Kind: v1.KindGlobalDatasource,
-			Metadata: v1.Metadata{
-				Name: input.Name,
-			},
-			Spec: datasourceSpec.Spec{
-				Display: &common.Display{
-					Name: displayName,
-				},
-				Default: false, // Default to false, can be updated later
-				Plugin: plugin.Plugin{
-					Kind: input.Type,
-					Spec: pluginSpec,
-				},
-			},
+			return nil, nil, err
 		}
 
 		response, err := g.client.GlobalDatasource().Update(updatedGlobalDatasource)
@@ -565,4 +469,47 @@ func (g *globalDatasource) Delete() *tools.Tool {
 		ResourceType: tools.GlobalDatasourceResource,
 		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, tool, handler) },
 	}
+}
+
+func buildGlobalDatasourceObject(name, dsType, rawURL, displayName, proxyType string) (*v1.GlobalDatasource, error) {
+	parsedURL, err := common.ParseURL(rawURL)
+	if err != nil {
+		return nil, fmt.Errorf("invalid URL '%s': %w", rawURL, err)
+	}
+	if displayName == "" {
+		displayName = name
+	}
+	if proxyType == "" {
+		proxyType = "HTTPProxy"
+	}
+	var pluginSpec any
+	if proxyType == "direct" {
+		pluginSpec = &datasource.Prometheus{
+			DirectURL: parsedURL.URL,
+		}
+	} else {
+		pluginSpec = &datasource.Prometheus{
+			Proxy: &http.Proxy{
+				Kind: "HTTPProxy",
+				Spec: http.Config{
+					URL: parsedURL,
+				},
+			},
+		}
+	}
+	return &v1.GlobalDatasource{
+		Kind: v1.KindGlobalDatasource,
+		Metadata: v1.Metadata{
+			Name: name,
+		},
+		Spec: datasourceSpec.Spec{
+			Display: &common.Display{
+				Name: displayName,
+			},
+			Plugin: plugin.Plugin{
+				Kind: dsType,
+				Spec: pluginSpec,
+			},
+		},
+	}, nil
 }

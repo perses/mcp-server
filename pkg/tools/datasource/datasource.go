@@ -72,7 +72,7 @@ func (d *datasource) Query() *tools.Tool {
 		InputSchema: &jsonschema.Schema{
 			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
-				"project": {
+				string(tools.ProjectResource): {
 					Type:        tools.SchemaTypeString,
 					Description: "Project name",
 					MinLength:   new(1),
@@ -89,17 +89,17 @@ func (d *datasource) Query() *tools.Tool {
 				"method": {
 					Type:        tools.SchemaTypeString,
 					Description: "HTTP method (default GET)",
-					Enum:        []any{"http.MethodGet", "http.MethodPost"},
+					Enum:        []any{"GET", "POST"},
 				},
 				"path": {
 					Type:        tools.SchemaTypeString,
 					Description: "Datasource endpoint path",
 				},
 				"query_params": {
-					Type:        "object",
+					Type:        tools.SchemaTypeObject,
 					Description: "Query string parameters",
 					AdditionalProperties: &jsonschema.Schema{
-						Type: "string",
+						Type: tools.SchemaTypeString,
 					},
 				},
 				"body": {
@@ -107,10 +107,10 @@ func (d *datasource) Query() *tools.Tool {
 					Description: "Raw request body (JSON or form payload)",
 				},
 				"headers": {
-					Type:        "object",
+					Type:        tools.SchemaTypeObject,
 					Description: "Optional additional request headers",
 					AdditionalProperties: &jsonschema.Schema{
-						Type: "string",
+						Type: tools.SchemaTypeString,
 					},
 				},
 			},
@@ -129,12 +129,7 @@ func (d *datasource) Query() *tools.Tool {
 			Headers:     input.Headers,
 		}
 
-		req, err := helper.BuildRequest(ctx, d.client.RESTClient().BaseURL.String(), sharedInput)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		result, err := helper.Execute(req)
+		result, err := helper.Do(ctx, sharedInput)
 		if err != nil {
 			return nil, nil, err
 		}

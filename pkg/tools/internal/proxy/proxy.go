@@ -101,11 +101,22 @@ func NormalizePath(path string) string {
 	return path
 }
 
-func (h *Helper) BuildRequest(ctx context.Context, baseURL string, input ProxyQuery) (*http.Request, error) {
+func (h *Helper) Do(ctx context.Context, input ProxyQuery) (*QueryResult, error) {
+	restClient := h.client.RESTClient()
+	if restClient == nil || restClient.Client == nil {
+		return nil, fmt.Errorf("perses REST client is not configured")
+	}
+	if restClient.BaseURL == nil {
+		return nil, fmt.Errorf("perses REST client base URL is not configured")
+	}
+
 	method := NormalizeMethod(input.Method)
+	if method != http.MethodGet && method != http.MethodPost {
+		return nil, fmt.Errorf("unsupported HTTP method %q: only GET and POST are accepted", method)
+	}
 	path := NormalizePath(input.Path)
 
-	targetURL, err := url.Parse(baseURL)
+	targetURL, err := url.Parse(restClient.BaseURL.String())
 	if err != nil {
 		return nil, fmt.Errorf("invalid base URL: %w", err)
 	}
@@ -138,21 +149,6 @@ func (h *Helper) BuildRequest(ctx context.Context, baseURL string, input ProxyQu
 	}
 	if input.Body != "" && req.Header.Get("Content-Type") == "" {
 		req.Header.Set("Content-Type", "application/json")
-	}
-
-	return req, nil
-}
-
-func (h *Helper) Execute(req *http.Request) (*QueryResult, error) {
-	restClient := h.client.RESTClient()
-	if restClient == nil || restClient.Client == nil {
-		return nil, fmt.Errorf("perses REST client is not configured")
-	}
-	if restClient.BaseURL == nil {
-		return nil, fmt.Errorf("perses REST client base URL is not configured")
-	}
-	if req == nil || req.URL == nil {
-		return nil, fmt.Errorf("request URL is not configured")
 	}
 
 	// Enforce proxy requests against the configured Perses base URL to avoid SSRF.
