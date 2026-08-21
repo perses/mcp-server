@@ -364,18 +364,64 @@ For ephemeral dashboard configuration, see [Perses EphemeralDashboard](https://g
 
 ### Datasources
 
-| Tool                                    | Description                                  | Required Parameters     | Optional Parameters          |
-| --------------------------------------- | -------------------------------------------- | ----------------------- | ---------------------------- |
-| `perses_list_global_datasources`        | List all global datasources                  | -                       | -                            |
-| `perses_get_global_datasource_by_name`  | Get a global datasource by name              | `name`                  | -                            |
-| `perses_create_global_datasource`       | Create a new global datasource               | `name`, `type`, `url`   | `display_name`, `proxy_type` |
-| `perses_update_global_datasource`       | Update an existing global datasource         | `name`, `type`, `url`   | `display_name`, `proxy_type` |
-| `perses_delete_global_datasource`       | Delete a global datasource                   | `name`                  | -                            |
-| `perses_list_project_datasources`       | List all datasources for a specific project  | `project`               | -                            |
-| `perses_get_project_datasource_by_name` | Get a project datasource by name             | `project`, `name`       | -                            |
-| `perses_create_project_datasource`      | Create a new datasource in a project         | `project`, `datasource` | -                            |
-| `perses_update_project_datasource`      | Update an existing datasource in a project   | `project`, `datasource` | -                            |
-| `perses_delete_project_datasource`      | Delete a datasource from a project           | `project`, `name`       | -                            |
+| Tool                                    | Description                                                                          | Required Parameters          | Optional Parameters                                   |
+| --------------------------------------- | ------------------------------------------------------------------------------------ | ---------------------------- | ----------------------------------------------------- |
+| `perses_list_global_datasources`        | List all global datasources                                                          | -                            | -                                                     |
+| `perses_get_global_datasource_by_name`  | Get a global datasource by name                                                      | `name`                       | -                                                     |
+| `perses_query_global_datasource`        | Send an HTTP request to a global datasource backend through the Perses proxy         | `datasource_name`            | `method`, `path`, `query_params`, `body`, `headers`   |
+| `perses_create_global_datasource`       | Create a new global datasource                                                       | `name`, `type`, `url`        | `display_name`, `proxy_type`                          |
+| `perses_update_global_datasource`       | Update an existing global datasource                                                 | `name`, `type`, `url`        | `display_name`, `proxy_type`                          |
+| `perses_delete_global_datasource`       | Delete a global datasource                                                           | `name`                       | -                                                     |
+| `perses_list_project_datasources`       | List all datasources for a specific project                                          | `project`                    | -                                                     |
+| `perses_get_project_datasource_by_name` | Get a project datasource by name                                                     | `project`, `name`            | -                                                     |
+| `perses_query_project_datasource`       | Send an HTTP request to a project datasource backend through the Perses proxy        | `project`, `datasource_name` | `method`, `path`, `query_params`, `body`, `headers`   |
+| `perses_create_project_datasource`      | Create a new datasource in a project                                                 | `project`, `datasource`      | -                                                     |
+| `perses_update_project_datasource`      | Update an existing datasource in a project                                           | `project`, `datasource`      | -                                                     |
+| `perses_delete_project_datasource`      | Delete a datasource from a project                                                   | `project`, `name`            | -                                                     |
+
+#### Querying Datasources
+
+`perses_query_project_datasource` and `perses_query_global_datasource` forward HTTP requests to a configured datasource backend through the Perses proxy. This means:
+
+- **Credentials are automatically injected** — datasource secrets configured in Perses (Bearer tokens, Basic auth, OAuth) are applied server-side; they are never exposed to the tool caller.
+- **Allowed endpoints are enforced** — only endpoints permitted by the datasource's `allowedEndpoints` configuration are reachable.
+- **`method`** defaults to `GET`. Only `GET` and `POST` are accepted.
+- **`path`** is the datasource-relative endpoint path, e.g. `/api/v1/query_range` for Prometheus or `/loki/api/v1/query_range` for Loki.
+- **`query_params`** is an object of key/value string pairs appended as query string parameters.
+- **`body`** is a raw string body (JSON or `application/x-www-form-urlencoded`). Content-Type defaults to `application/json` when a body is provided.
+- **`headers`** allows passing additional request headers. The `Authorization` header is always blocked in tool input; use Perses secrets for authentication.
+- Response bodies are capped at **1 MiB** to avoid exceeding LLM context limits.
+
+**Example — Prometheus instant query via a global datasource:**
+
+```json
+{
+  "datasource_name": "my-prometheus",
+  "method": "POST",
+  "path": "/api/v1/query",
+  "query_params": {
+    "query": "up",
+    "time": "2024-01-01T00:00:00Z"
+  }
+}
+```
+
+**Example — Prometheus range query via a project datasource:**
+
+```json
+{
+  "project": "my-project",
+  "datasource_name": "my-prometheus",
+  "method": "POST",
+  "path": "/api/v1/query_range",
+  "query_params": {
+    "query": "rate(http_requests_total[5m])",
+    "start": "2024-01-01T00:00:00Z",
+    "end": "2024-01-01T01:00:00Z",
+    "step": "60"
+  }
+}
+```
 
 ### Roles
 
