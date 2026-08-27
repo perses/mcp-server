@@ -60,6 +60,18 @@ perses_server:
   #   credentials: "<YOUR_TOKEN>"
   #   # credentials_file: "/path/to/token/file"  # Alternative: read token from file
 
+  # Option 3: OAuth 2.0 client-credentials (Perses protected by an OIDC provider)
+  # Authenticates as a technical (machine) user. tokenURL points at PERSES's own
+  # token endpoint (Perses brokers the credentials with the OIDC provider), of the form
+  # https://<perses-host>/api/auth/providers/oidc/<slug_id>/token, where <slug_id> is the
+  # oidc.slug_id configured in Perses. See docs/oidc-client-credentials.md.
+  # oauth:
+  #   clientID: "perses-mcp"
+  #   clientSecret: "perses-mcp-secret"
+  #   # clientSecretFile: "/path/to/secret/file"  # Alternative: read secret from file
+  #   tokenURL: "https://<perses-host>/api/auth/providers/oidc/<slug_id>/token"
+  #   authStyle: 2      # 2 = send client_id/secret via HTTP Basic (required by Perses)
+
   # TLS configuration (optional)
   # tls_config:
   #   ca_file: "/path/to/ca.pem"
