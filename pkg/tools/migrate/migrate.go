@@ -39,7 +39,7 @@ func New(client apiClient.ClientInterface) resource.Resource {
 type MigrateDashboardInput struct {
 	GrafanaDashboard     string            `json:"grafanaDashboard" jsonschema:"Grafana dashboard JSON as a string"`
 	Input                map[string]string `json:"input,omitempty" jsonschema:"Grafana input values used to resolve __inputs placeholders (e.g. DS_PROMETHEUS=my-datasource)"`
-	UseDefaultDatasource *bool             `json:"useDefaultDatasource,omitempty" jsonschema:"Datasource strategy for the migrated dashboard. Set true to replace every panel datasource with the default Perses datasource, or false to preserve the original datasource references. When omitted, the value is decided once via elicitation (or defaults to preserving references if the client does not support elicitation)."`
+	UseDefaultDatasource *bool             `json:"useDefaultDatasource,omitempty" jsonschema:"Datasource strategy: true replaces every panel datasource with the default Perses datasource, false preserves the original references. When omitted, the value is decided once via elicitation by asking the user"`
 }
 
 func (m *migrate) GetTools() []*tools.Tool {
