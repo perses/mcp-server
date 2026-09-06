@@ -86,7 +86,7 @@ func (m *migrate) Migrate() *tools.Tool {
 		},
 	}
 
-	handler := func(_ context.Context, req *mcp.CallToolRequest, input MigrateDashboardInput) (*mcp.CallToolResult, any, error) {
+	handler := func(_ context.Context, req *mcp.CallToolRequest, input MigrateDashboardInput) (*mcp.CallToolResult, any, error) { //nolint:unparam
 		if input.GrafanaDashboard == "" {
 			return nil, nil, fmt.Errorf("grafana dashboard JSON cannot be empty")
 		}
