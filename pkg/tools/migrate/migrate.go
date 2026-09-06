@@ -79,7 +79,7 @@ func (m *migrate) Migrate() *tools.Tool {
 				},
 				"useDefaultDatasource": {
 					Type:        tools.SchemaTypeBoolean,
-					Description: "Datasource strategy: true replaces every panel datasource with the default Perses datasource, false preserves the original references. When omitted, the value is decided once via elicitation (or defaults to false if the client does not support elicitation). Do not set this just to trigger the prompt.",
+					Description: "Datasource strategy: true replaces every panel datasource with the default Perses datasource, false preserves the original references. When omitted, the value is decided once via elicitation by asking the user",
 				},
 			},
 			Required: []string{"grafanaDashboard"},
@@ -91,15 +91,6 @@ func (m *migrate) Migrate() *tools.Tool {
 			return nil, nil, fmt.Errorf("grafana dashboard JSON cannot be empty")
 		}
 
-		// Resolve whether to use the default datasource. This handler is invoked twice for a
-		// single user-facing call when elicitation is used (multi round-trip, SEP-2322): once
-		// to raise the input request, then again by the SDK with the collected answer. The
-		// user is asked at most once. Cases are evaluated in priority order:
-		//  1. Caller passed an explicit value -> honor it, no prompt.
-		//  2. The (second) invocation already carries the user's answer -> use it.
-		//  3. First invocation and the client supports elicitation -> raise the prompt once.
-		//  4. Client does not support elicitation -> keep the default (false) and preserve
-		//     datasource references, so this read-only tool never fails just to ask.
 		useDefaultDatasource := false
 		switch {
 		case input.UseDefaultDatasource != nil:
