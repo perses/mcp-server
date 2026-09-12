@@ -22,7 +22,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/perses/common/async"
 	"github.com/perses/common/set"
-	v1 "github.com/perses/perses/pkg/client/api/v1"
+	apiclient "github.com/perses/perses/pkg/client/api"
 	"github.com/perses/perses/pkg/client/config"
 	"github.com/sirupsen/logrus"
 
@@ -34,6 +34,7 @@ import (
 	"github.com/perses/mcp-server/pkg/tools/globalrole"
 	"github.com/perses/mcp-server/pkg/tools/globalrolebinding"
 	"github.com/perses/mcp-server/pkg/tools/globalvariable"
+	"github.com/perses/mcp-server/pkg/tools/migrate"
 	"github.com/perses/mcp-server/pkg/tools/plugin"
 	"github.com/perses/mcp-server/pkg/tools/project"
 	"github.com/perses/mcp-server/pkg/tools/resource"
@@ -66,13 +67,13 @@ func New(cfg Config) (async.SimpleTask, error) {
 	}, nil
 }
 
-func initializePersesClient(cfg Config) (v1.ClientInterface, error) {
+func initializePersesClient(cfg Config) (apiclient.ClientInterface, error) {
 	restClient, err := config.NewRESTClient(cfg.PersesServer)
 	if err != nil {
 		return nil, fmt.Errorf("error creating Perses REST client: %w", err)
 	}
 
-	return v1.NewWithClient(restClient), nil
+	return apiclient.NewWithClient(restClient), nil
 }
 
 type server struct {
@@ -80,7 +81,7 @@ type server struct {
 	// cfg contains the server configuration settings
 	cfg Config
 	// persesClient is the client interface for interacting with the Perses API
-	persesClient v1.ClientInterface
+	persesClient apiclient.ClientInterface
 	// mcpServer is the Model Context Protocol server instance
 	mcpServer *mcp.Server
 }
@@ -127,19 +128,21 @@ func (s *server) Execute(ctx context.Context, cancelFunc context.CancelFunc) err
 }
 
 func (s *server) registerTools() {
+	v1Client := s.persesClient.V1()
 	resources := []resource.Resource{
-		project.New(s.persesClient),
-		dashboard.New(s.persesClient),
-		ephemeraldashboard.New(s.persesClient),
-		datasource.New(s.persesClient),
-		globaldatasource.New(s.persesClient),
-		role.New(s.persesClient),
-		globalrole.New(s.persesClient),
-		rolebinding.New(s.persesClient),
-		globalrolebinding.New(s.persesClient),
-		variable.New(s.persesClient),
-		globalvariable.New(s.persesClient),
-		plugin.New(s.persesClient),
+		project.New(v1Client),
+		dashboard.New(v1Client),
+		ephemeraldashboard.New(v1Client),
+		datasource.New(v1Client),
+		globaldatasource.New(v1Client),
+		role.New(v1Client),
+		globalrole.New(v1Client),
+		rolebinding.New(v1Client),
+		globalrolebinding.New(v1Client),
+		variable.New(v1Client),
+		globalvariable.New(v1Client),
+		plugin.New(v1Client),
+		migrate.New(s.persesClient),
 	}
 
 	var allTools []*tools.Tool
