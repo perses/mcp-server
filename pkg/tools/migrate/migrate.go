@@ -36,10 +36,15 @@ func New(client apiClient.ClientInterface) resource.Resource {
 	}
 }
 
+// Datasource strategy values offered in the elicitation form presented to the user.
+const (
+	strategyKeepReferences = "keep-hard-coded-references"
+	strategyPersesDefault  = "use-perses-default-datasource"
+)
+
 type MigrateDashboardInput struct {
-	GrafanaDashboard     string            `json:"grafanaDashboard" jsonschema:"Grafana dashboard JSON as a string"`
-	Input                map[string]string `json:"input,omitempty" jsonschema:"Grafana input values used to resolve __inputs placeholders (e.g. DS_PROMETHEUS=my-datasource)"`
-	UseDefaultDatasource *bool             `json:"useDefaultDatasource,omitempty" jsonschema:"Datasource strategy: true replaces every panel datasource with the default Perses datasource, false preserves the original references. When omitted, the value is decided once via elicitation by asking the user"`
+	GrafanaDashboard string            `json:"grafanaDashboard" jsonschema:"Grafana dashboard JSON as a string"`
+	Input            map[string]string `json:"input,omitempty" jsonschema:"Grafana input values used to resolve __inputs placeholders (e.g. DS_PROMETHEUS=my-datasource)"`
 }
 
 func (m *migrate) GetTools() []*tools.Tool {
@@ -54,8 +59,11 @@ const useDefaultDatasourceElicitID = "useDefaultDatasource"
 
 func (m *migrate) Migrate() *tools.Tool {
 	tool := &mcp.Tool{
-		Name:        "perses_migrate_dashboard",
-		Description: "Migrate a Grafana dashboard into a native Perses dashboard. The converted Perses dashboard is NOT persisted in Perses.",
+		Name: "perses_migrate_dashboard",
+		Description: "Convert a Grafana dashboard into a native Perses dashboard. " +
+			"Use this tool to translate exported Grafana dashboard JSON into the Perses dashboard model, " +
+			"The result is returned as JSON only and is NOT saved to Perses; " +
+			"use the dashboard create tool to persist it.",
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Migrates a Grafana dashboard to the Perses format",
 			ReadOnlyHint:    true,
@@ -77,10 +85,6 @@ func (m *migrate) Migrate() *tools.Tool {
 						Type: tools.SchemaTypeString,
 					},
 				},
-				"useDefaultDatasource": {
-					Type:        tools.SchemaTypeBoolean,
-					Description: "Datasource strategy: true replaces every panel datasource with the default Perses datasource, false preserves the original references. When omitted, the value is decided once via elicitation by asking the user",
-				},
 			},
 			Required: []string{"grafanaDashboard"},
 		},
@@ -91,13 +95,18 @@ func (m *migrate) Migrate() *tools.Tool {
 			return nil, nil, fmt.Errorf("grafana dashboard JSON cannot be empty")
 		}
 
-		useDefaultDatasource := false
+		// When no human can be asked, this stays false: preserving the original datasource
+		// references is the lossless outcome.
+		useDefaultDatasource, chosenByUser := false, false
 		switch {
-		case input.UseDefaultDatasource != nil:
-			useDefaultDatasource = *input.UseDefaultDatasource
+		// The elicitation response must be checked before anything else: the SDK replays the
+		// original Arguments on the multi round-trip retry, so an argument-first branch would
+		// re-prompt the user on every retry until the retry budget is exhausted.
 		case hasUseDefaultDatasourceResponse(req):
-			useDefaultDatasource = resolveUseDefaultDatasourceResponse(req)
-		case clientSupportsElicitation(req):
+			useDefaultDatasource, chosenByUser = resolveUseDefaultDatasourceResponse(req), true
+
+		// Nothing the caller sends can skip this prompt: the user always decides.
+		case clientSupportsFormElicitation(req):
 			return &mcp.CallToolResult{
 				InputRequests: mcp.InputRequestMap{
 					useDefaultDatasourceElicitID: useDefaultDatasourceElicitParams(),
@@ -121,7 +130,7 @@ func (m *migrate) Migrate() *tools.Tool {
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{
 				&mcp.TextContent{
-					Text: datasourceStrategyNote(useDefaultDatasource),
+					Text: datasourceStrategyNote(useDefaultDatasource, chosenByUser),
 				},
 				&mcp.TextContent{
 					Text: string(text),
@@ -138,46 +147,66 @@ func (m *migrate) Migrate() *tools.Tool {
 	}
 }
 
-// clientSupportsElicitation reports whether the connected client advertised elicitation
-// support during initialization. When it did not, the migrate tool must not return an
-// input request: doing so would fail this read-only tool with "client does not support
-// elicitation". Callers can still pass useDefaultDatasource explicitly on such clients.
-func clientSupportsElicitation(req *mcp.CallToolRequest) bool {
+func clientSupportsFormElicitation(req *mcp.CallToolRequest) bool {
 	if req == nil || req.Session == nil {
 		return false
 	}
 	params := req.Session.InitializeParams()
-	if params == nil || params.Capabilities == nil {
+	if params == nil {
 		return false
 	}
-	return params.Capabilities.Elicitation != nil
+	return supportsFormElicitation(params.Capabilities)
+}
+
+// supportsFormElicitation reports whether the advertised capabilities include form
+// elicitation. A client declaring neither mode predates the form/URL split and is assumed
+// to support forms.
+func supportsFormElicitation(capabilities *mcp.ClientCapabilities) bool {
+	if capabilities == nil || capabilities.Elicitation == nil {
+		return false
+	}
+	elicitation := capabilities.Elicitation
+	return elicitation.Form != nil || elicitation.URL == nil
 }
 
 // datasourceStrategyNote returns a short human-readable note describing which datasource
 // strategy was applied to the migrated dashboard, so the caller understands the outcome
-// without diffing the JSON.
-func datasourceStrategyNote(useDefaultDatasource bool) string {
+// without diffing the JSON. It also records who made the choice, so a strategy applied
+// without asking the user is visible rather than silent.
+func datasourceStrategyNote(useDefaultDatasource, chosenByUser bool) string {
+	strategy := "preserved the original datasource references from the Grafana dashboard"
 	if useDefaultDatasource {
-		return "Datasource strategy: replaced all panel datasources with the default Perses datasource."
+		strategy = "replaced all panel datasources with the default Perses datasource"
 	}
-	return "Datasource strategy: preserved the original datasource references from the Grafana dashboard."
+	if chosenByUser {
+		return fmt.Sprintf("Datasource strategy: %s (chosen by the user).", strategy)
+	}
+	return fmt.Sprintf("Datasource strategy: %s (server configuration or caller-provided; the user was not asked).", strategy)
 }
 
 // useDefaultDatasourceElicitParams builds the elicitation request asking the user
-// whether the default Perses datasource should be used for all panels.
+// whether the default Perses datasource should be used for all panels. The user is the
+// only one who can answer: there is deliberately no tool argument that pre-empts this.
 func useDefaultDatasourceElicitParams() *mcp.ElicitParams {
 	return &mcp.ElicitParams{
 		Mode:    "form",
-		Message: "Choose if the default datasource should be used",
+		Message: "How should panel datasources be handled in the migrated dashboard?",
 		RequestedSchema: &jsonschema.Schema{
 			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
 				useDefaultDatasourceElicitID: {
-					Type:        tools.SchemaTypeBoolean,
-					Description: "Replace all panel datasources with the default Perses datasource? Otherwise, original datasource references from Grafana are preserved. This choice is applied to all panels in the migrated dashboard.",
+					Type:        tools.SchemaTypeString,
+					Title:       "Datasource strategy",
+					Description: "This choice is applied to all panels in the migrated dashboard.",
+					Enum:        []any{strategyKeepReferences, strategyPersesDefault},
+					Extra: map[string]any{
+						"enumNames": []any{
+							"Preserve the original hard-coded datasource references from Grafana",
+							"Replace all original hard-coded datasource references with the Perses default datasource",
+						},
+					},
 				},
 			},
-			Required: []string{useDefaultDatasourceElicitID},
 		},
 	}
 }
@@ -194,17 +223,23 @@ func hasUseDefaultDatasourceResponse(req *mcp.CallToolRequest) bool {
 
 // resolveUseDefaultDatasourceResponse extracts the user's answer from the elicitation
 // response. It returns false when the user declined or cancelled, or when the response
-// is missing the expected boolean, so migration preserves datasource references.
+// is missing the expected value, so migration preserves datasource references.
+//
+// Both the current string form and the legacy boolean form are accepted, so clients that
+// answered the previous boolean schema keep working.
 func resolveUseDefaultDatasourceResponse(req *mcp.CallToolRequest) bool {
 	response, ok := req.Params.InputResponses[useDefaultDatasourceElicitID].(*mcp.ElicitResult)
 	if !ok || response == nil || response.Action != "accept" {
 		return false
 	}
-	value, ok := response.Content[useDefaultDatasourceElicitID].(bool)
-	if !ok {
+	switch value := response.Content[useDefaultDatasourceElicitID].(type) {
+	case string:
+		return value == strategyPersesDefault
+	case bool:
+		return value
+	default:
 		return false
 	}
-	return value
 }
 
 // List is not required for migrate
