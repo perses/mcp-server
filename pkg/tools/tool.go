@@ -16,9 +16,10 @@ package tools
 import "github.com/modelcontextprotocol/go-sdk/mcp"
 
 const (
-	SchemaTypeObject = "object"
-	SchemaTypeString = "string"
-	SchemaTypeArray  = "array"
+	SchemaTypeObject  = "object"
+	SchemaTypeString  = "string"
+	SchemaTypeArray   = "array"
+	SchemaTypeBoolean = "boolean"
 )
 
 const (
@@ -41,6 +42,7 @@ const (
 	VariableResource           Resource = "variable"
 	GlobalVariableResource     Resource = "globalvariable"
 	PluginResource             Resource = "plugin"
+	MigrateResource            Resource = "migrate"
 )
 
 var ValidResources = []Resource{
@@ -56,6 +58,7 @@ var ValidResources = []Resource{
 	VariableResource,
 	GlobalVariableResource,
 	PluginResource,
+	MigrateResource,
 }
 
 // Tool represents an MCP tool with metadata about write access requirements

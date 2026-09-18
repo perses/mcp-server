@@ -87,6 +87,7 @@ The `resources` field accepts the following resource names (case-insensitive, co
 | `variable` | Project-level variable tools |
 | `globalvariable` | Global variable tools |
 | `plugin` | Plugin tools |
+| `migrate` | Grafana → Perses dashboard migration tool |
 
 #### Environment Variables
 
