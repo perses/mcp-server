@@ -55,9 +55,9 @@ func New(cfg Config) (async.SimpleTask, error) {
 		Name:  "perses-mcp-server",
 		Title: "Perses MCP Server"},
 		&mcp.ServerOptions{
-			HasTools:     true,
-			HasResources: false,
-			HasPrompts:   false,
+			Capabilities: &mcp.ServerCapabilities{
+				Tools: &mcp.ToolCapabilities{ListChanged: false},
+			},
 		})
 
 	return &server{
