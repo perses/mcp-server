@@ -43,6 +43,7 @@ const (
 	GlobalVariableResource     Resource = "globalvariable"
 	PluginResource             Resource = "plugin"
 	MigrateResource            Resource = "migrate"
+	SchemaResource             Resource = "schema"
 )
 
 var ValidResources = []Resource{
@@ -59,6 +60,7 @@ var ValidResources = []Resource{
 	GlobalVariableResource,
 	PluginResource,
 	MigrateResource,
+	SchemaResource,
 }
 
 // Tool represents an MCP tool with metadata about write access requirements
