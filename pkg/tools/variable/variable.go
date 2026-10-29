@@ -172,12 +172,13 @@ func (v *projectVariable) Get() *tools.Tool {
 type CreateProjectVariableInput struct {
 	Name    string `json:"name" jsonschema:"Variable name"`
 	Project string `json:"project" jsonschema:"Project name"`
+	Value   string `json:"value" jsonschema:"Variable value (for TextVariable)"`
 }
 
 func (v *projectVariable) Create() *tools.Tool {
 	tool := &mcp.Tool{
 		Name:        "perses_create_project_variable",
-		Description: "Create a project level variable",
+		Description: "Create a project level variable (TextVariable type)",
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Creates a project level variable in Perses",
 			ReadOnlyHint:    false,
@@ -202,6 +203,10 @@ func (v *projectVariable) Create() *tools.Tool {
 					MaxLength:   new(75),
 					Pattern:     tools.PatternResourceName,
 				},
+				"value": {
+					Type:        tools.SchemaTypeString,
+					Description: "Variable value. Empty when not provided.",
+				},
 			},
 			Required: []string{tools.ResourceName, string(tools.ProjectResource)},
 		},
@@ -221,7 +226,7 @@ func (v *projectVariable) Create() *tools.Tool {
 			Spec: v1.VariableSpec{
 				Kind: variable.KindText,
 				Spec: &variable.TextSpec{
-					Value: input.Name,
+					Value: input.Value,
 				},
 			},
 		}
