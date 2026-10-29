@@ -73,7 +73,6 @@ func (p *project) Create() *tools.Tool {
 					Type:        tools.SchemaTypeString,
 					Description: "Description for the project",
 					MaxLength:   new(200),
-					Pattern:     tools.PatternResourceName,
 				},
 			},
 			Required: []string{"project"},
