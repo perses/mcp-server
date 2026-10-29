@@ -9,5 +9,5 @@ COPY  ${TARGETPLATFORM}/perses-mcp-server                  /bin/perses-mcp-serve
 COPY  LICENSE                                              /LICENSE
 COPY --from=build-env                                      /etc/mime.types /etc/mime.types
 
-EXPOSE     8080
+EXPOSE     8000
 ENTRYPOINT ["/bin/perses-mcp-server"]
