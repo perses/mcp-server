@@ -8,6 +8,8 @@
 
 The Perses MCP Server is a local [Model Context Protocol (MCP)](https://modelcontextprotocol.io/introduction) Server that enables the LLM hosts (OpenCode, Claude Desktop, VS Code, Cursor) to interact with the Perses Application in a standardized way.
 
+The complete documentation is available in the [docs](./docs/overview.md) folder.
+
 ## Demo
 
 ### OpenCode
@@ -58,12 +60,12 @@ perses_server:
   # authorization:
   #   type: Bearer
   #   credentials: "<YOUR_TOKEN>"
-  #   # credentials_file: "/path/to/token/file"  # Alternative: read token from file
+  #   # credentialsFile: "/path/to/token/file"  # Alternative: read token from file
 
   # TLS configuration (optional)
   # tls_config:
-  #   ca_file: "/path/to/ca.pem"
-  #   insecure_skip_verify: false
+  #   caFile: "/path/to/ca.pem"
+  #   insecureSkipVerify: false
 ```
 
 > [!NOTE]
@@ -480,7 +482,7 @@ If you want to build the MCP server from source code (for development or contrib
 make build
 ```
 
-This creates a `bin` directory containing the binary named `mcp-server`. Copy the absolute path to the binary to use in your MCP server configuration.
+This creates a `bin` directory containing the binary named `perses-mcp-server`. Copy the absolute path to the binary to use in your MCP server configuration.
 
 ## License
 
