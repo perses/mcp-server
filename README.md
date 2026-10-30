@@ -91,6 +91,7 @@ The `resources` field accepts the following resource names (case-insensitive, co
 | `plugin` | Plugin tools |
 | `migrate` | Grafana → Perses dashboard migration tool |
 | `schema` | Dashboard and plugin schema tools (requires Perses v0.55+) |
+| `validate` | Dashboard, datasource, and variable validation tools |
 
 #### Environment Variables
 
@@ -350,6 +351,9 @@ perses-mcp-server --config /path/to/config.yaml
 | `perses_update_dashboard`      | Update an existing dashboard in a project                      | `project`, `dashboard` |
 | `perses_delete_dashboard`      | Delete a dashboard from a project                              | `project`, `name`      |
 
+`perses_validate_dashboard` checks the JSON against installed plugin CUE schemas without saving it.
+`perses_get_plugin_schema` provides plugin field definitions.
+
 For dashboard configuration, see [Perses Dashboards](https://github.com/perses/perses/blob/main/docs/api/dashboard.md)
 
 ### Ephemeral Dashboards
@@ -363,6 +367,9 @@ Ephemeral dashboards are temporary dashboards with a TTL (time-to-live). They ar
 | `perses_create_ephemeral_dashboard`      | Create an ephemeral dashboard given a project and dashboard configuration | `project`, `dashboard` |
 | `perses_update_ephemeral_dashboard`      | Update an existing ephemeral dashboard in a project                       | `project`, `dashboard` |
 | `perses_delete_ephemeral_dashboard`      | Delete an ephemeral dashboard from a project                              | `project`, `name`      |
+
+`perses_validate_dashboard` checks the dashboard configuration against installed plugin CUE schemas without saving it.
+`perses_get_plugin_schema` provides plugin field definitions.
 
 For ephemeral dashboard configuration, see [Perses EphemeralDashboard](https://github.com/perses/perses/blob/main/docs/api/ephemeral-dashboard.md)
 
@@ -467,6 +474,25 @@ The schema tools return the [CUE](https://cuelang.org/) schemas of the plugins i
 | `perses_get_dashboard_schema` | Get the dashboard schema, including the schemas of all installed plugins (large)   | -                   |
 | `perses_list_plugin_schemas`  | List the schemas of all installed plugins                                          | -                   |
 | `perses_get_plugin_schema`    | Get the schema of a plugin kind (e.g. `TimeSeriesChart`), optionally for a version | `kind`              |
+
+### Validation
+
+Resource: `validate`
+
+These tools validate resource JSON against the installed plugin CUE schemas without creating or modifying anything.
+They stay available in read-only mode and return `{"valid": true}` or `{"valid": false, "errors": "..."}`.
+Malformed JSON and structural validation failures also return `valid: false`; connection and unexpected server
+errors are tool errors.
+
+| Tool                               | Description                   | Required Parameters |
+|------------------------------------|-------------------------------|---------------------|
+| `perses_validate_dashboard`         | Validate a dashboard          | `dashboard`         |
+| `perses_validate_datasource`        | Validate a project datasource | `datasource`        |
+| `perses_validate_global_datasource` | Validate a global datasource  | `datasource`        |
+| `perses_validate_variable`          | Validate a project variable   | `variable`          |
+| `perses_validate_global_variable`   | Validate a global variable    | `variable`          |
+
+Each input is a resource JSON string. See [Validation tools](./docs/tools.md#validation) for details.
 
 ### Variables
 

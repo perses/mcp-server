@@ -44,6 +44,7 @@ const (
 	PluginResource             Resource = "plugin"
 	MigrateResource            Resource = "migrate"
 	SchemaResource             Resource = "schema"
+	ValidateResource           Resource = "validate"
 )
 
 var ValidResources = []Resource{
@@ -61,6 +62,7 @@ var ValidResources = []Resource{
 	PluginResource,
 	MigrateResource,
 	SchemaResource,
+	ValidateResource,
 }
 
 // Tool represents an MCP tool with metadata about write access requirements

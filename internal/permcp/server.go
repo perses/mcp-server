@@ -41,6 +41,7 @@ import (
 	"github.com/perses/mcp-server/pkg/tools/role"
 	"github.com/perses/mcp-server/pkg/tools/rolebinding"
 	"github.com/perses/mcp-server/pkg/tools/schema"
+	"github.com/perses/mcp-server/pkg/tools/validate"
 	"github.com/perses/mcp-server/pkg/tools/variable"
 )
 
@@ -144,6 +145,7 @@ func (s *server) registerTools() {
 		globalvariable.New(v1Client),
 		plugin.New(v1Client),
 		schema.New(v1Client),
+		validate.New(s.persesClient),
 		migrate.New(s.persesClient),
 	}
 
