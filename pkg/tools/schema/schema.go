@@ -81,8 +81,8 @@ func (s *schema) DashboardSchema() *tools.Tool {
 func (s *schema) List() *tools.Tool {
 	tool := &mcp.Tool{
 		Name: "perses_list_plugin_schemas",
-		Description: "List the CUE schemas of all plugins installed on the Perses server: panels, queries, variables " +
-			"and datasources. Requires Perses v0.55 or later.",
+		Description: "List the CUE schemas of all plugins installed on the Perses server: panels, queries, variables, " +
+			"datasources and annotations. Requires Perses v0.55 or later.",
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Lists the CUE schemas of all plugins in Perses",
 			ReadOnlyHint:    true,

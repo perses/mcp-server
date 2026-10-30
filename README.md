@@ -460,7 +460,7 @@ For ephemeral dashboard configuration, see [Perses EphemeralDashboard](https://g
 
 ### Schemas
 
-The schema tools return the [CUE](https://cuelang.org/) schemas of the plugins installed on the Perses server, so that the LLM writes panels, queries and variables that the server accepts. They require Perses v0.55 or later.
+The schema tools return the [CUE](https://cuelang.org/) schemas of the plugins installed on the Perses server, so that the LLM writes panels, queries, variables, annotations and datasources that the server accepts. They require Perses v0.55 or later.
 
 | Tool                          | Description                                                                        | Required Parameters |
 | ----------------------------- | ---------------------------------------------------------------------------------- | ------------------- |
