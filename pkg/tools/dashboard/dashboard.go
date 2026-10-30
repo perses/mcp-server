@@ -165,8 +165,9 @@ type CreateDashboardInput struct {
 
 func (d *dashboard) Create() *tools.Tool {
 	tool := &mcp.Tool{
-		Name:        "perses_create_dashboard",
-		Description: "Create a new dashboard in a specific project",
+		Name: "perses_create_dashboard",
+		Description: "Create a new dashboard in a specific project. Validated against installed plugin CUE schemas; use " +
+			"perses_validate_dashboard to check the JSON first, and perses_get_plugin_schema for field definitions.",
 		InputSchema: &jsonschema.Schema{
 			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
@@ -232,8 +233,9 @@ type UpdateDashboardInput struct {
 
 func (d *dashboard) Update() *tools.Tool {
 	tool := &mcp.Tool{
-		Name:        "perses_update_dashboard",
-		Description: "Update an existing dashboard in a specific project",
+		Name: "perses_update_dashboard",
+		Description: "Update an existing dashboard in a specific project. Validated against installed plugin CUE schemas; use " +
+			"perses_validate_dashboard to check the JSON first, and perses_get_plugin_schema for field definitions.",
 		InputSchema: &jsonschema.Schema{
 			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{

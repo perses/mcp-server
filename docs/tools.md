@@ -37,6 +37,9 @@ Resource: `dashboard`
 
 The parameter `dashboard` is a dashboard in the [Perses format](https://perses.dev/docs/perses/latest/api/dashboard/).
 
+`perses_validate_dashboard` checks the JSON against installed plugin CUE schemas without saving it.
+`perses_get_plugin_schema` provides plugin field definitions.
+
 ## Ephemeral dashboards
 
 Resource: `ephemeraldashboard`
@@ -55,6 +58,9 @@ dashboard to answer a question, without cluttering the project.
 
 The parameter `dashboard` is an ephemeral dashboard in the
 [Perses format](https://perses.dev/docs/perses/latest/api/ephemeral-dashboard/).
+
+`perses_validate_dashboard` checks the dashboard configuration against installed plugin CUE schemas without saving it.
+`perses_get_plugin_schema` provides plugin field definitions.
 
 ## Datasources
 
@@ -186,6 +192,26 @@ Resource: `plugin`
 | Tool                  | Description                              | Required parameters |
 |-----------------------|------------------------------------------|---------------------|
 | `perses_list_plugins` | List all the plugins installed in Perses | -                   |
+
+## Validation
+
+Resource: `validate`
+
+These tools validate resource JSON against the installed plugin CUE schemas without creating or modifying anything.
+They stay available in read-only mode and return `{"valid": true}` or `{"valid": false, "errors": "..."}`.
+Malformed JSON and structural validation failures also return `valid: false`; connection and unexpected server
+errors are tool errors.
+
+| Tool                               | Description                   | Required parameters |
+|------------------------------------|-------------------------------|---------------------|
+| `perses_validate_dashboard`         | Validate a dashboard          | `dashboard`         |
+| `perses_validate_datasource`        | Validate a project datasource | `datasource`        |
+| `perses_validate_global_datasource` | Validate a global datasource  | `datasource`        |
+| `perses_validate_variable`          | Validate a project variable   | `variable`          |
+| `perses_validate_global_variable`   | Validate a global variable    | `variable`          |
+
+Each input is the full resource JSON as a string, including `kind`, `metadata`, and `spec`.
+Validation does not persist the resource: creating or updating it requires the corresponding write tool.
 
 ## Grafana dashboards migration
 
