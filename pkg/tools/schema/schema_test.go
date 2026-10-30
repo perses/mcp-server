@@ -138,11 +138,11 @@ func TestSchemaTools(t *testing.T) {
 			expected:  timeSeriesChartSchema,
 		},
 		{
-			title:     "unknown plugin kind returns the server error",
+			title:     "unknown plugin kind returns an error",
 			tool:      "perses_get_plugin_schema",
 			arguments: map[string]any{"kind": "LineChart"},
 			isError:   true,
-			expected:  `error retrieving the schema of plugin 'LineChart': status 404: document not found: plugin "LineChart" not found`,
+			expected:  "error retrieving the schema of plugin 'LineChart': " + perseshttp.RequestNotFoundError.Error(),
 		},
 	}
 

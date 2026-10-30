@@ -15,38 +15,27 @@ package schema
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"net/http"
 	"regexp"
-	"strings"
 
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/perses/mcp-server/pkg/tools"
-	"github.com/perses/mcp-server/pkg/tools/internal/proxy"
 	"github.com/perses/mcp-server/pkg/tools/resource"
 	apiClient "github.com/perses/perses/pkg/client/api/v1"
 )
 
-const (
-	dashboardSchemaPath = "/api/v1/schemas/dashboards"
-	pluginSchemasPath   = "/api/v1/schemas/plugins"
-)
-
-// kindPattern matches the valid plugin kinds. The kind becomes a path segment of the request,
-// so anything else is rejected, which also prevents reaching other API paths.
+// kindPattern matches the valid plugin kinds. The Perses client doesn't escape the kind it puts in the
+// request path, so anything else is rejected, which also prevents reaching other API paths.
 var kindPattern = regexp.MustCompile(`^[A-Za-z0-9_]+$`)
 
 type schema struct {
-	// The schema API returns CUE documents, which the Perses client cannot decode, so the
-	// requests are sent with the raw HTTP helper, using the same connection settings.
-	http *proxy.Helper
+	client apiClient.ClientInterface
 }
 
 func New(client apiClient.ClientInterface) resource.Resource {
 	return &schema{
-		http: proxy.New(client),
+		client: client,
 	}
 }
 
@@ -73,8 +62,8 @@ func (s *schema) DashboardSchema() *tools.Tool {
 		},
 	}
 
-	handler := func(ctx context.Context, _ *mcp.CallToolRequest, _ map[string]any) (*mcp.CallToolResult, any, error) { //nolint:unparam
-		definition, err := s.get(ctx, dashboardSchemaPath, nil)
+	handler := func(_ context.Context, _ *mcp.CallToolRequest, _ map[string]any) (*mcp.CallToolResult, any, error) { //nolint:unparam
+		definition, err := s.client.Schema().Dashboard()
 		if err != nil {
 			return nil, nil, fmt.Errorf("error retrieving the dashboard schema: %w", err)
 		}
@@ -103,8 +92,8 @@ func (s *schema) List() *tools.Tool {
 		},
 	}
 
-	handler := func(ctx context.Context, _ *mcp.CallToolRequest, _ map[string]any) (*mcp.CallToolResult, any, error) { //nolint:unparam
-		definitions, err := s.get(ctx, pluginSchemasPath, nil)
+	handler := func(_ context.Context, _ *mcp.CallToolRequest, _ map[string]any) (*mcp.CallToolResult, any, error) { //nolint:unparam
+		definitions, err := s.client.Schema().Plugins()
 		if err != nil {
 			return nil, nil, fmt.Errorf("error retrieving the plugin schemas: %w", err)
 		}
@@ -162,18 +151,14 @@ func (s *schema) Get() *tools.Tool {
 		},
 	}
 
-	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input GetPluginSchemaInput) (*mcp.CallToolResult, any, error) { //nolint:unparam
+	handler := func(_ context.Context, _ *mcp.CallToolRequest, input GetPluginSchemaInput) (*mcp.CallToolResult, any, error) { //nolint:unparam
 		if !kindPattern.MatchString(input.Kind) {
 			return nil, nil, fmt.Errorf("invalid plugin kind %q", input.Kind)
 		}
-		query := map[string]string{}
-		if input.Version != "" {
-			query["version"] = input.Version
-		}
-		if input.Registry != "" {
-			query["registry"] = input.Registry
-		}
-		definition, err := s.get(ctx, pluginSchemasPath+"/"+input.Kind, query)
+		definition, err := s.client.Schema().Plugin(input.Kind, &apiClient.PluginSchemaQuery{
+			Version:  input.Version,
+			Registry: input.Registry,
+		})
 		if err != nil {
 			return nil, nil, fmt.Errorf("error retrieving the schema of plugin '%s': %w", input.Kind, err)
 		}
@@ -203,37 +188,10 @@ func (s *schema) Delete() *tools.Tool {
 	return nil
 }
 
-// get returns the body of a successful schema API response.
-func (s *schema) get(ctx context.Context, path string, query map[string]string) (string, error) {
-	result, err := s.http.Do(ctx, proxy.ProxyQuery{
-		Method:      http.MethodGet,
-		Path:        path,
-		QueryParams: query,
-	})
-	if err != nil {
-		return "", err
-	}
-	if result.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("status %d: %s", result.StatusCode, errorMessage(result.Body))
-	}
-	return result.Body, nil
-}
-
-// errorMessage returns the message of a Perses API error body, or the raw body when it has none.
-func errorMessage(body string) string {
-	var payload struct {
-		Message string `json:"message"`
-	}
-	if err := json.Unmarshal([]byte(body), &payload); err == nil && payload.Message != "" {
-		return payload.Message
-	}
-	return strings.TrimSpace(body)
-}
-
-func textResult(text string) *mcp.CallToolResult {
+func textResult(text []byte) *mcp.CallToolResult {
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
-			&mcp.TextContent{Text: text},
+			&mcp.TextContent{Text: string(text)},
 		},
 	}
 }
