@@ -30,12 +30,26 @@ Resource: `dashboard`
 | Tool                           | Description                                | Required parameters    |
 |--------------------------------|--------------------------------------------|------------------------|
 | `perses_list_dashboards`       | List all dashboards of a project           | `project`              |
-| `perses_get_dashboard_by_name` | Get a dashboard by name                    | `project`, `name`      |
+| `perses_get_dashboard_by_name` | Get an outline by default; use `summary: false` for complete JSON before read-modify-write, or `panels: [keys]` for those full panels regardless of `summary` | `project`, `name` |
 | `perses_create_dashboard`      | Create a dashboard in a project            | `project`, `dashboard` |
 | `perses_update_dashboard`      | Update an existing dashboard of a project  | `project`, `dashboard` |
 | `perses_delete_dashboard`      | Delete a dashboard from a project          | `project`, `name`      |
+| `perses_set_dashboard_panels` | Add or replace panels, with automatic or explicit placement | `project`, `name`, `panels` |
+| `perses_remove_dashboard_panels` | Remove panels and their layout items | `project`, `name`, `panels` |
+| `perses_set_dashboard_variables` | Add or replace variables by name | `project`, `name`, `variables` |
+| `perses_remove_dashboard_variables` | Remove variables by name | `project`, `name`, `variables` |
+| `perses_set_dashboard_layout` | Add, replace or remove a layout group | `project`, `name` |
 
 The parameter `dashboard` is a dashboard in the [Perses format](https://perses.dev/docs/perses/latest/api/dashboard/).
+Create and update accept a JSON object or a JSON string and validate before saving. Create supports
+`if_exists: "replace"` to overwrite an existing dashboard. Writes return a compact summary; set
+`include_dashboard: true` to include the saved dashboard. Use `dry_run: true` to validate without saving.
+
+The incremental tools fetch the current dashboard, apply the requested changes, validate, and save it.
+`expected_version` checks the version before editing to detect intervening changes; it is not an atomic
+server-side lock, so a concurrent write after the check can still race. Layout items use a 24-column grid;
+new panels default to width 12 and height 6. The MCP resource `perses://guides/dashboard-model` documents
+the dashboard model and editing workflow.
 
 `perses_validate_dashboard` checks the JSON against installed plugin CUE schemas without saving it.
 `perses_get_plugin_schema` provides plugin field definitions.
@@ -193,12 +207,28 @@ Resource: `plugin`
 |-----------------------|------------------------------------------|---------------------|
 | `perses_list_plugins` | List all the plugins installed in Perses | -                   |
 
+## Schemas
+
+Resource: `schema`
+
+These read-only tools return raw [CUE](https://cuelang.org/) source from Perses v0.55 or later.
+
+| Tool | Description | Required parameters |
+|------|-------------|---------------------|
+| `perses_get_dashboard_schema` | Get the complete dashboard schema, including installed plugins (large) | - |
+| `perses_list_plugin_schemas` | Get all installed plugin schemas | - |
+| `perses_get_plugin_schema` | Get one plugin kind's schema, optionally selecting `version` and `registry` | `kind` |
+
+Prefer the single-plugin tool when working on one panel, query, variable, annotation or datasource.
+
 ## Validation
 
 Resource: `validate`
 
 These tools validate resource JSON against the installed plugin CUE schemas without creating or modifying anything.
-They stay available in read-only mode and return `{"valid": true}` or `{"valid": false, "errors": "..."}`.
+They stay available in read-only mode. Dashboard validation returns `{valid, errors: [{path, message, hint}], warnings}`
+with field-level errors and local layout checks; the other validators return `{"valid": true}` or
+`{"valid": false, "errors": "..."}`.
 Malformed JSON and structural validation failures also return `valid: false`; connection and unexpected server
 errors are tool errors.
 
@@ -210,7 +240,9 @@ errors are tool errors.
 | `perses_validate_variable`          | Validate a project variable   | `variable`          |
 | `perses_validate_global_variable`   | Validate a global variable    | `variable`          |
 
-Each input is the full resource JSON as a string, including `kind`, `metadata`, and `spec`.
+Dashboard validation accepts an object or JSON string, with optional `project` to fill `metadata.project`.
+When `project` is omitted, the dashboard's own `metadata.project` is retained. The other validators accept
+the full resource JSON as a string, including `kind`, `metadata`, and `spec`.
 Validation does not persist the resource: creating or updating it requires the corresponding write tool.
 
 ## Grafana dashboards migration

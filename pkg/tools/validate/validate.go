@@ -39,7 +39,7 @@ func New(client apiclient.ClientInterface) resource.Resource {
 func (v *validation) GetTools() []*tools.Tool {
 	client := v.client.Validate()
 	return []*tools.Tool{
-		tool("perses_validate_dashboard", "dashboard", "a dashboard", client.Dashboard),
+		v.Dashboard(),
 		tool("perses_validate_datasource", "datasource", "a project datasource", client.Datasource),
 		tool("perses_validate_global_datasource", "datasource", "a global datasource", client.GlobalDatasource),
 		tool("perses_validate_variable", "variable", "a project variable", client.Variable),

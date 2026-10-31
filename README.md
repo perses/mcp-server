@@ -343,13 +343,31 @@ perses-mcp-server --config /path/to/config.yaml
 
 ### Dashboards
 
-| Tool                           | Description                                                    | Required Parameters    |
-| ------------------------------ | -------------------------------------------------------------- | ---------------------- |
-| `perses_list_dashboards`       | List all dashboards for a specific project                     | `project`              |
-| `perses_get_dashboard_by_name` | Get a dashboard by name for a project                          | `project`, `name`      |
-| `perses_create_dashboard`      | Create a dashboard given a project and dashboard configuration | `project`, `dashboard` |
-| `perses_update_dashboard`      | Update an existing dashboard in a project                      | `project`, `dashboard` |
-| `perses_delete_dashboard`      | Delete a dashboard from a project                              | `project`, `name`      |
+| Tool                                | Description                                                                                                     | Required Parameters          |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------------- | ---------------------------- |
+| `perses_list_dashboards`            | List the dashboards of a project (name, display name, version, panel count)                                     | `project`                    |
+| `perses_get_dashboard_by_name`      | Get an outline by default; `summary: false` returns complete JSON for read-modify-write, `panels: [keys]` returns those full panels regardless of `summary` | `project`, `name` |
+| `perses_create_dashboard`           | Create a dashboard (object or JSON string); options `if_exists: fail\|replace`, `dry_run`, `include_dashboard`  | `project`, `dashboard`       |
+| `perses_update_dashboard`           | Replace an existing dashboard; options `expected_version`, `dry_run`, `include_dashboard`                       | `project`, `dashboard`       |
+| `perses_delete_dashboard`           | Delete a dashboard from a project                                                                               | `project`, `name`            |
+| `perses_set_dashboard_panels`       | Add or replace panels, validated and auto-placed in the 24-column grid (`layout`, `width`, `height`, `placements`) | `project`, `name`, `panels`  |
+| `perses_remove_dashboard_panels`    | Remove panels and their layout items                                                                            | `project`, `name`, `panels`  |
+| `perses_set_dashboard_variables`    | Add or replace dashboard variables, matched by `spec.name`                                                      | `project`, `name`, `variables` |
+| `perses_remove_dashboard_variables` | Remove dashboard variables by name                                                                              | `project`, `name`, `variables` |
+| `perses_set_dashboard_layout`       | Add, replace (`index` or `title`) or `remove` a layout group                                                    | `project`, `name`            |
+
+The write tools validate the dashboard against the Perses schemas before saving it and return a short summary
+(`project`, `name`, `version`, `url`, counts, `changes`, `warnings`) instead of echoing the whole dashboard.
+Validation failures are returned as a tool error containing `{"valid": false, "errors": [{"path", "message", "hint"}]}`
+where `path` points at the offending field (for example `spec.panels.cpu.spec.plugin.spec.visual.lineWidth`).
+The incremental `set_*`/`remove_*` tools read the dashboard, modify it in memory and write it back; pass
+`expected_version` to reject a dashboard whose version has changed before editing. This is a client-side
+preflight check, not an atomic server-side lock; a concurrent write after the check can still race.
+
+The server also exposes the MCP resource `perses://guides/dashboard-model` (Markdown): a worked example of a dashboard,
+the rules the Perses server does not enforce (panels map and `#/spec/panels/<key>` references, 24-column grid, default
+datasource) and the recommended incremental workflow. Clients that support resources can attach it to the
+conversation; the tool descriptions only keep a one-line reminder and point to it.
 
 `perses_validate_dashboard` checks the JSON against installed plugin CUE schemas without saving it.
 `perses_get_plugin_schema` provides plugin field definitions.
@@ -480,7 +498,9 @@ The schema tools return the [CUE](https://cuelang.org/) schemas of the plugins i
 Resource: `validate`
 
 These tools validate resource JSON against the installed plugin CUE schemas without creating or modifying anything.
-They stay available in read-only mode and return `{"valid": true}` or `{"valid": false, "errors": "..."}`.
+They stay available in read-only mode. Dashboard validation returns `{valid, errors: [{path, message, hint}], warnings}`
+with field-level errors and local layout checks; the other validators return `{"valid": true}` or
+`{"valid": false, "errors": "..."}`.
 Malformed JSON and structural validation failures also return `valid: false`; connection and unexpected server
 errors are tool errors.
 
@@ -492,7 +512,9 @@ errors are tool errors.
 | `perses_validate_variable`          | Validate a project variable   | `variable`          |
 | `perses_validate_global_variable`   | Validate a global variable    | `variable`          |
 
-Each input is a resource JSON string. See [Validation tools](./docs/tools.md#validation) for details.
+Dashboard validation accepts a JSON object or a JSON string; its optional `project` fills `metadata.project` when
+omitted from the dashboard. The other inputs are resource JSON strings. See
+[Validation tools](./docs/tools.md#validation) for details.
 
 ### Variables
 

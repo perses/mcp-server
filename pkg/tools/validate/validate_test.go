@@ -25,6 +25,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/perses/mcp-server/pkg/tools"
+	"github.com/perses/mcp-server/pkg/tools/internal/dashboardutil"
 	apiclient "github.com/perses/perses/pkg/client/api"
 	"github.com/perses/perses/pkg/client/perseshttp"
 	v1 "github.com/perses/perses/pkg/model/api/v1"
@@ -195,12 +196,13 @@ func TestValidationResults(t *testing.T) {
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
 			perses := &fakePerses{status: testCase.status, body: testCase.body}
-			result, text := callTool(t, connect(t, perses), "perses_validate_dashboard", "dashboard", dashboardJSON)
+			result, text := callTool(t, connect(t, perses), "perses_validate_datasource", "datasource",
+				`{"kind":"Datasource","metadata":{"name":"test","project":"test"},"spec":{"plugin":{"kind":"PrometheusDatasource","spec":{"directUrl":"http://localhost:9090"}}}}`)
 			if result.IsError != testCase.isError {
 				t.Fatalf("expected IsError=%v, got %v: %s", testCase.isError, result.IsError, text)
 			}
 			if testCase.isError {
-				if !strings.Contains(text, "error validating a dashboard:") {
+				if !strings.Contains(text, "error validating a project datasource:") {
 					t.Errorf("unexpected error: %s", text)
 				}
 				return
@@ -224,11 +226,11 @@ func TestRejectsInvalidPayloadWithoutRequest(t *testing.T) {
 			if result.IsError {
 				t.Fatalf("validation failure must be a successful tool result: %s", text)
 			}
-			var decoded validationResult
+			var decoded dashboardutil.Validation
 			if err := json.Unmarshal([]byte(text), &decoded); err != nil {
 				t.Fatal(err)
 			}
-			if decoded.Valid || decoded.Errors == "" {
+			if decoded.Valid || len(decoded.Errors) == 0 {
 				t.Errorf("expected validation error, got %s", text)
 			}
 			if requests := perses.received(); len(requests) != 0 {
@@ -270,6 +272,14 @@ func TestValidationToolsMetadata(t *testing.T) {
 		}
 		if annotations.Title != "Validates "+subject+" against Perses schemas" {
 			t.Errorf("%s: unexpected title %q", name, annotations.Title)
+		}
+		if name == "perses_validate_dashboard" {
+			for _, fragment := range []string{"without saving", "JSON path", "warnings"} {
+				if !strings.Contains(tool.MCPTool.Description, fragment) {
+					t.Errorf("%s: description missing %q", name, fragment)
+				}
+			}
+			continue
 		}
 		for _, fragment := range []string{"Validate " + subject, `{"valid": true}`, `{"valid": false, "errors": "..."}`, "does not create or modify anything"} {
 			if !strings.Contains(tool.MCPTool.Description, fragment) {

@@ -133,7 +133,7 @@ func (s *server) registerTools() {
 	v1Client := s.persesClient.V1()
 	resources := []resource.Resource{
 		project.New(v1Client),
-		dashboard.New(v1Client),
+		dashboard.New(s.persesClient),
 		ephemeraldashboard.New(v1Client),
 		datasource.New(v1Client),
 		globaldatasource.New(v1Client),
@@ -182,6 +182,10 @@ func (s *server) registerTools() {
 
 		tool.RegisterWith(s.mcpServer)
 		registeredCount++
+	}
+
+	if !filterByResource || allowedResources.Contains(string(tools.DashboardResource)) {
+		s.mcpServer.AddResource(dashboard.GuideResource())
 	}
 
 	logrus.WithFields(logrus.Fields{
