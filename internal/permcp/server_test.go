@@ -19,9 +19,33 @@ import (
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	apiclient "github.com/perses/perses/pkg/client/api"
-	"github.com/perses/perses/pkg/client/perseshttp"
 )
+
+func newTestServerSession(t *testing.T, cfg Config) *mcp.ClientSession {
+	t.Helper()
+	if err := cfg.Verify(); err != nil {
+		t.Fatal(err)
+	}
+	task, err := New(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := task.(*server)
+	ctx := context.Background()
+	serverTransport, clientTransport := mcp.NewInMemoryTransports()
+	serverSession, err := s.mcpServer.Connect(ctx, serverTransport, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = serverSession.Close() })
+	client, err := mcp.NewClient(&mcp.Implementation{Name: "test-client"}, nil).Connect(
+		ctx, clientTransport, &mcp.ClientSessionOptions{ProtocolVersion: "2025-11-25"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = client.Close() })
+	return client
+}
 
 func TestRegisterToolsFiltering(t *testing.T) {
 	tests := []struct {
@@ -86,23 +110,7 @@ func TestRegisterToolsFiltering(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			ctx := context.Background()
-			s := &server{
-				cfg:          test.config,
-				persesClient: apiclient.NewWithClient(&perseshttp.RESTClient{}),
-				mcpServer:    mcp.NewServer(&mcp.Implementation{Name: "test-server"}, nil),
-			}
-			s.registerTools()
-			serverTransport, clientTransport := mcp.NewInMemoryTransports()
-			serverSession, err := s.mcpServer.Connect(ctx, serverTransport, nil)
-			if err != nil {
-				t.Fatal(err)
-			}
-			t.Cleanup(func() { _ = serverSession.Close() })
-			client, err := mcp.NewClient(&mcp.Implementation{Name: "test-client"}, nil).Connect(ctx, clientTransport, nil)
-			if err != nil {
-				t.Fatal(err)
-			}
-			t.Cleanup(func() { _ = client.Close() })
+			client := newTestServerSession(t, test.config)
 			result, err := client.ListTools(ctx, nil)
 			if err != nil {
 				t.Fatal(err)

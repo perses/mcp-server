@@ -22,13 +22,6 @@ import (
 // GuideURI is the URI of the MCP resource describing the Perses dashboard model.
 const GuideURI = "perses://guides/dashboard-model"
 
-// persesModel is the minimum a model must know to produce a dashboard that renders. It is deliberately short: the
-// details live in the GuideURI resource, which clients can attach on demand.
-const persesModel = "Model: spec.panels is a map whose keys are referenced as '#/spec/panels/<key>'; a panel is " +
-	"displayed only if a spec.layouts item references it (24-column grid, x/y/width/height). Omit spec.datasource to " +
-	"use the default datasource. Full guide with an example: read the MCP resource " + GuideURI + "; plugin specs: " +
-	"perses_list_plugin_schemas / perses_get_plugin_schema."
-
 const guide = `# Perses dashboard model
 
 A dashboard is a JSON document:

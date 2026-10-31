@@ -747,7 +747,7 @@ func TestGuideResource(t *testing.T) {
 	assert.Contains(t, read.Contents[0].Text, "pass `expected_version`")
 	assert.Contains(t, read.Contents[0].Text, "not an atomic lock")
 
-	// the tool descriptions point at the guide instead of inlining it
+	// Shared model/workflow guidance belongs in server instructions, not repeated tool descriptions.
 	for _, tool := range New(nil).GetTools() {
 		schema, ok := tool.MCPTool.InputSchema.(*jsonschema.Schema)
 		require.True(t, ok, "expected a JSON Schema for %s", tool.MCPTool.Name)
@@ -755,8 +755,8 @@ func TestGuideResource(t *testing.T) {
 			assert.Contains(t, versionSchema.Description, "best-effort stale-write check", tool.MCPTool.Name)
 			assert.Contains(t, versionSchema.Description, "not provide conditional writes", tool.MCPTool.Name)
 		}
-		if tool.IsWriteTool && tool.MCPTool.Name != "perses_delete_dashboard" && strings.Contains(tool.MCPTool.Description, "Model:") {
-			assert.Contains(t, tool.MCPTool.Description, GuideURI, tool.MCPTool.Name)
+		if tool.IsWriteTool && tool.MCPTool.Name != "perses_delete_dashboard" {
+			assert.NotContains(t, tool.MCPTool.Description, "Model:", tool.MCPTool.Name)
 			assert.Less(t, len(tool.MCPTool.Description), 1100, tool.MCPTool.Name)
 		}
 	}

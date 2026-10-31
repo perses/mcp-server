@@ -97,7 +97,7 @@ func (d *dashboard) SetPanels() *tools.Tool {
 			"New panels use the first free spot in the 24-column Grid group named by layout (created if missing; " +
 			"last group by default), with width x height (default 12x6). Explicit placements are reserved first. " +
 			"Use order for auto-placement sequence; remaining keys are alphabetical, not JSON object order. " +
-			"Validates before saving; returns a summary of changes or field-level validation errors. " + persesModel,
+			"Validates before saving; returns a summary of changes or field-level validation errors.",
 		InputSchema: &jsonschema.Schema{
 			Type: tools.SchemaTypeObject,
 			Properties: editProperties(map[string]*jsonschema.Schema{

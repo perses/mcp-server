@@ -47,7 +47,7 @@ func (d *dashboard) Create() *tools.Tool {
 			"Returns a short summary (name, version, counts, URL), not the dashboard. " +
 			"Set if_exists=replace to overwrite an existing dashboard with the same name (upsert), dry_run=true to " +
 			"only validate. For large dashboards prefer creating a skeleton and adding panels with " +
-			"perses_set_dashboard_panels. " + persesModel,
+			"perses_set_dashboard_panels.",
 		InputSchema: &jsonschema.Schema{
 			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
@@ -153,8 +153,7 @@ func (d *dashboard) Update() *tools.Tool {
 		Description: "Replace an existing dashboard with its complete JSON definition (the dashboard must exist). " +
 			"Validation errors are returned with the JSON path of each offending field; the response is a short " +
 			"summary. To change a few panels, variables or layouts without re-sending the whole dashboard, use " +
-			"perses_set_dashboard_panels, perses_set_dashboard_variables or perses_set_dashboard_layout instead. " +
-			persesModel,
+			"perses_set_dashboard_panels, perses_set_dashboard_variables or perses_set_dashboard_layout instead.",
 		InputSchema: &jsonschema.Schema{
 			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{

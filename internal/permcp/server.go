@@ -53,20 +53,12 @@ func New(cfg Config) (async.SimpleTask, error) {
 
 	logrus.WithField("url", cfg.PersesServer.URL).Info("Perses client initialized")
 
-	mcpServer := mcp.NewServer(&mcp.Implementation{
-		Name:  "perses-mcp-server",
-		Title: "Perses MCP Server"},
-		&mcp.ServerOptions{
-			Capabilities: &mcp.ServerCapabilities{
-				Tools: &mcp.ToolCapabilities{ListChanged: false},
-			},
-		})
-
-	return &server{
+	s := &server{
 		cfg:          cfg,
 		persesClient: persesClient,
-		mcpServer:    mcpServer,
-	}, nil
+	}
+	s.registerTools()
+	return s, nil
 }
 
 func initializePersesClient(cfg Config) (apiclient.ClientInterface, error) {
@@ -94,7 +86,6 @@ func (s *server) Execute(ctx context.Context, cancelFunc context.CancelFunc) err
 		"transport": s.cfg.Transport,
 	}).Info("Starting Perses MCP Server")
 
-	s.registerTools()
 	// start server
 	serverCtx, serverCancelFunc := context.WithCancel(ctx)
 	go func() {
@@ -158,7 +149,7 @@ func (s *server) registerTools() {
 	allowedResources := set.New(s.cfg.AllowedResources...)
 	filterByResource := len(s.cfg.AllowedResources) > 0
 
-	registeredCount := 0
+	var registeredTools []*tools.Tool
 	skippedReadOnly := 0
 	skippedResource := 0
 
@@ -180,8 +171,20 @@ func (s *server) registerTools() {
 			continue
 		}
 
+		registeredTools = append(registeredTools, tool)
+	}
+
+	s.mcpServer = mcp.NewServer(&mcp.Implementation{
+		Name:  "perses-mcp-server",
+		Title: "Perses MCP Server",
+	}, &mcp.ServerOptions{
+		Instructions: serverInstructions(registeredTools),
+		Capabilities: &mcp.ServerCapabilities{
+			Tools: &mcp.ToolCapabilities{ListChanged: false},
+		},
+	})
+	for _, tool := range registeredTools {
 		tool.RegisterWith(s.mcpServer)
-		registeredCount++
 	}
 
 	if !filterByResource || allowedResources.Contains(string(tools.DashboardResource)) {
@@ -189,7 +192,7 @@ func (s *server) registerTools() {
 	}
 
 	logrus.WithFields(logrus.Fields{
-		"registered":       registeredCount,
+		"registered":       len(registeredTools),
 		"skipped_readonly": skippedReadOnly,
 		"skipped_resource": skippedResource,
 		"total":            len(allTools),

@@ -5,11 +5,17 @@ This page lists the tools provided by the Perses MCP Server. The tools are group
 
 > [!NOTE]
 > In [read-only mode](./configuration.md#definition) (`read_only: true`), the tools creating, updating or deleting
-> resources (`perses_create_*`, `perses_update_*` and `perses_delete_*`) are not registered. All the other tools stay
-> available.
+> resources (`perses_create_*`, `perses_update_*`, `perses_delete_*`, `perses_set_*` and `perses_remove_*`) are not
+> registered. Read and validation tools stay available.
 
 Whatever the tools registered, they can only do what the identity configured in the MCP server is allowed to do in
 Perses (see [Permissions](./overview.md#permissions)).
+
+The server sends concise workflow instructions during MCP initialization, composed from the tools actually
+registered after resource filtering and read-only mode. These cover compact dashboard reads, incremental editing,
+plugin schemas and validation without requiring the client to read an MCP resource. The detailed dashboard guide
+remains available at `perses://guides/dashboard-model` when the `dashboard` resource is enabled and the client supports
+resources.
 
 ## Projects
 
