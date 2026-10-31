@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 
 	v1 "github.com/perses/perses/pkg/model/api/v1"
@@ -40,6 +41,18 @@ func Decode(raw json.RawMessage, project string) (*v1.Dashboard, []Issue) {
 	decoder.UseNumber()
 	if err := decoder.Decode(&fields); err != nil {
 		return nil, []Issue{syntaxIssue(err)}
+	}
+	trailingStart := decoder.InputOffset()
+	var trailing json.RawMessage
+	switch err := decoder.Decode(&trailing); {
+	case errors.Is(err, io.EOF):
+	case err != nil:
+		return nil, []Issue{syntaxIssue(err)}
+	default:
+		return nil, []Issue{{
+			Message: fmt.Sprintf("unexpected JSON value after dashboard at byte %d", trailingStart),
+			Hint:    "pass exactly one JSON dashboard",
+		}}
 	}
 	if fields == nil {
 		return nil, []Issue{{Message: "the dashboard must be a JSON object"}}

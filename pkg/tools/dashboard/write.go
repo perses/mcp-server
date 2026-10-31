@@ -90,11 +90,16 @@ func (d *dashboard) Create() *tools.Tool {
 		result := writeResult{Action: "created", DryRun: input.DryRun, Warnings: warningsOf(validation)}
 		if input.DryRun {
 			result.Action = "would_create"
-			if _, err := d.api(input.Project).Get(dash.Metadata.Name); err == nil {
+			_, err := d.api(input.Project).Get(dash.Metadata.Name)
+			switch {
+			case err == nil:
 				if !replace {
 					return nil, nil, fmt.Errorf("dashboard '%s' already exists in project '%s': set if_exists=replace to overwrite it, or use perses_update_dashboard", dash.Metadata.Name, input.Project)
 				}
 				result.Action = "would_replace"
+			case dashboardutil.IsNotFound(err):
+			default:
+				return nil, nil, fmt.Errorf("error checking whether dashboard '%s' exists in project '%s': %w", dash.Metadata.Name, input.Project, err)
 			}
 			result.Summary = dashboardutil.Summarize(dash, d.baseURL())
 			return textResult(result)

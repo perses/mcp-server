@@ -50,6 +50,7 @@ const statPanel = `{"kind": "Panel", "spec": {"display": {"name": "%s"}, "plugin
 type fakePerses struct {
 	mu         sync.Mutex
 	dashboards map[string]map[string]any
+	getStatus  int
 	// requests counts the requests per "METHOD path".
 	requests map[string]int
 }
@@ -87,6 +88,10 @@ func (f *fakePerses) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		f.writeJSON(w, http.StatusOK, list)
 	case r.Method == http.MethodGet:
+		if f.getStatus != 0 {
+			f.writeMessage(w, f.getStatus, "dashboard lookup failed")
+			return
+		}
 		dash, ok := f.dashboards[name]
 		if !ok {
 			f.writeMessage(w, http.StatusNotFound, "document not found")
@@ -269,6 +274,15 @@ func TestCreate(t *testing.T) {
 		assert.Equal(t, true, result["dryRun"])
 		assert.Empty(t, fake.dashboards)
 	})
+	t.Run("dry run reports dashboard lookup failures", func(t *testing.T) {
+		fake := newFakePerses()
+		fake.getStatus = http.StatusInternalServerError
+		session := newSession(t, fake)
+		text := mustFail(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": asObject, "dry_run": true})
+		assert.Contains(t, text, "error checking whether dashboard 'cpu' exists")
+		assert.Empty(t, fake.dashboards)
+		assert.Zero(t, fake.requests["POST /api/v1/projects/myproject/dashboards"])
+	})
 	t.Run("conflict", func(t *testing.T) {
 		fake := newFakePerses()
 		session := newSession(t, fake)
@@ -302,6 +316,16 @@ func TestCreate(t *testing.T) {
 		validation := validationOf(t, text)
 		require.Len(t, validation.Errors, 1)
 		assert.Contains(t, validation.Errors[0].Message, "malformed JSON")
+	})
+	t.Run("rejects trailing JSON values", func(t *testing.T) {
+		fake := newFakePerses()
+		session := newSession(t, fake)
+		text := mustFail(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": validDashboard + " {}"})
+		validation := validationOf(t, text)
+		require.Len(t, validation.Errors, 1)
+		assert.Contains(t, validation.Errors[0].Message, "unexpected JSON value after dashboard")
+		assert.Empty(t, fake.dashboards)
+		assert.Zero(t, fake.requests["POST /api/validate/dashboards"])
 	})
 	t.Run("warnings are returned with the summary", func(t *testing.T) {
 		session := newSession(t, newFakePerses())
