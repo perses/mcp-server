@@ -24,6 +24,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/perses/mcp-server/pkg/tools/internal/dashboardutil"
 	apiClient "github.com/perses/perses/pkg/client/api"
@@ -743,9 +744,17 @@ func TestGuideResource(t *testing.T) {
 	assert.Equal(t, "text/markdown", read.Contents[0].MIMEType)
 	assert.Contains(t, read.Contents[0].Text, "24-column grid")
 	assert.Contains(t, read.Contents[0].Text, "#/spec/panels/")
+	assert.Contains(t, read.Contents[0].Text, "pass `expected_version`")
+	assert.Contains(t, read.Contents[0].Text, "not an atomic lock")
 
 	// the tool descriptions point at the guide instead of inlining it
 	for _, tool := range New(nil).GetTools() {
+		schema, ok := tool.MCPTool.InputSchema.(*jsonschema.Schema)
+		require.True(t, ok, "expected a JSON Schema for %s", tool.MCPTool.Name)
+		if versionSchema := schema.Properties[expectedVersionProperty]; versionSchema != nil {
+			assert.Contains(t, versionSchema.Description, "best-effort stale-write check", tool.MCPTool.Name)
+			assert.Contains(t, versionSchema.Description, "not provide conditional writes", tool.MCPTool.Name)
+		}
 		if tool.IsWriteTool && tool.MCPTool.Name != "perses_delete_dashboard" && strings.Contains(tool.MCPTool.Description, "Model:") {
 			assert.Contains(t, tool.MCPTool.Description, GuideURI, tool.MCPTool.Name)
 			assert.Less(t, len(tool.MCPTool.Description), 1100, tool.MCPTool.Name)

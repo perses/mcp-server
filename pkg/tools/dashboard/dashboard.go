@@ -115,8 +115,9 @@ func dryRunSchema() *jsonschema.Schema {
 func expectedVersionSchema() *jsonschema.Schema {
 	return &jsonschema.Schema{
 		Type: "integer",
-		Description: "Optional metadata.version the dashboard is expected to have; the tool fails without saving when " +
-			"the dashboard has been modified since (optimistic locking).",
+		Description: "Optional metadata.version from your latest read; the tool fails without saving if it detects a " +
+			"changed version before writing. This is a best-effort stale-write check, not an atomic lock: Perses does " +
+			"not provide conditional writes, so a concurrent update after the check can still race.",
 		Minimum: new(0.0),
 	}
 }

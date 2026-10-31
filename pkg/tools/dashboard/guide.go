@@ -94,6 +94,10 @@ A dashboard is a JSON document:
    for the remaining adjustments; every call returns a short summary and the dashboard URL.
 4. ` + "`perses_get_dashboard_by_name`" + ` with ` + "`summary: true`" + ` to review the outline instead of the full document.
 
+For every update or incremental edit, pass ` + "`expected_version`" + ` from your most recent dashboard read. If the
+version is stale, re-read and reapply the intended change. This is a best-effort check, not an atomic lock: Perses
+does not provide conditional writes, so a concurrent update after the check can still race.
+
 Validation errors are returned as ` + "`{\"valid\": false, \"errors\": [{\"path\", \"message\", \"hint\"}]}`" + ` where
 ` + "`path`" + ` is the dashboard field to fix (for example ` + "`spec.panels.rps.spec.plugin.spec.visual.lineWidth`" + `).
 `
