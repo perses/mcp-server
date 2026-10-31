@@ -128,6 +128,25 @@ func TestRegisterToolsFiltering(t *testing.T) {
 					t.Errorf("%s registered=%v, want %v", name, names[name], want)
 				}
 			}
+			resourceList, err := client.ListResources(ctx, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			hasGuide := false
+			for _, resource := range resourceList.Resources {
+				if resource.URI == "perses://guides/dashboard-model" {
+					hasGuide = true
+				}
+			}
+			wantGuide := len(test.config.AllowedResources) == 0
+			for _, allowed := range test.config.AllowedResources {
+				if allowed == "dashboard" {
+					wantGuide = true
+				}
+			}
+			if hasGuide != wantGuide {
+				t.Errorf("dashboard guide registered=%v, want %v", hasGuide, wantGuide)
+			}
 		})
 	}
 }
