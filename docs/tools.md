@@ -34,7 +34,7 @@ Resource: `dashboard`
 | `perses_create_dashboard`      | Create a dashboard in a project            | `project`, `dashboard` |
 | `perses_update_dashboard`      | Update an existing dashboard of a project  | `project`, `dashboard` |
 | `perses_delete_dashboard`      | Delete a dashboard from a project          | `project`, `name`      |
-| `perses_set_dashboard_panels` | Add or replace panels, with automatic or explicit placement | `project`, `name`, `panels` |
+| `perses_set_dashboard_panels` | Add, replace, move or resize panels, with automatic or explicit placement | `project`, `name`; at least one entry in `panels` or `placements` |
 | `perses_remove_dashboard_panels` | Remove panels and their layout items | `project`, `name`, `panels` |
 | `perses_set_dashboard_variables` | Add or replace variables by name | `project`, `name`, `variables` |
 | `perses_remove_dashboard_variables` | Remove variables by name | `project`, `name`, `variables` |
@@ -50,6 +50,17 @@ The incremental tools fetch the current dashboard, apply the requested changes, 
 server-side lock, so a concurrent write after the check can still race. Layout items use a 24-column grid;
 new panels default to width 12 and height 6. The MCP resource `perses://guides/dashboard-model` documents
 the dashboard model and editing workflow.
+
+For placements-only moves/resizing, omit `panels` (or send `{}`) and provide
+`placements: {"cpu": {"x": 0, "y": 6, "width": 12, "height": 6}}`.
+Placement keys must identify existing panels or panels supplied in the same call. Definitions are unchanged
+when omitted, and invalid edits do not persist any changes. Explicit positions are reserved before automatic
+placement. Existing panels without explicit placements keep their positions.
+
+Use `order: ["b", "a", "c"]` to choose processing/auto-placement order: on an empty group with default 12x6
+sizes, these panels are placed at `(0,0)`, `(12,0)` and `(0,6)`. Keys not listed are processed alphabetically.
+Every order key must appear in `panels` or `placements`, without duplicates. Do not rely on JSON object
+key order, including for JSON-string input. Use `perses_set_dashboard_layout` to replace a full group.
 
 `perses_validate_dashboard` checks the JSON against installed plugin CUE schemas without saving it.
 `perses_get_plugin_schema` provides plugin field definitions.

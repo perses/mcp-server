@@ -81,7 +81,8 @@ type Placement struct {
 
 type SetPanelsInput struct {
 	editInput
-	Panels     json.RawMessage      `json:"panels"`
+	Panels     json.RawMessage      `json:"panels,omitempty"`
+	Order      []string             `json:"order,omitempty"`
 	Layout     string               `json:"layout,omitempty"`
 	Width      int                  `json:"width,omitempty"`
 	Height     int                  `json:"height,omitempty"`
@@ -91,20 +92,26 @@ type SetPanelsInput struct {
 func (d *dashboard) SetPanels() *tools.Tool {
 	tool := &mcp.Tool{
 		Name: "perses_set_dashboard_panels",
-		Description: "Add or replace panels of an existing dashboard without re-sending the whole dashboard. " +
-			"Each key of 'panels' is the panel key (used as '#/spec/panels/<key>'); an existing panel with the same " +
-			"key is replaced and keeps its position, a new panel is placed automatically in the layout group named " +
-			"by 'layout' (created if needed; the last group by default) at the first free spot of the 24-column " +
-			"grid, using 'width' x 'height' (default 12x6, i.e. two panels per row). Give exact positions with " +
-			"'placements'. The whole dashboard is validated by the Perses server; errors carry the JSON path of the " +
-			"field to fix. Returns a summary with the layout items added. " + persesModel,
+		Description: "Add or replace panels, or move/resize existing panels with placements alone, without resending the dashboard. " +
+			"Supply at least one panel or placement. Replacing a panel keeps its position unless placements overrides it. " +
+			"New panels use the first free spot in the 24-column Grid group named by layout (created if missing; " +
+			"last group by default), with width x height (default 12x6). Explicit placements are reserved first. " +
+			"Use order for auto-placement sequence; remaining keys are alphabetical, not JSON object order. " +
+			"Validates before saving; returns a summary of changes or field-level validation errors. " + persesModel,
 		InputSchema: &jsonschema.Schema{
 			Type: tools.SchemaTypeObject,
 			Properties: editProperties(map[string]*jsonschema.Schema{
 				"panels": {
 					Types: []string{tools.SchemaTypeObject, tools.SchemaTypeString},
 					Description: "Map of panel key to panel: {\"<key>\": {\"kind\": \"Panel\", \"spec\": {\"display\": {\"name\": \"...\"}, " +
-						"\"plugin\": {...}, \"queries\": [...]}}}. Keys must match " + tools.PatternResourceName + ".",
+						"\"plugin\": {...}, \"queries\": [...]}}}. Optional for placements-only edits. Keys must match " + tools.PatternResourceName + ".",
+				},
+				"order": {
+					Type: tools.SchemaTypeArray,
+					Description: "Panel keys to process first, in this order; remaining panel/placement keys are alphabetical. " +
+						"Each key must appear in panels or placements. JSON object order is not preserved.",
+					Items:       &jsonschema.Schema{Type: tools.SchemaTypeString},
+					UniqueItems: true,
 				},
 				"layout": {
 					Type:        tools.SchemaTypeString,
@@ -124,7 +131,8 @@ func (d *dashboard) SetPanels() *tools.Tool {
 				"placements": {
 					Type: tools.SchemaTypeObject,
 					Description: "Optional exact position per panel key: {\"<key>\": {\"x\": 0, \"y\": 0, \"width\": 12, \"height\": 6}}. " +
-						"Moves the existing layout item of the panel, or creates it in the 'layout' group.",
+						"Moves the existing layout item of the panel, or creates it in the 'layout' group. " +
+						"May reference an existing dashboard panel without including its definition in panels.",
 					AdditionalProperties: &jsonschema.Schema{
 						Type: tools.SchemaTypeObject,
 						Properties: map[string]*jsonschema.Schema{
@@ -137,18 +145,24 @@ func (d *dashboard) SetPanels() *tools.Tool {
 					},
 				},
 			}),
-			Required: []string{string(tools.ProjectResource), tools.ResourceName, "panels"},
+			Required: []string{string(tools.ProjectResource), tools.ResourceName},
 		},
 		Annotations: editAnnotations("Adds or replaces panels of a dashboard in Perses"),
 	}
 
 	handler := func(_ context.Context, _ *mcp.CallToolRequest, input SetPanelsInput) (*mcp.CallToolResult, any, error) { //nolint:unparam
 		var panels map[string]*dashboardSpec.Panel
-		if issue := dashboardutil.DecodeValue(input.Panels, "panels", &panels); issue != nil {
-			return invalidResult(dashboardutil.NewValidation([]dashboardutil.Issue{*issue}, nil))
+		if len(input.Panels) > 0 {
+			if issue := dashboardutil.DecodeValue(input.Panels, "panels", &panels); issue != nil {
+				return invalidResult(dashboardutil.NewValidation([]dashboardutil.Issue{*issue}, nil))
+			}
 		}
-		if len(panels) == 0 {
-			return nil, nil, fmt.Errorf("panels is empty: give at least one panel")
+		if len(panels) == 0 && len(input.Placements) == 0 {
+			return invalidResult(dashboardutil.NewValidation([]dashboardutil.Issue{{
+				Path:    "panels",
+				Message: "give at least one panel or placement",
+				Hint:    "use placements to move or resize existing panels, or perses_set_dashboard_layout to replace a layout group",
+			}}, nil))
 		}
 		return d.edit(input.request(), func(dash *v1.Dashboard) ([]string, error) {
 			return setPanels(dash, panels, input)
@@ -167,41 +181,79 @@ func setPanels(dash *v1.Dashboard, panels map[string]*dashboardSpec.Panel, input
 	if dash.Spec.Panels == nil {
 		dash.Spec.Panels = map[string]*dashboardSpec.Panel{}
 	}
-	keys := make([]string, 0, len(panels))
-	for key := range panels {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-
-	var changes []string
-	for _, key := range keys {
-		panel := panels[key]
+	keys := make([]string, 0, len(panels)+len(input.Placements))
+	for key, panel := range panels {
 		if panel == nil {
 			return nil, fmt.Errorf("panels.%s is null: give a panel object, or use perses_remove_dashboard_panels to remove it", key)
 		}
 		if !dashboardutil.IsValidKey(key) {
 			return nil, fmt.Errorf("panels.%s: the key must match %s", key, tools.PatternResourceName)
 		}
-		if panel.Kind == "" {
-			panel.Kind = "Panel"
+		keys = append(keys, key)
+	}
+	for key := range input.Placements {
+		if _, supplied := panels[key]; !supplied {
+			if dash.Spec.Panels[key] == nil {
+				return nil, fmt.Errorf("placements.%s: panel not found; supply its definition in panels or use an existing panel key", key)
+			}
+			keys = append(keys, key)
 		}
-		_, existed := dash.Spec.Panels[key]
-		dash.Spec.Panels[key] = panel
-		action := "added"
-		if existed {
-			action = "replaced"
+	}
+	sort.Strings(keys)
+	remaining := make(map[string]bool, len(keys))
+	for _, key := range keys {
+		remaining[key] = true
+	}
+	ordered := make([]string, 0, len(keys))
+	for _, key := range input.Order {
+		if !remaining[key] {
+			return nil, fmt.Errorf("order: key %q must appear once and refer to panels or placements", key)
 		}
+		ordered = append(ordered, key)
+		delete(remaining, key)
+	}
+	for _, key := range keys {
+		if remaining[key] {
+			ordered = append(ordered, key)
+		}
+	}
+	keys = ordered
 
-		placement, placed := input.Placements[key]
-		switch {
-		case placed:
-			dashboardutil.RemovePanelItems(dash.Spec.Layouts, key)
+	// Reserve explicit positions before auto-placement, freeing all old positions first.
+	for key := range input.Placements {
+		dashboardutil.RemovePanelItems(dash.Spec.Layouts, key)
+	}
+	placedItems := make(map[string]string, len(input.Placements))
+	for _, key := range keys {
+		if placement, ok := input.Placements[key]; ok {
 			layout := dashboardutil.EnsureLayout(&dash.Spec.Layouts, input.Layout)
 			item, err := dashboardutil.PlacePanelAt(&dash.Spec.Layouts[layout], key, placement.X, placement.Y, placement.Width, placement.Height)
 			if err != nil {
 				return nil, err
 			}
-			changes = append(changes, fmt.Sprintf("%s panel %s, placed in layout %d at x=%d y=%d w=%d h=%d", action, key, layout, item.X, item.Y, item.Width, item.Height))
+			placedItems[key] = fmt.Sprintf("placed in layout %d at x=%d y=%d w=%d h=%d", layout, item.X, item.Y, item.Width, item.Height)
+		}
+	}
+
+	var changes []string
+	for _, key := range keys {
+		_, existed := dash.Spec.Panels[key]
+		action := "moved"
+		if panel, supplied := panels[key]; supplied {
+			if panel.Kind == "" {
+				panel.Kind = "Panel"
+			}
+			dash.Spec.Panels[key] = panel
+			action = "added"
+			if existed {
+				action = "replaced"
+			}
+		}
+
+		placement, placed := placedItems[key]
+		switch {
+		case placed:
+			changes = append(changes, fmt.Sprintf("%s panel %s, %s", action, key, placement))
 		case existed && dashboardutil.IsPlaced(dash.Spec.Layouts, key):
 			changes = append(changes, fmt.Sprintf("%s panel %s, kept its position", action, key))
 		default:

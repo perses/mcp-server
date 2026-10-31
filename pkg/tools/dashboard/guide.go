@@ -86,7 +86,10 @@ A dashboard is a JSON document:
    validate without saving and ` + "`if_exists: replace`" + ` to make the call idempotent.
 2. ` + "`perses_set_dashboard_panels`" + ` to add panels group by group: panels are validated individually and placed
    automatically in the ` + "`layout`" + ` group (created when missing), so no layout item has to be written by hand.
-   Re-sending an existing key replaces the panel and keeps its position; ` + "`placements`" + ` sets explicit positions.
+   Re-sending an existing key replaces the panel and keeps its position; ` + "`placements`" + ` alone moves/resizes
+   existing panels without resending definitions. Explicit positions are reserved before automatic placement.
+   Use ` + "`order: [\"b\", \"a\", \"c\"]`" + ` for the desired auto-placement order; remaining keys are alphabetical,
+   not JSON object order. Supply at least one panel or placement.
 3. ` + "`perses_set_dashboard_variables`" + `, ` + "`perses_set_dashboard_layout`" + `, ` + "`perses_remove_dashboard_panels`" + `
    for the remaining adjustments; every call returns a short summary and the dashboard URL.
 4. ` + "`perses_get_dashboard_by_name`" + ` with ` + "`summary: true`" + ` to review the outline instead of the full document.

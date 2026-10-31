@@ -350,7 +350,7 @@ perses-mcp-server --config /path/to/config.yaml
 | `perses_create_dashboard`           | Create a dashboard (object or JSON string); options `if_exists: fail\|replace`, `dry_run`, `include_dashboard`  | `project`, `dashboard`       |
 | `perses_update_dashboard`           | Replace an existing dashboard; options `expected_version`, `dry_run`, `include_dashboard`                       | `project`, `dashboard`       |
 | `perses_delete_dashboard`           | Delete a dashboard from a project                                                                               | `project`, `name`            |
-| `perses_set_dashboard_panels`       | Add or replace panels, validated and auto-placed in the 24-column grid (`layout`, `width`, `height`, `placements`) | `project`, `name`, `panels`  |
+| `perses_set_dashboard_panels`       | Add, replace, move or resize panels in the 24-column grid (`layout`, `width`, `height`, `placements`, `order`) | `project`, `name`; at least one entry in `panels` or `placements` |
 | `perses_remove_dashboard_panels`    | Remove panels and their layout items                                                                            | `project`, `name`, `panels`  |
 | `perses_set_dashboard_variables`    | Add or replace dashboard variables, matched by `spec.name`                                                      | `project`, `name`, `variables` |
 | `perses_remove_dashboard_variables` | Remove dashboard variables by name                                                                              | `project`, `name`, `variables` |
@@ -363,6 +363,13 @@ where `path` points at the offending field (for example `spec.panels.cpu.spec.pl
 The incremental `set_*`/`remove_*` tools read the dashboard, modify it in memory and write it back; pass
 `expected_version` to reject a dashboard whose version has changed before editing. This is a client-side
 preflight check, not an atomic server-side lock; a concurrent write after the check can still race.
+
+`perses_set_dashboard_panels` accepts `placements` alone to move or resize existing panels without resending
+their definitions, or together with `panels` to mix moves with additions/replacements. Unknown placement keys
+are rejected unless their definitions are supplied in `panels`. Explicit positions are reserved before new panels
+are auto-placed. Use `order: ["b", "a", "c"]` to choose panel processing/auto-placement order; keys not listed are
+processed alphabetically. JSON object key order is not preserved, even when `panels` is supplied as a JSON string.
+For a complete layout-group replacement, use `perses_set_dashboard_layout`.
 
 The server also exposes the MCP resource `perses://guides/dashboard-model` (Markdown): a worked example of a dashboard,
 the rules the Perses server does not enforce (panels map and `#/spec/panels/<key>` references, 24-column grid, default
