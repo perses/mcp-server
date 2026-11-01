@@ -25,6 +25,7 @@ import (
 	"strings"
 
 	v1 "github.com/perses/perses/pkg/model/api/v1"
+	"github.com/perses/spec/go/dashboard"
 )
 
 // panelRefPrefix is the prefix of the JSON references of layout items to panels.
@@ -57,6 +58,7 @@ func Decode(raw json.RawMessage, project string) (*v1.Dashboard, []Issue) {
 	issues := applyDefaults(fields, project)
 	issues = append(issues, checkNullEntries(fields)...)
 	issues = append(issues, checkRawReferences(fields)...)
+	issues = append(issues, checkRawPlugins(fields)...)
 	if len(issues) > 0 {
 		return nil, issues
 	}
@@ -252,6 +254,14 @@ func checkRawReferences(fields map[string]any) []Issue {
 	return issues
 }
 
+// checkRawPlugins reports the panels, queries and variables whose plugin is missing.
+func checkRawPlugins(fields map[string]any) []Issue {
+	spec, _ := fields["spec"].(map[string]any)
+	panels, _ := spec["panels"].(map[string]any)
+	variables, _ := spec["variables"].([]any)
+	return append(checkRawPanels("spec.panels", panels), checkRawVariables("spec.variables", variables)...)
+}
+
 func checkRawItems(itemsPath string, items []any, panels map[string]any) []Issue {
 	var issues []Issue
 	for j, rawItem := range items {
@@ -292,6 +302,9 @@ func DecodeValue(raw json.RawMessage, path string, target any) *Issue {
 		issue.Path = path
 		return issue
 	}
+	if issue := checkRawFragment(document, path, target); issue != nil {
+		return issue
+	}
 	if err := decodeStrict(document, target); err != nil {
 		var trailingErr *trailingDataError
 		issue := decodeIssue(err)
@@ -306,4 +319,26 @@ func DecodeValue(raw json.RawMessage, path string, target any) *Issue {
 		return &issue
 	}
 	return nil
+}
+
+// checkRawFragment runs the raw plugin checks on a fragment decoded into panels or variables, and returns the first
+// issue found.
+func checkRawFragment(document []byte, path string, target any) *Issue {
+	var issues []Issue
+	switch target.(type) {
+	case *map[string]*dashboard.Panel, *map[string]dashboard.Panel:
+		var panels map[string]any
+		if json.Unmarshal(document, &panels) == nil {
+			issues = checkRawPanels(path, panels)
+		}
+	case *[]dashboard.Variable:
+		var variables []any
+		if json.Unmarshal(document, &variables) == nil {
+			issues = checkRawVariables(path, variables)
+		}
+	}
+	if len(issues) == 0 {
+		return nil
+	}
+	return &issues[0]
 }

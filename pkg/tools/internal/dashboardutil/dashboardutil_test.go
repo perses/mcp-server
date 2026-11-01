@@ -121,6 +121,109 @@ func TestDecode(t *testing.T) {
 	})
 }
 
+func TestDecodeMissingPlugin(t *testing.T) {
+	dashboardWith := func(panel string) string {
+		return `{"metadata": {"name": "d"}, "spec": {"panels": {"cpu": ` + panel + `}, "layouts": []}}`
+	}
+	panelWithQuery := func(query string) string {
+		return dashboardWith(`{"kind": "Panel", "spec": {"plugin": {"kind": "TimeSeriesChart", "spec": {}}, "queries": [` + query + `]}}`)
+	}
+	tests := []struct {
+		name    string
+		raw     string
+		path    string
+		message string
+		hint    string
+	}{
+		{
+			name:    "plugin given as the query",
+			raw:     panelWithQuery(`{"kind": "PrometheusTimeSeriesQuery", "spec": {"query": "up"}}`),
+			path:    "spec.panels.cpu.spec.queries[0]",
+			message: `query plugin is missing: "PrometheusTimeSeriesQuery" is not a query kind`,
+			hint:    `queries need a wrapper: {kind: "TimeSeriesQuery", spec: {plugin: {kind: "PrometheusTimeSeriesQuery", spec: {query: ...}}}}`,
+		},
+		{
+			name:    "unknown query kind",
+			raw:     panelWithQuery(`{"kind": "PrometheusQuery", "spec": {"query": "up"}}`),
+			path:    "spec.panels.cpu.spec.queries[0]",
+			message: `query plugin is missing: "PrometheusQuery" is not a query kind`,
+			hint:    `queries need a wrapper: {kind: "TimeSeriesQuery", spec: {plugin: {kind: "PrometheusQuery", spec: {query: ...}}}}`,
+		},
+		{
+			name:    "trace plugin given as the query",
+			raw:     panelWithQuery(`{"kind": "TempoTraceQuery", "spec": {}}`),
+			path:    "spec.panels.cpu.spec.queries[0]",
+			message: `query plugin is missing: "TempoTraceQuery" is not a query kind`,
+			hint:    `queries need a wrapper: {kind: "TraceQuery", spec: {plugin: {kind: "TempoTraceQuery", spec: {...}}}}`,
+		},
+		{
+			name:    "query without spec",
+			raw:     panelWithQuery(`{"kind": "TimeSeriesQuery"}`),
+			path:    "spec.panels.cpu.spec.queries[0]",
+			message: "query plugin is missing",
+			hint:    `queries need a wrapper: {kind: "TimeSeriesQuery", spec: {plugin: {kind: "PrometheusTimeSeriesQuery", spec: {...}}}}`,
+		},
+		{
+			name:    "panel without plugin",
+			raw:     dashboardWith(`{"kind": "Panel", "spec": {"display": {"name": "CPU"}}}`),
+			path:    "spec.panels.cpu.spec.plugin",
+			message: "panel plugin is missing",
+			hint:    `panels need a plugin: {kind: "TimeSeriesChart", spec: {...}}; perses_list_plugins lists the panel plugins`,
+		},
+		{
+			name:    "panel with a dotted key",
+			raw:     `{"metadata": {"name": "d"}, "spec": {"panels": {"cpu.load": {"kind": "Panel", "spec": {"display": {"name": "CPU"}}}}, "layouts": []}}`,
+			path:    `spec.panels["cpu.load"].spec.plugin`,
+			message: "panel plugin is missing",
+			hint:    `panels need a plugin: {kind: "TimeSeriesChart", spec: {...}}; perses_list_plugins lists the panel plugins`,
+		},
+		{
+			name: "list variable without plugin",
+			raw: `{"metadata": {"name": "d"}, "spec": {"panels": {}, "layouts": [],
+			  "variables": [{"kind": "TextVariable", "spec": {"name": "t", "value": "x"}}, {"kind": "ListVariable", "spec": {"name": "inst"}}]}}`,
+			path:    "spec.variables[1].spec.plugin",
+			message: "list variable plugin is missing",
+			hint:    `list variables need a plugin: {kind: "PrometheusLabelValuesVariable", spec: {...}}`,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			d, issues := Decode(json.RawMessage(test.raw), "proj")
+			assert.Nil(t, d)
+			require.Len(t, issues, 1)
+			assert.Equal(t, Issue{Path: test.path, Message: test.message, Hint: test.hint}, issues[0])
+		})
+	}
+	t.Run("valid dashboard has no issues", func(t *testing.T) {
+		mustDecode(t, sampleDashboard)
+	})
+}
+
+func TestDecodeValueMissingPlugin(t *testing.T) {
+	t.Run("panels", func(t *testing.T) {
+		raw := `{"cpu": {"kind": "Panel", "spec": {"plugin": {"kind": "TimeSeriesChart", "spec": {}},
+		  "queries": [{"kind": "PrometheusTimeSeriesQuery", "spec": {"query": "up"}}]}}}`
+		var panels map[string]*dashboard.Panel
+		issue := DecodeValue(json.RawMessage(raw), "panels", &panels)
+		require.NotNil(t, issue)
+		assert.Equal(t, "panels.cpu.spec.queries[0]", issue.Path)
+		assert.Contains(t, issue.Hint, `{kind: "TimeSeriesQuery", spec: {plugin: {kind: "PrometheusTimeSeriesQuery"`)
+	})
+	t.Run("variables", func(t *testing.T) {
+		var variables []dashboard.Variable
+		issue := DecodeValue(json.RawMessage(`[{"kind": "ListVariable", "spec": {"name": "inst"}}]`), "variables", &variables)
+		require.NotNil(t, issue)
+		assert.Equal(t, "variables[0].spec.plugin", issue.Path)
+	})
+	t.Run("valid panels", func(t *testing.T) {
+		var panels map[string]*dashboard.Panel
+		raw := `{"cpu": {"kind": "Panel", "spec": {"plugin": {"kind": "TimeSeriesChart", "spec": {}},
+		  "queries": [{"kind": "TimeSeriesQuery", "spec": {"plugin": {"kind": "PrometheusTimeSeriesQuery", "spec": {"query": "up"}}}}]}}}`
+		require.Nil(t, DecodeValue(json.RawMessage(raw), "panels", &panels))
+		assert.Equal(t, "PrometheusTimeSeriesQuery", panels["cpu"].Spec.Queries[0].Spec.Plugin.Kind)
+	})
+}
+
 func TestLint(t *testing.T) {
 	d := mustDecode(t, sampleDashboard)
 	errs, warnings := Lint(d)
@@ -423,6 +526,13 @@ func TestSummarize(t *testing.T) {
 	assert.Empty(t, outline.PanelList[1].Placement)
 	assert.Equal(t, "inst", outline.VariableList[0].Name)
 	assert.Equal(t, "Row", outline.LayoutList[0].Title)
+}
+
+func TestDashboardURLDropsCredentials(t *testing.T) {
+	base, err := url.Parse("https://user:secret@perses.example/perses/")
+	require.NoError(t, err)
+	assert.Equal(t, "https://perses.example/perses/projects/proj/dashboards/sample", DashboardURL(base, "proj", "sample"))
+	assert.Equal(t, "https://user:secret@perses.example/perses/", base.String())
 }
 
 func TestKeyPath(t *testing.T) {

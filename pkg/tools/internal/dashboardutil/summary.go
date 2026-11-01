@@ -74,12 +74,14 @@ type LayoutOutline struct {
 	Panels []string `json:"panels,omitempty"`
 }
 
-// DashboardURL returns the page of the dashboard in the Perses UI served at the base URL.
+// DashboardURL returns the page of the dashboard in the Perses UI served at the base URL. Credentials embedded in
+// the base URL are dropped so links shown to clients never expose them; base itself is left unchanged.
 func DashboardURL(base *url.URL, project, name string) string {
 	if base == nil {
 		return ""
 	}
 	page := *base
+	page.User = nil
 	page.Path = strings.TrimRight(page.Path, "/") + "/projects/" + url.PathEscape(project) + "/dashboards/" + url.PathEscape(name)
 	page.RawQuery = ""
 	page.Fragment = ""
