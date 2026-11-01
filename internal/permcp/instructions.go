@@ -18,7 +18,6 @@ import (
 
 	"github.com/perses/common/set"
 	"github.com/perses/mcp-server/pkg/tools"
-	"github.com/perses/mcp-server/pkg/tools/dashboard"
 )
 
 // serverInstructions uses the filtered inventory so it never recommends unavailable tools.
@@ -42,8 +41,7 @@ func serverInstructions(registered []*tools.Tool) string {
 			"Read dashboards with perses_get_dashboard_by_name using summary:true (default); use panels:[keys] " +
 				"only for the definitions you need. Model: spec.panels is a map; only panels referenced by " +
 				"spec.layouts render (#/spec/panels/<key>, 24-column grid). Omit query spec.datasource to use the " +
-				"default datasource. If your client supports MCP resources, read the full guide with resources/read " +
-				"(uri: " + dashboard.GuideURI + "); otherwise use these inline rules.",
+				"default datasource.",
 		},
 		{
 			[]string{"perses_create_dashboard", "perses_set_dashboard_panels"},

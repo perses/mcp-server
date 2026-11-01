@@ -17,11 +17,9 @@ import (
 	"context"
 	"fmt"
 	"regexp"
-	"strings"
 	"testing"
 
 	"github.com/perses/mcp-server/pkg/tools"
-	"github.com/perses/mcp-server/pkg/tools/dashboard"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -42,50 +40,50 @@ func TestServerInstructionsComposition(t *testing.T) {
 				"perses_set_dashboard_layout", "perses_update_dashboard", "summary:false", "dry_run:true",
 				"expected_version", "re-read and reapply", "best-effort", "not an atomic lock", "errors[].path",
 				"perses_list_plugin_schemas", "perses_get_plugin_schema", "perses_get_dashboard_schema",
-				"perses_validate_dashboard", dashboard.GuideURI,
+				"perses_validate_dashboard",
 			},
 		},
 		{
 			name:     "dashboard",
 			config:   Config{Resources: "dashboard"},
-			contains: []string{"summary:true", "placements alone", "expected_version", "dry_run:true", dashboard.GuideURI},
+			contains: []string{"summary:true", "placements alone", "expected_version", "dry_run:true"},
 			excludes: []string{"perses_get_plugin_schema", "perses_list_plugin_schemas", "perses_get_dashboard_schema", "perses_validate_dashboard"},
 		},
 		{
 			name:     "dashboard and schema",
 			config:   Config{Resources: "dashboard,schema"},
-			contains: []string{"perses_create_dashboard", "perses_get_plugin_schema", dashboard.GuideURI},
+			contains: []string{"perses_create_dashboard", "perses_get_plugin_schema"},
 			excludes: []string{"perses_validate_dashboard"},
 		},
 		{
 			name:     "read only",
 			config:   Config{ReadOnly: true},
-			contains: []string{"summary:true", "panels:[keys]", "perses_get_plugin_schema", "perses_validate_dashboard", dashboard.GuideURI},
+			contains: []string{"summary:true", "panels:[keys]", "perses_get_plugin_schema", "perses_validate_dashboard"},
 			excludes: []string{"perses_create_", "perses_update_", "perses_set_", "dry_run", "expected_version", "placements", "skeleton", "summary:false"},
 		},
 		{
 			name:     "dashboard read only",
 			config:   Config{Resources: "dashboard", ReadOnly: true},
-			contains: []string{"summary:true", "panels:[keys]", dashboard.GuideURI},
+			contains: []string{"summary:true", "panels:[keys]"},
 			excludes: []string{"perses_get_plugin_schema", "perses_validate_dashboard", "dry_run", "expected_version", "placements", "skeleton"},
 		},
 		{
 			name:     "schema",
 			config:   Config{Resources: "schema"},
 			contains: []string{"perses_get_plugin_schema", "perses_list_plugin_schemas", "perses_get_dashboard_schema"},
-			excludes: []string{dashboard.GuideURI, "perses_get_dashboard_by_name", "perses_set_dashboard_panels", "perses_validate_dashboard", "dry_run"},
+			excludes: []string{"resources/read", "perses_get_dashboard_by_name", "perses_set_dashboard_panels", "perses_validate_dashboard", "dry_run"},
 		},
 		{
 			name:     "validate",
 			config:   Config{Resources: "validate"},
 			contains: []string{"perses_validate_dashboard", "errors[].path"},
-			excludes: []string{dashboard.GuideURI, "perses_get_dashboard_by_name", "perses_set_dashboard_panels", "perses_get_plugin_schema", "dry_run"},
+			excludes: []string{"resources/read", "perses_get_dashboard_by_name", "perses_set_dashboard_panels", "perses_get_plugin_schema", "dry_run"},
 		},
 		{
 			name:     "unrelated toolset",
 			config:   Config{Resources: "project"},
 			contains: []string{"Perses tools operate on the configured Perses server."},
-			excludes: []string{dashboard.GuideURI, "dashboard", "schema", "dry_run"},
+			excludes: []string{"resources/read", "dashboard", "schema", "dry_run"},
 		},
 	}
 	for _, test := range tests {
@@ -93,7 +91,7 @@ func TestServerInstructionsComposition(t *testing.T) {
 			client := newTestServerSession(t, test.config)
 			instructions := client.InitializeResult().Instructions
 			require.NotEmpty(t, instructions)
-			// A byte budget guards against gradually copying the full guide into every session.
+			// A byte budget keeps the per-session instructions concise.
 			assert.LessOrEqual(t, len(instructions), 2000)
 			for _, text := range test.contains {
 				assert.Contains(t, instructions, text)
@@ -125,17 +123,12 @@ func TestServerInstructionsOnlyRegisteredTools(t *testing.T) {
 				for _, name := range toolName.FindAllString(instructions, -1) {
 					assert.True(t, registered[name], "instructions mention unavailable tool %s", name)
 				}
-				assert.Equal(t, registered["perses_get_dashboard_by_name"], strings.Contains(instructions, dashboard.GuideURI))
-				assert.Equal(t, registered["perses_get_dashboard_by_name"], client.InitializeResult().Capabilities.Resources != nil)
+				assert.Nil(t, client.InitializeResult().Capabilities.Resources)
+				assert.NotContains(t, instructions, "resources/read")
 				if registered["perses_get_dashboard_by_name"] {
-					assert.Contains(t, instructions, "If your client supports MCP resources")
-					assert.Contains(t, instructions, "resources/read (uri: "+dashboard.GuideURI+")")
-					assert.Contains(t, instructions, "otherwise use these inline rules")
 					assert.Contains(t, instructions, "spec.panels is a map")
 					assert.Contains(t, instructions, "24-column grid")
 					assert.Contains(t, instructions, "default datasource")
-				} else {
-					assert.NotContains(t, instructions, "resources/read")
 				}
 				if readOnly {
 					assert.NotContains(t, instructions, "dry_run")
