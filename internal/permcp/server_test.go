@@ -15,10 +15,14 @@ package permcp
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/perses/mcp-server/pkg/tools/dashboard"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func newTestServerSession(t *testing.T, cfg Config) *mcp.ClientSession {
@@ -45,6 +49,58 @@ func newTestServerSession(t *testing.T, cfg Config) *mcp.ClientSession {
 	}
 	t.Cleanup(func() { _ = client.Close() })
 	return client
+}
+
+func TestDashboardGuideDiscovery(t *testing.T) {
+	tests := []struct {
+		name      string
+		config    Config
+		wantGuide bool
+	}{
+		{name: "all", wantGuide: true},
+		{name: "dashboard", config: Config{Resources: "dashboard"}, wantGuide: true},
+		{name: "all read only", config: Config{ReadOnly: true}, wantGuide: true},
+		{name: "dashboard read only", config: Config{Resources: "dashboard", ReadOnly: true}, wantGuide: true},
+		{name: "schema", config: Config{Resources: "schema"}},
+		{name: "validate read only", config: Config{Resources: "validate", ReadOnly: true}},
+		{name: "project", config: Config{Resources: "project"}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			ctx := context.Background()
+			client := newTestServerSession(t, test.config)
+			initialized := client.InitializeResult()
+			capabilities, err := json.Marshal(initialized.Capabilities)
+			require.NoError(t, err)
+			t.Logf("initialize capabilities: %s", capabilities)
+			assert.Equal(t, test.wantGuide, initialized.Capabilities.Resources != nil)
+			assert.Equal(t, test.wantGuide, strings.Contains(initialized.Instructions, dashboard.GuideURI))
+
+			list, err := client.ListResources(ctx, nil)
+			require.NoError(t, err)
+			read, err := client.ReadResource(ctx, &mcp.ReadResourceParams{URI: dashboard.GuideURI})
+			if !test.wantGuide {
+				assert.Empty(t, list.Resources)
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Len(t, list.Resources, 1)
+			guideResource, handler := dashboard.GuideResource()
+			assert.Equal(t, guideResource, list.Resources[0])
+			expected, err := handler(ctx, &mcp.ReadResourceRequest{
+				Params: &mcp.ReadResourceParams{URI: dashboard.GuideURI},
+			})
+			require.NoError(t, err)
+			assert.Equal(t, expected.Contents, read.Contents)
+			require.Len(t, read.Contents, 1)
+			assert.Equal(t, dashboard.GuideURI, read.Contents[0].URI)
+			assert.Equal(t, "text/markdown", read.Contents[0].MIMEType)
+			assert.Contains(t, read.Contents[0].Text, "# Perses dashboard model")
+			assert.Contains(t, read.Contents[0].Text, "## Rules the server does not enforce")
+			assert.Contains(t, read.Contents[0].Text, "## Efficient workflow with the tools")
+		})
+	}
 }
 
 func TestRegisterToolsFiltering(t *testing.T) {

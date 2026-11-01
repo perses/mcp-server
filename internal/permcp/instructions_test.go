@@ -126,6 +126,17 @@ func TestServerInstructionsOnlyRegisteredTools(t *testing.T) {
 					assert.True(t, registered[name], "instructions mention unavailable tool %s", name)
 				}
 				assert.Equal(t, registered["perses_get_dashboard_by_name"], strings.Contains(instructions, dashboard.GuideURI))
+				assert.Equal(t, registered["perses_get_dashboard_by_name"], client.InitializeResult().Capabilities.Resources != nil)
+				if registered["perses_get_dashboard_by_name"] {
+					assert.Contains(t, instructions, "If your client supports MCP resources")
+					assert.Contains(t, instructions, "resources/read (uri: "+dashboard.GuideURI+")")
+					assert.Contains(t, instructions, "otherwise use these inline rules")
+					assert.Contains(t, instructions, "spec.panels is a map")
+					assert.Contains(t, instructions, "24-column grid")
+					assert.Contains(t, instructions, "default datasource")
+				} else {
+					assert.NotContains(t, instructions, "resources/read")
+				}
 				if readOnly {
 					assert.NotContains(t, instructions, "dry_run")
 					assert.NotContains(t, instructions, "expected_version")

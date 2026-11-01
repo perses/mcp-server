@@ -17,6 +17,17 @@ plugin schemas and validation without requiring the client to read an MCP resour
 remains available at `perses://guides/dashboard-model` when the `dashboard` resource is enabled and the client supports
 resources.
 
+With `dashboard` enabled, the MCP `initialize` response advertises the `resources` capability.
+A resource-capable client can discover the `text/markdown` guide with `resources/list`, then call
+`resources/read` with `{"uri":"perses://guides/dashboard-model"}` and use the returned `contents[].text`
+as context. The guide remains readable in read-only mode. Filtering out `dashboard` removes the guide,
+its resource capability and its instruction reference.
+
+This is an MCP resource, not a tool or an HTTP URL. Initialization instructions explicitly recommend
+reading it only when the client supports MCP resources; clients without that support still receive the
+essential dashboard rules inline. Capability advertisement and instructions do not guarantee that a
+client exposes resources to a model, reads the guide, or follows it.
+
 ## Projects
 
 Resource: `project`
