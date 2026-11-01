@@ -165,8 +165,9 @@ type CreateEphemeralDashboardInput struct {
 
 func (ed *ephemeraldashboard) Create() *tools.Tool {
 	tool := &mcp.Tool{
-		Name:        "perses_create_ephemeral_dashboard",
-		Description: "Create a new ephemeral dashboard in a specific project",
+		Name: "perses_create_ephemeral_dashboard",
+		Description: "Create a new ephemeral dashboard in a specific project. Validated against installed plugin CUE schemas; use " +
+			"perses_validate_dashboard to check the JSON first, and perses_get_plugin_schema for field definitions.",
 		InputSchema: &jsonschema.Schema{
 			Type: "object",
 			Properties: map[string]*jsonschema.Schema{
@@ -232,8 +233,9 @@ type UpdateEphemeralDashboardInput struct {
 
 func (ed *ephemeraldashboard) Update() *tools.Tool {
 	tool := &mcp.Tool{
-		Name:        "perses_update_ephemeral_dashboard",
-		Description: "Update an existing ephemeral dashboard in a specific project",
+		Name: "perses_update_ephemeral_dashboard",
+		Description: "Update an existing ephemeral dashboard in a specific project. Validated against installed plugin CUE schemas; use " +
+			"perses_validate_dashboard to check the JSON first, and perses_get_plugin_schema for field definitions.",
 		InputSchema: &jsonschema.Schema{
 			Type: "object",
 			Properties: map[string]*jsonschema.Schema{

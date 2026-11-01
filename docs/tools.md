@@ -30,12 +30,21 @@ Resource: `dashboard`
 | Tool                           | Description                                | Required parameters    |
 |--------------------------------|--------------------------------------------|------------------------|
 | `perses_list_dashboards`       | List all dashboards of a project           | `project`              |
-| `perses_get_dashboard_by_name` | Get a dashboard by name                    | `project`, `name`      |
+| `perses_get_dashboard_by_name` | Get an outline by default; use `summary: false` for complete JSON before read-modify-write, or `panels: [keys]` for those full panels regardless of `summary` | `project`, `name` |
 | `perses_create_dashboard`      | Create a dashboard in a project            | `project`, `dashboard` |
 | `perses_update_dashboard`      | Update an existing dashboard of a project  | `project`, `dashboard` |
 | `perses_delete_dashboard`      | Delete a dashboard from a project          | `project`, `name`      |
 
 The parameter `dashboard` is a dashboard in the [Perses format](https://perses.dev/docs/perses/latest/api/dashboard/).
+Create and update accept a JSON object or a JSON string and validate before saving. Create supports
+`if_exists: "replace"` to overwrite an existing dashboard. Writes return a compact summary; set
+`include_dashboard: true` to include the saved dashboard. Use `dry_run: true` to validate without saving.
+
+Update accepts `expected_version` to detect changes made since the dashboard was read; it is not an atomic
+server-side lock, so a concurrent write after the check can still race.
+
+`perses_validate_dashboard` checks the JSON against installed plugin CUE schemas without saving it.
+`perses_get_plugin_schema` provides plugin field definitions.
 
 ## Ephemeral dashboards
 
