@@ -513,6 +513,41 @@ func TestPlacePanel(t *testing.T) {
 	assert.Len(t, layouts[0].Spec.(*dashboard.GridLayoutSpec).Items, 3)
 }
 
+func TestPanelInTab(t *testing.T) {
+	layouts := []dashboard.Layout{
+		{Kind: dashboard.KindGridLayout, Spec: &dashboard.GridLayoutSpec{Items: []dashboard.GridItem{{Width: 6, Height: 6, Content: PanelRef("a")}}}},
+		{Kind: dashboard.KindTabLayout, Spec: &dashboard.TabLayoutSpec{Tabs: []dashboard.TabItem{
+			{Name: "first"},
+			{Name: "second", Items: []dashboard.GridItem{{X: 2, Width: 8, Height: 4, Content: PanelRef("b")}}},
+		}}},
+	}
+	locations := FindPanelItems(layouts, "a")
+	require.Len(t, locations, 1)
+	assert.Equal(t, 0, locations[0].Layout)
+	assert.Equal(t, -1, locations[0].Tab)
+	locations = FindPanelItems(layouts, "b")
+	require.Len(t, locations, 1)
+	assert.Equal(t, PanelLocation{Layout: 1, Tab: 1, Item: layouts[1].Spec.(*dashboard.TabLayoutSpec).Tabs[1].Items[0]}, locations[0])
+	assert.Equal(t, `layout 1 tab 1 "second"`, DescribePanelLocation(layouts, locations[0]))
+	assert.Empty(t, FindPanelItems(layouts, "missing"))
+
+	item, err := PlacePanelInTab(&layouts[1], 0, "c", 4, 2, 0, 0)
+	require.NoError(t, err)
+	assert.Equal(t, dashboard.GridItem{X: 4, Y: 2, Width: DefaultPanelWidth, Height: DefaultPanelHeight, Content: PanelRef("c")}, item)
+	assert.True(t, IsPlaced(layouts, "c"))
+	locations = FindPanelItems(layouts, "c")
+	require.Len(t, locations, 1)
+	assert.Equal(t, 0, locations[0].Tab)
+
+	_, err = PlacePanelInTab(&layouts[1], 2, "d", 0, 0, 0, 0)
+	assert.ErrorContains(t, err, "tab 2 does not exist")
+	_, err = PlacePanelInTab(&layouts[0], 0, "d", 0, 0, 0, 0)
+	assert.ErrorContains(t, err, "is not a tabs layout")
+	_, err = PlacePanelAt(&layouts[1], "d", 0, 0, 0, 0)
+	assert.ErrorContains(t, err, "is not a grid")
+	assert.False(t, IsPlaced(layouts, "d"))
+}
+
 func TestSummarize(t *testing.T) {
 	d := mustDecode(t, sampleDashboard)
 	base, _ := url.Parse("http://perses.example/")

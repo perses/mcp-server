@@ -13,8 +13,9 @@
 
 // Package dashboard provides the MCP tools managing Perses dashboards.
 //
-// Besides the usual list/get/create/update/delete tools, it returns compact summaries instead of whole
-// dashboards, and it reports validation problems as structured issues located by JSON path.
+// Besides the usual list/get/create/update/delete tools, it provides incremental tools (set/remove panels,
+// variables and layouts) so that a dashboard can be built step by step without re-sending the whole document,
+// and it reports validation problems as structured issues located by JSON path.
 package dashboard
 
 import (
@@ -59,6 +60,11 @@ func (d *dashboard) GetTools() []*tools.Tool {
 		d.Create(),
 		d.Update(),
 		d.Delete(),
+		d.SetPanels(),
+		d.RemovePanels(),
+		d.SetVariables(),
+		d.RemoveVariables(),
+		d.SetLayout(),
 	}
 }
 
