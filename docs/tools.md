@@ -5,8 +5,8 @@ This page lists the tools provided by the Perses MCP Server. The tools are group
 
 > [!NOTE]
 > In [read-only mode](./configuration.md#definition) (`read_only: true`), the tools creating, updating or deleting
-> resources (`perses_create_*`, `perses_update_*` and `perses_delete_*`) are not registered. All the other tools stay
-> available.
+> resources (`perses_create_*`, `perses_update_*` and `perses_delete_*`) are not registered. Read and validation
+> tools stay available.
 
 Whatever the tools registered, they can only do what the identity configured in the MCP server is allowed to do in
 Perses (see [Permissions](./overview.md#permissions)).
@@ -55,6 +55,9 @@ dashboard to answer a question, without cluttering the project.
 
 The parameter `dashboard` is an ephemeral dashboard in the
 [Perses format](https://perses.dev/docs/perses/latest/api/ephemeral-dashboard/).
+
+`perses_validate_dashboard` checks the dashboard configuration against installed plugin CUE schemas without saving it.
+`perses_get_plugin_schema` provides plugin field definitions.
 
 ## Datasources
 
@@ -199,6 +202,37 @@ These read-only tools return raw [CUE](https://cuelang.org/) source from Perses 
 | `perses_get_plugin_schema` | Get one plugin kind's schema with shared types (calculation, format, thresholds, datasource selector) expanded inline, optionally selecting `version` and `registry` | `kind` |
 
 Prefer the single-plugin tool when working on one panel, query, variable, annotation or datasource.
+
+## Validation
+
+Resource: `validate`
+
+These tools validate resources without creating or modifying anything, and stay available in read-only mode.
+They return `{valid, errors: [{path, message, hint}], warnings}`: each error or warning gives the JSON path of the
+field, a message and often a hint. Resources are accepted as a JSON object (preferred) or a JSON string.
+Malformed JSON and validation failures return `valid: false`; connection and unexpected server errors are tool errors.
+
+| Tool                         | Description                                      | Required parameters        | Optional parameters                             |
+|------------------------------|--------------------------------------------------|----------------------------|-------------------------------------------------|
+| `perses_validate_dashboard`  | Validate a dashboard                             | `dashboard`                | `project`                                       |
+| `perses_validate_datasource` | Validate or check a project or global datasource | `datasource` or `name`     | `scope`, `project`, `check_connectivity`        |
+| `perses_validate_variable`   | Validate a project or global variable            | `variable`                 | `scope`, `project`                              |
+
+The scope (`project` or `global`) is taken from `kind` (`Datasource`/`GlobalDatasource`, `Variable`/`GlobalVariable`)
+when set, else from the `scope` parameter, else it is `project` when a project is given. `project` fills
+`metadata.project` when omitted. Dashboard validation also reports local layout checks as warnings.
+
+`perses_validate_datasource` warns about configurations that are valid but likely do not work: a `directUrl`
+without proxy (only browsers can query it), a proxy URL on `localhost` (resolved by the Perses server), a Prometheus
+URL ending with `/api/v1`, `allowedEndpoints` blocking the endpoints dashboards use, and a project datasource hiding
+a global datasource of the same name. A second default datasource of the same plugin kind is an error, as Perses
+rejects it on save. Pass `name` instead of `datasource` to check a saved datasource.
+
+With `check_connectivity: true`, the datasource is queried once through the Perses server proxy (e.g. `vector(1)` for
+Prometheus) and the result has `connectivity: {status, latency_ms, message, hint}`, where `status` is one of `ok`,
+`dns`, `unreachable`, `timeout`, `tls`, `auth`, `blocked`, `forbidden`, `no_proxy`, `skipped` or `error`. A saved
+datasource only requires the permission to read it. An unsaved datasource is sent to the `/proxy/unsaved` endpoints
+of Perses, which never save it but require the permission to create datasources (`forbidden` otherwise).
 
 ## Grafana dashboards migration
 

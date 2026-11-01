@@ -10,6 +10,7 @@ require (
 	github.com/perses/perses v0.55.1-0.20261026072743-c4a2e03ca959
 	github.com/perses/spec v0.3.0
 	github.com/sirupsen/logrus v1.10.2
+	github.com/stretchr/testify v1.12.1
 )
 
 require (

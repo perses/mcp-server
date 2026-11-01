@@ -91,6 +91,7 @@ The `resources` field accepts the following resource names (case-insensitive, co
 | `plugin` | Plugin tools |
 | `migrate` | Grafana → Perses dashboard migration tool |
 | `schema` | Plugin schema tools (requires Perses v0.55+) |
+| `validate` | Dashboard, datasource, and variable validation tools |
 
 #### Environment Variables
 
@@ -364,6 +365,9 @@ Ephemeral dashboards are temporary dashboards with a TTL (time-to-live). They ar
 | `perses_update_ephemeral_dashboard`      | Update an existing ephemeral dashboard in a project                       | `project`, `dashboard` |
 | `perses_delete_ephemeral_dashboard`      | Delete an ephemeral dashboard from a project                              | `project`, `name`      |
 
+`perses_validate_dashboard` checks the dashboard configuration against installed plugin CUE schemas without saving it.
+`perses_get_plugin_schema` provides plugin field definitions.
+
 For ephemeral dashboard configuration, see [Perses EphemeralDashboard](https://github.com/perses/perses/blob/main/docs/api/ephemeral-dashboard.md)
 
 ### Datasources
@@ -466,6 +470,23 @@ The schema tools return the [CUE](https://cuelang.org/) schemas of the plugins i
 | ---------------------------- | ---------------------------------------------------------------------------------- | ------------------- |
 | `perses_list_plugin_schemas` | List the schemas of all installed plugins                                          | -                   |
 | `perses_get_plugin_schema`   | Get the schema of a plugin kind (e.g. `TimeSeriesChart`) with shared types expanded inline, optionally for a version | `kind`              |
+
+### Validation
+
+Resource: `validate`
+
+These tools validate resources without creating or modifying anything, and stay available in read-only mode.
+They return `{valid, errors: [{path, message, hint}], warnings}` and accept resources as a JSON object or a JSON string.
+
+| Tool                         | Description                                      | Required Parameters    |
+|------------------------------|--------------------------------------------------|------------------------|
+| `perses_validate_dashboard`  | Validate a dashboard                             | `dashboard`            |
+| `perses_validate_datasource` | Validate or check a project or global datasource | `datasource` or `name` |
+| `perses_validate_variable`   | Validate a project or global variable            | `variable`             |
+
+`perses_validate_datasource` also warns about configurations that are valid but likely do not work, and with
+`check_connectivity: true` queries the datasource through the Perses server without saving it. See
+[Validation tools](./docs/tools.md#validation) for details.
 
 ### Variables
 
