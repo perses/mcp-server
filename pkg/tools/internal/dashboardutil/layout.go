@@ -106,6 +106,49 @@ func IsPlaced(layouts []dashboard.Layout, key string) bool {
 	return false
 }
 
+// PanelLocation locates a layout item: the index of its layout, the index of its tab in a tabs layout (-1 in a
+// grid layout), and the item itself.
+type PanelLocation struct {
+	Layout int
+	Tab    int
+	Item   dashboard.GridItem
+}
+
+// FindPanelItems returns the locations of all layout items referencing the panel key, in layout order.
+func FindPanelItems(layouts []dashboard.Layout, key string) []PanelLocation {
+	var locations []PanelLocation
+	for i, layout := range layouts {
+		_, tabs := layout.Spec.(*dashboard.TabLayoutSpec)
+		for g, group := range itemGroups(i, layout) {
+			for _, item := range group.items {
+				if panelKeyOf(item) == key {
+					tab := -1
+					if tabs {
+						tab = g
+					}
+					locations = append(locations, PanelLocation{Layout: i, Tab: tab, Item: item})
+				}
+			}
+		}
+	}
+	return locations
+}
+
+// DescribePanelLocation names a layout item location for messages, e.g. `layout 1 "Overview" tab "Errors"`.
+func DescribePanelLocation(layouts []dashboard.Layout, location PanelLocation) string {
+	description := fmt.Sprintf("layout %d", location.Layout)
+	if location.Layout < 0 || location.Layout >= len(layouts) {
+		return description
+	}
+	if title := layoutTitle(layouts[location.Layout]); title != "" {
+		description += fmt.Sprintf(" %q", title)
+	}
+	if tabs, ok := layouts[location.Layout].Spec.(*dashboard.TabLayoutSpec); ok && location.Tab >= 0 && location.Tab < len(tabs.Tabs) {
+		description += fmt.Sprintf(" tab %d %q", location.Tab, tabs.Tabs[location.Tab].Name)
+	}
+	return description
+}
+
 // FindLayout returns the index of the grid layout with the given title (ignoring case), or -1. An empty title
 // designates the last grid layout, so that panels are appended at the bottom of the dashboard by default.
 func FindLayout(layouts []dashboard.Layout, title string) int {
@@ -180,15 +223,34 @@ func PlacePanelAt(layout *dashboard.Layout, key string, x, y, width, height int)
 	if !ok {
 		return dashboard.GridItem{}, fmt.Errorf("layout of kind %q is not a grid", layout.Kind)
 	}
+	item := explicitItem(key, x, y, width, height)
+	grid.Items = append(grid.Items, item)
+	return item, nil
+}
+
+// PlacePanelInTab adds an item referencing the panel key to a tab of a tabs layout at an explicit position. A
+// zero width or height takes the default.
+func PlacePanelInTab(layout *dashboard.Layout, tab int, key string, x, y, width, height int) (dashboard.GridItem, error) {
+	tabs, ok := layout.Spec.(*dashboard.TabLayoutSpec)
+	if !ok {
+		return dashboard.GridItem{}, fmt.Errorf("layout of kind %q is not a tabs layout", layout.Kind)
+	}
+	if tab < 0 || tab >= len(tabs.Tabs) {
+		return dashboard.GridItem{}, fmt.Errorf("tab %d does not exist in the tabs layout", tab)
+	}
+	item := explicitItem(key, x, y, width, height)
+	tabs.Tabs[tab].Items = append(tabs.Tabs[tab].Items, item)
+	return item, nil
+}
+
+func explicitItem(key string, x, y, width, height int) dashboard.GridItem {
 	if width <= 0 {
 		width = DefaultPanelWidth
 	}
 	if height <= 0 {
 		height = DefaultPanelHeight
 	}
-	item := dashboard.GridItem{X: x, Y: y, Width: width, Height: height, Content: PanelRef(key)}
-	grid.Items = append(grid.Items, item)
-	return item, nil
+	return dashboard.GridItem{X: x, Y: y, Width: width, Height: height, Content: PanelRef(key)}
 }
 
 // RemovePanelItems removes every layout item referencing the panel key and returns the number of items removed.
