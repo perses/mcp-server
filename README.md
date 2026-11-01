@@ -90,6 +90,7 @@ The `resources` field accepts the following resource names (case-insensitive, co
 | `globalvariable` | Global variable tools |
 | `plugin` | Plugin tools |
 | `migrate` | Grafana → Perses dashboard migration tool |
+| `schema` | Plugin schema tools (requires Perses v0.55+) |
 
 #### Environment Variables
 
@@ -456,6 +457,15 @@ For ephemeral dashboard configuration, see [Perses EphemeralDashboard](https://g
 | Tool                  | Description      | Required Parameters |
 | --------------------- | ---------------- | ------------------- |
 | `perses_list_plugins` | List all plugins | -                   |
+
+### Schemas
+
+The schema tools return the [CUE](https://cuelang.org/) schemas of the plugins installed on the Perses server, so that the LLM writes panels, queries, variables, annotations and datasources that the server accepts. They require Perses v0.55 or later.
+
+| Tool                         | Description                                                                        | Required Parameters |
+| ---------------------------- | ---------------------------------------------------------------------------------- | ------------------- |
+| `perses_list_plugin_schemas` | List the schemas of all installed plugins                                          | -                   |
+| `perses_get_plugin_schema`   | Get the schema of a plugin kind (e.g. `TimeSeriesChart`) with shared types expanded inline, optionally for a version | `kind`              |
 
 ### Variables
 
