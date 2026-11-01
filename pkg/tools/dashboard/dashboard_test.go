@@ -16,6 +16,7 @@ package dashboard
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -148,6 +149,18 @@ func (f *fakePerses) writeMessage(w http.ResponseWriter, status int, message str
 }
 
 // stored returns the stored dashboard re-encoded as JSON, for assertions.
+func (f *fakePerses) stored(t *testing.T) string {
+	const name = "cpu"
+	t.Helper()
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	dash, ok := f.dashboards[name]
+	require.True(t, ok, "dashboard %s is not stored", name)
+	text, err := json.Marshal(dash)
+	require.NoError(t, err)
+	return string(text)
+}
+
 func newSession(t *testing.T, fake *fakePerses) *mcp.ClientSession {
 	t.Helper()
 	srv := httptest.NewServer(fake)
@@ -222,7 +235,8 @@ func TestGetTools(t *testing.T) {
 	}
 	assert.Equal(t, []string{
 		"perses_list_dashboards", "perses_get_dashboard_by_name", "perses_create_dashboard", "perses_update_dashboard",
-		"perses_delete_dashboard",
+		"perses_delete_dashboard", "perses_set_dashboard_panels", "perses_remove_dashboard_panels",
+		"perses_set_dashboard_variables", "perses_remove_dashboard_variables", "perses_set_dashboard_layout",
 	}, names)
 }
 
@@ -341,6 +355,333 @@ func TestUpdate(t *testing.T) {
 		assert.Equal(t, "updated", result["action"])
 		assert.Equal(t, float64(1), result["version"])
 	})
+}
+
+func TestSetPanels(t *testing.T) {
+	fake := newFakePerses()
+	session := newSession(t, fake)
+	mustCall(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": validDashboard})
+
+	t.Run("add panels with automatic placement", func(t *testing.T) {
+		panels := map[string]any{
+			"p2": object(t, strings.ReplaceAll(statPanel, "%s", "P2")),
+			"p3": object(t, strings.ReplaceAll(statPanel, "%s", "P3")),
+		}
+		result := mustCall(t, session, "perses_set_dashboard_panels", map[string]any{"project": "myproject", "name": "cpu", "panels": panels})
+		assert.Equal(t, "updated", result["action"])
+		assert.Equal(t, float64(3), result["panels"])
+		changes := result["changes"].([]any)
+		assert.Equal(t, "added panel p2, placed in layout 0 at x=12 y=0 w=12 h=6", changes[0])
+		assert.Equal(t, "added panel p3, placed in layout 0 at x=0 y=6 w=12 h=6", changes[1])
+		assert.Nil(t, result["warnings"])
+		assert.Contains(t, fake.stored(t), `"$ref":"#/spec/panels/p3"`)
+	})
+	t.Run("replace keeps the position", func(t *testing.T) {
+		panels := map[string]any{"p2": object(t, strings.ReplaceAll(statPanel, "%s", "P2 bis"))}
+		result := mustCall(t, session, "perses_set_dashboard_panels", map[string]any{"project": "myproject", "name": "cpu", "panels": panels})
+		assert.Equal(t, []any{"replaced panel p2, kept its position"}, result["changes"])
+		assert.Equal(t, float64(3), result["panels"])
+		assert.Contains(t, fake.stored(t), "P2 bis")
+	})
+	t.Run("new layout group and explicit placement", func(t *testing.T) {
+		panels := map[string]any{
+			"p4": object(t, strings.ReplaceAll(statPanel, "%s", "P4")),
+			"p5": object(t, strings.ReplaceAll(statPanel, "%s", "P5")),
+		}
+		result := mustCall(t, session, "perses_set_dashboard_panels", map[string]any{
+			"project": "myproject", "name": "cpu", "panels": panels, "layout": "Details", "width": 24, "height": 8,
+			"placements": map[string]any{"p5": map[string]any{"x": 6, "y": 20, "width": 6}},
+		})
+		changes := result["changes"].([]any)
+		assert.Equal(t, "added panel p4, placed in layout 1 at x=0 y=26 w=24 h=8", changes[0])
+		assert.Equal(t, "added panel p5, placed in layout 1 at x=6 y=20 w=6 h=6", changes[1])
+		assert.Equal(t, float64(2), result["layouts"])
+	})
+	t.Run("panel rejected by the schemas", func(t *testing.T) {
+		panels := map[string]any{"p2": object(t, strings.Replace(strings.ReplaceAll(statPanel, "%s", "P2"), "P2\"}}", "average\"}}", 1))}
+		text := mustFail(t, session, "perses_set_dashboard_panels", map[string]any{"project": "myproject", "name": "cpu", "panels": panels})
+		validation := validationOf(t, text)
+		require.Len(t, validation.Errors, 1)
+		assert.Equal(t, "spec.panels.p2.spec.plugin.spec.calculation", validation.Errors[0].Path)
+		assert.Contains(t, fake.stored(t), "P2 bis", "the dashboard must not be modified")
+	})
+	t.Run("invalid key", func(t *testing.T) {
+		panels := map[string]any{"bad key": object(t, strings.ReplaceAll(statPanel, "%s", "x"))}
+		text := mustFail(t, session, "perses_set_dashboard_panels", map[string]any{"project": "myproject", "name": "cpu", "panels": panels})
+		assert.Contains(t, text, "the key must match")
+	})
+	t.Run("panels as a string", func(t *testing.T) {
+		panels := `{"p6": ` + strings.ReplaceAll(statPanel, "%s", "P6") + `}`
+		result := mustCall(t, session, "perses_set_dashboard_panels", map[string]any{"project": "myproject", "name": "cpu", "panels": panels, "dry_run": true})
+		assert.Equal(t, "would_update", result["action"])
+		assert.NotContains(t, fake.stored(t), "p6")
+	})
+}
+
+func TestSetPanelsMovesAndOrder(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       map[string]any
+		wantChanges []string
+		wantError   string
+	}{
+		{
+			name: "placements without panels",
+			input: map[string]any{
+				"placements":       map[string]any{"p1": map[string]any{"x": 4, "y": 8, "width": 8, "height": 9}},
+				"expected_version": 0,
+			},
+			wantChanges: []string{"moved panel p1, placed in layout 0 at x=4 y=8 w=8 h=9"},
+		},
+		{
+			name: "placements with empty panels",
+			input: map[string]any{
+				"panels":     map[string]any{},
+				"placements": map[string]any{"p1": map[string]any{"x": 0, "y": 6}},
+			},
+			wantChanges: []string{"moved panel p1, placed in layout 0 at x=0 y=6 w=12 h=6"},
+		},
+		{
+			name: "move reserves space before automatic placement",
+			input: map[string]any{
+				"panels":     map[string]any{"a": json.RawMessage(fmt.Sprintf(statPanel, "A", "mean"))},
+				"placements": map[string]any{"p1": map[string]any{"x": 0, "y": 0}},
+			},
+			wantChanges: []string{
+				"added panel a, placed in layout 0 at x=12 y=0 w=12 h=6",
+				"moved panel p1, placed in layout 0 at x=0 y=0 w=12 h=6",
+			},
+		},
+		{
+			name: "move frees original position for automatic placement",
+			input: map[string]any{
+				"panels":     map[string]any{"a": json.RawMessage(fmt.Sprintf(statPanel, "A", "mean"))},
+				"placements": map[string]any{"p1": map[string]any{"x": 12, "y": 0}},
+			},
+			wantChanges: []string{
+				"added panel a, placed in layout 0 at x=0 y=0 w=12 h=6",
+				"moved panel p1, placed in layout 0 at x=12 y=0 w=12 h=6",
+			},
+		},
+		{
+			name: "unknown placement does not persist mixed edit",
+			input: map[string]any{
+				"panels":     map[string]any{"a": json.RawMessage(fmt.Sprintf(statPanel, "A", "mean"))},
+				"placements": map[string]any{"unknown": map[string]any{"x": 0, "y": 0}},
+			},
+			wantError: "placements.unknown: panel not found",
+		},
+		{
+			name: "unknown placement without panels",
+			input: map[string]any{
+				"placements": map[string]any{"unknown": map[string]any{"x": 0, "y": 0}},
+			},
+			wantError: "placements.unknown: panel not found",
+		},
+		{name: "both omitted", input: map[string]any{}, wantError: "give at least one panel or placement"},
+		{
+			name:      "both empty",
+			input:     map[string]any{"panels": map[string]any{}, "placements": map[string]any{}},
+			wantError: "give at least one panel or placement",
+		},
+		{
+			name: "stale version",
+			input: map[string]any{
+				"placements":       map[string]any{"p1": map[string]any{"x": 0, "y": 6}},
+				"expected_version": 7,
+			},
+			wantError: "at version 0, not 7",
+		},
+		{
+			name: "invalid position is not saved",
+			input: map[string]any{
+				"placements": map[string]any{"p1": map[string]any{"x": 20, "y": 0, "width": 12}},
+			},
+			wantError: "spec.layouts[0].spec.items[0].x",
+		},
+		{
+			name: "invalid mixed panel does not persist move",
+			input: map[string]any{
+				"panels":     map[string]any{"p2": json.RawMessage(fmt.Sprintf(statPanel, "P2", "average"))},
+				"placements": map[string]any{"p1": map[string]any{"x": 0, "y": 6}},
+			},
+			wantError: "spec.panels.p2.spec.plugin.spec.calculation",
+		},
+		{
+			name: "unknown order key",
+			input: map[string]any{
+				"placements": map[string]any{"p1": map[string]any{"x": 0, "y": 6}},
+				"order":      []string{"unknown"},
+			},
+			wantError: "must appear once and refer to panels or placements",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			fake := newFakePerses()
+			session := newSession(t, fake)
+			mustCall(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": validDashboard})
+			before := fake.stored(t)
+			test.input["project"], test.input["name"] = "myproject", "cpu"
+			if test.wantError != "" {
+				text := mustFail(t, session, "perses_set_dashboard_panels", test.input)
+				assert.Contains(t, text, test.wantError)
+				assert.JSONEq(t, before, fake.stored(t))
+				fake.mu.Lock()
+				assert.Zero(t, fake.requests["PUT /api/v1/projects/myproject/dashboards/cpu"])
+				fake.mu.Unlock()
+				if strings.Contains(test.wantError, "at least one") {
+					assert.False(t, validationOf(t, text).Valid)
+					assert.Contains(t, text, "perses_set_dashboard_layout")
+				}
+				return
+			}
+			test.input["dry_run"] = true
+			preview := mustCall(t, session, "perses_set_dashboard_panels", test.input)
+			assert.Equal(t, "would_update", preview["action"])
+			assert.JSONEq(t, before, fake.stored(t))
+			fake.mu.Lock()
+			assert.Zero(t, fake.requests["PUT /api/v1/projects/myproject/dashboards/cpu"])
+			fake.mu.Unlock()
+			delete(test.input, "dry_run")
+			result := mustCall(t, session, "perses_set_dashboard_panels", test.input)
+			assert.Equal(t, preview["changes"], result["changes"])
+			var changes []string
+			for _, change := range result["changes"].([]any) {
+				changes = append(changes, change.(string))
+			}
+			assert.Equal(t, test.wantChanges, changes)
+			stored := object(t, fake.stored(t))["spec"].(map[string]any)
+			original := object(t, before)["spec"].(map[string]any)
+			assert.Equal(t, original["panels"].(map[string]any)["p1"], stored["panels"].(map[string]any)["p1"])
+			items := stored["layouts"].([]any)[0].(map[string]any)["spec"].(map[string]any)["items"].([]any)
+			assert.Len(t, items, len(stored["panels"].(map[string]any)))
+			for key, raw := range test.input["placements"].(map[string]any) {
+				placement := raw.(map[string]any)
+				found := false
+				for _, rawItem := range items {
+					item := rawItem.(map[string]any)
+					if item["content"].(map[string]any)["$ref"] != "#/spec/panels/"+key {
+						continue
+					}
+					found = true
+					assert.EqualValues(t, placement["x"], item["x"])
+					assert.EqualValues(t, placement["y"], item["y"])
+					width, height := 12, 6
+					if value, ok := placement["width"]; ok {
+						width = value.(int)
+					}
+					if value, ok := placement["height"]; ok {
+						height = value.(int)
+					}
+					assert.EqualValues(t, width, item["width"])
+					assert.EqualValues(t, height, item["height"])
+				}
+				assert.True(t, found, "missing layout item for %s", key)
+			}
+		})
+	}
+
+	for _, stringInput := range []bool{false, true} {
+		t.Run(fmt.Sprintf("explicit order string=%v", stringInput), func(t *testing.T) {
+			fake := newFakePerses()
+			session := newSession(t, fake)
+			mustCall(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": validDashboard})
+			raw := `{"b":` + fmt.Sprintf(statPanel, "B", "mean") + `,"a":` + fmt.Sprintf(statPanel, "A", "mean") + `,"c":` + fmt.Sprintf(statPanel, "C", "mean") + `}`
+			var panels any = json.RawMessage(raw)
+			if stringInput {
+				panels = raw
+			}
+			result := mustCall(t, session, "perses_set_dashboard_panels", map[string]any{
+				"project": "myproject", "name": "cpu", "panels": panels, "layout": "Ordered", "order": []string{"b", "a", "c"},
+			})
+			assert.Equal(t, []any{
+				"added panel b, placed in layout 1 at x=0 y=0 w=12 h=6",
+				"added panel a, placed in layout 1 at x=12 y=0 w=12 h=6",
+				"added panel c, placed in layout 1 at x=0 y=6 w=12 h=6",
+			}, result["changes"])
+		})
+	}
+
+	t.Run("placement dry run", func(t *testing.T) {
+		fake := newFakePerses()
+		session := newSession(t, fake)
+		mustCall(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": validDashboard})
+		before := fake.stored(t)
+		result := mustCall(t, session, "perses_set_dashboard_panels", map[string]any{
+			"project": "myproject", "name": "cpu", "dry_run": true,
+			"placements": map[string]any{"p1": map[string]any{"x": 0, "y": 6}},
+		})
+		assert.Equal(t, "would_update", result["action"])
+		assert.Equal(t, []any{"moved panel p1, placed in layout 0 at x=0 y=6 w=12 h=6"}, result["changes"])
+		assert.JSONEq(t, before, fake.stored(t))
+	})
+}
+
+func TestRemovePanels(t *testing.T) {
+	fake := newFakePerses()
+	session := newSession(t, fake)
+	mustCall(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": validDashboard})
+
+	result := mustCall(t, session, "perses_remove_dashboard_panels", map[string]any{"project": "myproject", "name": "cpu", "panels": []string{"p1", "nope"}})
+	assert.Equal(t, []any{"removed panel p1 and 1 layout item(s)", "panel nope not found"}, result["changes"])
+	assert.Equal(t, float64(0), result["panels"])
+	assert.NotContains(t, fake.stored(t), "#/spec/panels/p1")
+}
+
+func TestVariables(t *testing.T) {
+	fake := newFakePerses()
+	session := newSession(t, fake)
+	mustCall(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": validDashboard})
+
+	variables := `[
+		{"kind": "TextVariable", "spec": {"name": "env", "value": "prod"}},
+		{"kind": "ListVariable", "spec": {"name": "inst", "plugin": {"kind": "PrometheusLabelValuesVariable", "spec": {"labelName": "instance"}}}}
+	]`
+	result := mustCall(t, session, "perses_set_dashboard_variables", map[string]any{"project": "myproject", "name": "cpu", "variables": variables})
+	assert.Equal(t, []any{"added variable env", "added variable inst"}, result["changes"])
+	assert.Equal(t, float64(2), result["variables"])
+
+	result = mustCall(t, session, "perses_set_dashboard_variables", map[string]any{"project": "myproject", "name": "cpu",
+		"variables": []any{object(t, `{"kind": "TextVariable", "spec": {"name": "env", "value": "staging"}}`)}})
+	assert.Equal(t, []any{"replaced variable env"}, result["changes"])
+	assert.Equal(t, float64(2), result["variables"])
+	assert.Contains(t, fake.stored(t), "staging")
+
+	result = mustCall(t, session, "perses_remove_dashboard_variables", map[string]any{"project": "myproject", "name": "cpu", "variables": []string{"env", "nope"}})
+	assert.Equal(t, []any{"removed variable env", "variable nope not found"}, result["changes"])
+	assert.Equal(t, float64(1), result["variables"])
+
+	text := mustFail(t, session, "perses_set_dashboard_variables", map[string]any{"project": "myproject", "name": "cpu", "variables": `[{"kind": "TextVariable", "spec": {"value": "x"}}]`})
+	assert.Contains(t, text, "variables")
+}
+
+func TestSetLayout(t *testing.T) {
+	fake := newFakePerses()
+	session := newSession(t, fake)
+	mustCall(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": validDashboard})
+
+	layout := `{"kind": "Grid", "spec": {"display": {"title": "Second"}, "items": []}}`
+	result := mustCall(t, session, "perses_set_dashboard_layout", map[string]any{"project": "myproject", "name": "cpu", "layout": layout})
+	assert.Equal(t, []any{`added layout 1 "Second"`}, result["changes"])
+
+	result = mustCall(t, session, "perses_set_dashboard_layout", map[string]any{"project": "myproject", "name": "cpu", "layout": strings.Replace(layout, "Second", "second", 1)})
+	assert.Equal(t, []any{`replaced layout 1 "second"`}, result["changes"])
+	assert.Equal(t, float64(2), result["layouts"])
+
+	result = mustCall(t, session, "perses_set_dashboard_layout", map[string]any{"project": "myproject", "name": "cpu", "index": 0, "layout": layout})
+	assert.Equal(t, []any{`replaced layout 0 "Second"`}, result["changes"])
+	// p1 is no longer displayed.
+	require.Len(t, result["warnings"], 1)
+
+	result = mustCall(t, session, "perses_set_dashboard_layout", map[string]any{"project": "myproject", "name": "cpu", "index": 1, "remove": true})
+	assert.Equal(t, []any{`removed layout 1 "second"`}, result["changes"])
+	assert.Equal(t, float64(1), result["layouts"])
+
+	text := mustFail(t, session, "perses_set_dashboard_layout", map[string]any{"project": "myproject", "name": "cpu", "index": 5, "layout": layout})
+	assert.Contains(t, text, "out of range")
+	text = mustFail(t, session, "perses_set_dashboard_layout", map[string]any{"project": "myproject", "name": "cpu"})
+	assert.Contains(t, text, "layout is required")
 }
 
 func TestGetAndList(t *testing.T) {

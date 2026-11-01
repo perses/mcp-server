@@ -46,7 +46,8 @@ func (d *dashboard) Create() *tools.Tool {
 			"field (e.g. spec.panels.cpu.spec.plugin.spec.calculation) so that only that field needs fixing. " +
 			"Returns a short summary (name, version, counts, URL), not the dashboard. " +
 			"Set if_exists=replace to overwrite an existing dashboard with the same name (upsert), dry_run=true to " +
-			"only validate.",
+			"only validate. For large dashboards prefer creating a skeleton and adding panels with " +
+			"perses_set_dashboard_panels.",
 		InputSchema: &jsonschema.Schema{
 			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
@@ -151,7 +152,8 @@ func (d *dashboard) Update() *tools.Tool {
 		Name: "perses_update_dashboard",
 		Description: "Replace an existing dashboard with its complete JSON definition (the dashboard must exist). " +
 			"Validation errors are returned with the JSON path of each offending field; the response is a short " +
-			"summary.",
+			"summary. To change a few panels, variables or layouts without re-sending the whole dashboard, use " +
+			"perses_set_dashboard_panels, perses_set_dashboard_variables or perses_set_dashboard_layout instead.",
 		InputSchema: &jsonschema.Schema{
 			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
@@ -212,10 +214,11 @@ func checkVersion(current *v1.Dashboard, expected *uint64) error {
 
 // editRequest carries the common parameters of the tools modifying an existing dashboard.
 type editRequest struct {
-	project string
-	name    string
-	dryRun  bool
-	include bool
+	project         string
+	name            string
+	expectedVersion *uint64
+	dryRun          bool
+	include         bool
 }
 
 // save validates the modified dashboard then updates it, unless this is a dry run.
@@ -238,4 +241,20 @@ func (d *dashboard) save(req editRequest, dash *v1.Dashboard, changes []string) 
 		return nil, nil, fmt.Errorf("error updating dashboard '%s' in project '%s': %w", req.name, req.project, err)
 	}
 	return d.saved(result, saved, req.include)
+}
+
+// edit fetches the dashboard, applies the mutation and saves the result.
+func (d *dashboard) edit(req editRequest, mutate func(dash *v1.Dashboard) ([]string, error)) (*mcp.CallToolResult, any, error) {
+	dash, err := d.get(req.project, req.name)
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := checkVersion(dash, req.expectedVersion); err != nil {
+		return nil, nil, err
+	}
+	changes, err := mutate(dash)
+	if err != nil {
+		return nil, nil, err
+	}
+	return d.save(req, dash, changes)
 }
