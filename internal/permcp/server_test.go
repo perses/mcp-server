@@ -1,0 +1,151 @@
+// Copyright The Perses Authors
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package permcp
+
+import (
+	"context"
+	"strings"
+	"testing"
+
+	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/stretchr/testify/assert"
+)
+
+func newTestServerSession(t *testing.T, cfg Config) *mcp.ClientSession {
+	t.Helper()
+	if err := cfg.Verify(); err != nil {
+		t.Fatal(err)
+	}
+	task, err := New(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := task.(*server)
+	ctx := context.Background()
+	serverTransport, clientTransport := mcp.NewInMemoryTransports()
+	serverSession, err := s.mcpServer.Connect(ctx, serverTransport, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = serverSession.Close() })
+	client, err := mcp.NewClient(&mcp.Implementation{Name: "test-client"}, nil).Connect(
+		ctx, clientTransport, &mcp.ClientSessionOptions{ProtocolVersion: "2025-11-25"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = client.Close() })
+	return client
+}
+
+func TestNoResourcesExposed(t *testing.T) {
+	for _, cfg := range []Config{{}, {Resources: "dashboard"}, {ReadOnly: true}} {
+		client := newTestServerSession(t, cfg)
+		assert.Nil(t, client.InitializeResult().Capabilities.Resources)
+		assert.NotContains(t, client.InitializeResult().Instructions, "resources/read")
+	}
+}
+
+func TestRegisterToolsFiltering(t *testing.T) {
+	tests := []struct {
+		name     string
+		config   Config
+		expected map[string]bool
+		count    int
+	}{
+		{
+			name: "combined",
+			expected: map[string]bool{
+				"perses_list_plugin_schemas":        true,
+				"perses_validate_dashboard":         true,
+				"perses_validate_datasource":        true,
+				"perses_validate_variable":          true,
+				"perses_validate_global_datasource": false,
+				"perses_validate_global_variable":   false,
+				"perses_set_dashboard_panels":       true,
+				"perses_set_dashboard_variables":    true,
+				"perses_set_dashboard_layout":       true,
+				"perses_remove_dashboard_panels":    true,
+				"perses_remove_dashboard_variables": true,
+			},
+		},
+		{
+			name:   "schema only",
+			config: Config{AllowedResources: []string{"schema"}},
+			count:  2,
+			expected: map[string]bool{
+				"perses_list_plugin_schemas": true,
+				"perses_get_plugin_schema":   true,
+				"perses_validate_dashboard":  false,
+			},
+		},
+		{
+			name:   "validate only",
+			config: Config{AllowedResources: []string{"validate"}},
+			count:  3,
+			expected: map[string]bool{
+				"perses_get_plugin_schema":   false,
+				"perses_validate_dashboard":  true,
+				"perses_validate_datasource": true,
+				"perses_validate_variable":   true,
+			},
+		},
+		{
+			name:   "read only",
+			config: Config{ReadOnly: true},
+			expected: map[string]bool{
+				"perses_get_plugin_schema":          true,
+				"perses_validate_dashboard":         true,
+				"perses_validate_datasource":        true,
+				"perses_create_dashboard":           false,
+				"perses_update_dashboard":           false,
+				"perses_set_dashboard_panels":       false,
+				"perses_remove_dashboard_panels":    false,
+				"perses_set_dashboard_variables":    false,
+				"perses_remove_dashboard_variables": false,
+				"perses_set_dashboard_layout":       false,
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			ctx := context.Background()
+			client := newTestServerSession(t, test.config)
+			result, err := client.ListTools(ctx, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			names := map[string]bool{}
+			for _, tool := range result.Tools {
+				if names[tool.Name] {
+					t.Errorf("duplicate tool: %s", tool.Name)
+				}
+				names[tool.Name] = true
+				if test.config.ReadOnly && !tool.Annotations.ReadOnlyHint {
+					t.Errorf("write tool registered in read-only mode: %s", tool.Name)
+				}
+				if strings.HasPrefix(tool.Name, "perses_validate_") && !tool.Annotations.ReadOnlyHint {
+					t.Errorf("validator is not read-only: %s", tool.Name)
+				}
+			}
+			if test.count > 0 && len(names) != test.count {
+				t.Errorf("expected %d tools, got %d", test.count, len(names))
+			}
+			for name, want := range test.expected {
+				if names[name] != want {
+					t.Errorf("%s registered=%v, want %v", name, names[name], want)
+				}
+			}
+		})
+	}
+}

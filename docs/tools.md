@@ -11,6 +11,10 @@ This page lists the tools provided by the Perses MCP Server. The tools are group
 Whatever the tools registered, they can only do what the identity configured in the MCP server is allowed to do in
 Perses (see [Permissions](./overview.md#permissions)).
 
+The server sends concise workflow instructions during MCP initialization, composed from the tools actually
+registered after resource filtering and read-only mode. These cover compact dashboard reads, incremental editing,
+plugin schemas and validation.
+
 ## Projects
 
 Resource: `project`
