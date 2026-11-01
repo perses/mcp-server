@@ -68,10 +68,21 @@ func GlobalDatasourceProxyPath(datasource, subPath string) string {
 		NormalizePath(subPath))
 }
 
-type QueryResult struct {
-	StatusCode int               `json:"status_code"`
-	Headers    map[string]string `json:"headers,omitempty"`
-	Body       string            `json:"body,omitempty"`
+// Response is the raw answer of the Perses proxy.
+type Response struct {
+	StatusCode int
+	Body       []byte
+}
+
+// Text returns the body of a successful response unchanged, so that the query tools return what the datasource
+// answered, like the other tools return what Perses answered. A non-2xx response is returned as an error that contains
+// the HTTP status and the body.
+func (r *Response) Text() (string, error) {
+	if r.StatusCode < 200 || r.StatusCode >= 300 {
+		return "", fmt.Errorf("datasource returned HTTP %d %s: %s",
+			r.StatusCode, http.StatusText(r.StatusCode), strings.TrimSpace(string(r.Body)))
+	}
+	return string(r.Body), nil
 }
 
 type Helper struct {
@@ -101,7 +112,7 @@ func NormalizePath(path string) string {
 	return path
 }
 
-func (h *Helper) Do(ctx context.Context, input ProxyQuery) (*QueryResult, error) {
+func (h *Helper) Do(ctx context.Context, input ProxyQuery) (*Response, error) {
 	restClient := h.client.RESTClient()
 	if restClient == nil || restClient.Client == nil {
 		return nil, fmt.Errorf("perses REST client is not configured")
@@ -176,16 +187,5 @@ func (h *Helper) Do(ctx context.Context, input ProxyQuery) (*QueryResult, error)
 		return nil, err
 	}
 
-	headers := map[string]string{}
-	for key, values := range resp.Header {
-		if len(values) > 0 {
-			headers[key] = strings.Join(values, ", ")
-		}
-	}
-
-	return &QueryResult{
-		StatusCode: resp.StatusCode,
-		Headers:    headers,
-		Body:       string(body),
-	}, nil
+	return &Response{StatusCode: resp.StatusCode, Body: body}, nil
 }

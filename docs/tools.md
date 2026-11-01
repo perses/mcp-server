@@ -99,6 +99,11 @@ The parameters are:
 - `headers`: additional HTTP headers. The header `Authorization` is always ignored: the authentication to the datasource
   is configured in Perses.
 
+On success (HTTP 2xx), the tool returns the response body of the datasource unchanged, like the other tools return the
+answer of Perses: for example the JSON document `{"status":"success","data":{...}}` of the Prometheus API. The response
+headers are not returned. On an HTTP error status, the tool returns an error (`isError: true`) that contains the HTTP
+status and the response body.
+
 The response body is truncated to 1 MiB, to avoid exceeding the context of the LLM.
 
 Example of an instant query on a global Prometheus datasource:

@@ -393,6 +393,8 @@ For ephemeral dashboard configuration, see [Perses EphemeralDashboard](https://g
 - **`query_params`** is an object of key/value string pairs appended as query string parameters.
 - **`body`** is a raw string body (JSON or `application/x-www-form-urlencoded`). Content-Type defaults to `application/json` when a body is provided.
 - **`headers`** allows passing additional request headers. The `Authorization` header is always blocked in tool input; use Perses secrets for authentication.
+- On success (HTTP 2xx), the tool returns the response body of the datasource unchanged (e.g. the JSON document of the Prometheus API). Response headers are not returned.
+- On an HTTP error status, the tool returns an error (`isError: true`) containing the HTTP status and the response body.
 - Response bodies are capped at **1 MiB** to avoid exceeding LLM context limits.
 
 **Example — Prometheus instant query via a global datasource:**
