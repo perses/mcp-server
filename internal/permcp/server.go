@@ -187,6 +187,10 @@ func (s *server) registerTools() {
 		tool.RegisterWith(s.mcpServer)
 	}
 
+	if !filterByResource || allowedResources.Contains(string(tools.DashboardResource)) {
+		s.mcpServer.AddResource(dashboard.GuideResource())
+	}
+
 	logrus.WithFields(logrus.Fields{
 		"registered":       len(registeredTools),
 		"skipped_readonly": skippedReadOnly,

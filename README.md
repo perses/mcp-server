@@ -371,6 +371,11 @@ are auto-placed. Use `order: ["b", "a", "c"]` to choose panel processing/auto-pl
 processed alphabetically. JSON object key order is not preserved, even when `panels` is supplied as a JSON string.
 For a complete layout-group replacement, use `perses_set_dashboard_layout`.
 
+The server also exposes the MCP resource `perses://guides/dashboard-model` (Markdown): a worked example of a dashboard,
+the rules the Perses server does not enforce (panels map and `#/spec/panels/<key>` references, 24-column grid, default
+datasource) and the recommended incremental workflow. Clients that support resources can attach it to the
+conversation; the tool descriptions only keep a one-line reminder and point to it.
+
 `perses_validate_dashboard` checks the JSON against installed plugin CUE schemas without saving it.
 `perses_get_plugin_schema` provides plugin field definitions.
 

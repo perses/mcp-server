@@ -13,7 +13,15 @@ Perses (see [Permissions](./overview.md#permissions)).
 
 The server sends concise workflow instructions during MCP initialization, composed from the tools actually
 registered after resource filtering and read-only mode. These cover compact dashboard reads, incremental editing,
-plugin schemas and validation.
+plugin schemas and validation without requiring the client to read an MCP resource. The detailed dashboard guide
+remains available at `perses://guides/dashboard-model` when the `dashboard` resource is enabled and the client supports
+resources.
+
+With `dashboard` enabled, the MCP `initialize` response advertises the `resources` capability.
+A resource-capable client can discover the `text/markdown` guide with `resources/list`, then call
+`resources/read` with `{"uri":"perses://guides/dashboard-model"}` and use the returned `contents[].text`
+as context. The guide remains readable in read-only mode. Filtering out `dashboard` removes the guide,
+its resource capability and its instruction reference.
 
 This is an MCP resource, not a tool or an HTTP URL. Initialization instructions explicitly recommend
 reading it only when the client supports MCP resources; clients without that support still receive the
@@ -57,7 +65,8 @@ Create and update accept a JSON object or a JSON string and validate before savi
 The incremental tools fetch the current dashboard, apply the requested changes, validate, and save it.
 `expected_version` checks the version before editing to detect intervening changes; it is not an atomic
 server-side lock, so a concurrent write after the check can still race. Layout items use a 24-column grid;
-new panels default to width 12 and height 6.
+new panels default to width 12 and height 6. The MCP resource `perses://guides/dashboard-model` documents
+the dashboard model and editing workflow.
 
 For placements-only moves/resizing, omit `panels` (or send `{}`) and provide
 `placements: {"cpu": {"x": 0, "y": 6, "width": 12, "height": 6}}`.

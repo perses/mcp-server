@@ -174,6 +174,7 @@ func newSession(t *testing.T, fake *fakePerses) *mcp.ClientSession {
 	for _, tool := range New(client).GetTools() {
 		tool.RegisterWith(server)
 	}
+	server.AddResource(GuideResource())
 
 	ctx := context.Background()
 	serverTransport, clientTransport := mcp.NewInMemoryTransports()
@@ -728,7 +729,24 @@ func TestGetAndList(t *testing.T) {
 	assert.Equal(t, float64(1), listed[0]["panels"])
 }
 
-func TestToolDescriptionsStayCompact(t *testing.T) {
+func TestGuideResource(t *testing.T) {
+	session := newSession(t, newFakePerses())
+	ctx := context.Background()
+
+	list, err := session.ListResources(ctx, nil)
+	require.NoError(t, err)
+	require.Len(t, list.Resources, 1)
+	assert.Equal(t, GuideURI, list.Resources[0].URI)
+
+	read, err := session.ReadResource(ctx, &mcp.ReadResourceParams{URI: GuideURI})
+	require.NoError(t, err)
+	require.Len(t, read.Contents, 1)
+	assert.Equal(t, "text/markdown", read.Contents[0].MIMEType)
+	assert.Contains(t, read.Contents[0].Text, "24-column grid")
+	assert.Contains(t, read.Contents[0].Text, "#/spec/panels/")
+	assert.Contains(t, read.Contents[0].Text, "pass `expected_version`")
+	assert.Contains(t, read.Contents[0].Text, "not an atomic lock")
+
 	// Shared model/workflow guidance belongs in server instructions, not repeated tool descriptions.
 	for _, tool := range New(nil).GetTools() {
 		schema, ok := tool.MCPTool.InputSchema.(*jsonschema.Schema)
