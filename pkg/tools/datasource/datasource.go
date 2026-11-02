@@ -131,7 +131,7 @@ func (d *datasource) Query() *tools.Tool {
 
 		resp, err := helper.Do(ctx, sharedInput)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, fmt.Errorf("error querying datasource '%s' in project '%s': %w", input.DatasourceName, input.Project, err)
 		}
 		text, err := resp.Text()
 		if err != nil {

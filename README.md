@@ -395,7 +395,7 @@ For ephemeral dashboard configuration, see [Perses EphemeralDashboard](https://g
 - **`headers`** allows passing additional request headers. The `Authorization` header is always blocked in tool input; use Perses secrets for authentication.
 - On success (HTTP 2xx), the tool returns the response body of the datasource unchanged (e.g. the JSON document of the Prometheus API). Response headers are not returned.
 - On an HTTP error status, the tool returns an error (`isError: true`) containing the HTTP status and the response body.
-- Response bodies are capped at **1 MiB** to avoid exceeding LLM context limits.
+- Response bodies are capped at **1 MiB** to avoid exceeding LLM context limits. When a body is larger, it is truncated and the marker `[response truncated: exceeded 1 MiB limit]` is appended on a new line.
 
 **Example — Prometheus instant query via a global datasource:**
 

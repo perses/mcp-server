@@ -104,7 +104,8 @@ answer of Perses: for example the JSON document `{"status":"success","data":{...
 headers are not returned. On an HTTP error status, the tool returns an error (`isError: true`) that contains the HTTP
 status and the response body.
 
-The response body is truncated to 1 MiB, to avoid exceeding the context of the LLM.
+The response body is truncated to 1 MiB, to avoid exceeding the context of the LLM. When the body is truncated, the
+marker `[response truncated: exceeded 1 MiB limit]` is appended on a new line, so that the truncation is visible.
 
 Example of an instant query on a global Prometheus datasource:
 
