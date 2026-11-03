@@ -54,7 +54,7 @@ type ProjectRoleInput struct {
 func (r *role) List() *tools.Tool {
 	tool := &mcp.Tool{
 		Name:        "perses_list_project_roles",
-		Description: "List Roles for a specific project",
+		Description: "List the roles of one project with their permissions (actions + scopes). Roles grant nothing until bound to users with a role binding (perses_list_project_role_bindings). Only available when authorization is enabled on the Perses server (config security.enable_auth=true); otherwise the API answers 404 'document not found' (reads) or 405 'Method Not Allowed' (writes), which does not mean the project or object is missing.",
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Lists roles for a specific project in Perses",
 			ReadOnlyHint:    true,
@@ -110,7 +110,7 @@ type GetProjectRoleByNameInput struct {
 func (r *role) Get() *tools.Tool {
 	tool := &mcp.Tool{
 		Name:        "perses_get_project_role_by_name",
-		Description: "Get a role by name in a specific project",
+		Description: "Get one project role by name with its permissions (actions + scopes).",
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Gets a role by name in a specific project in Perses",
 			ReadOnlyHint:    true,
@@ -170,14 +170,14 @@ func (r *role) Get() *tools.Tool {
 type CreateProjectRoleInput struct {
 	Project string   `json:"project" jsonschema:"Project name"`
 	Name    string   `json:"name" jsonschema:"Role name"`
-	Actions []string `json:"actions" jsonschema:"List of actions (e.g., read, create, update, delete)"`
-	Scopes  []string `json:"scopes" jsonschema:"List of scopes (resource kinds the role applies to, must not be global scopes)"`
+	Actions []string `json:"actions" jsonschema:"Actions granted: read, create, update, delete, or * for all"`
+	Scopes  []string `json:"scopes" jsonschema:"Project resource kinds the actions apply to: Dashboard, Datasource, EphemeralDashboard, Folder, Project, Role, RoleBinding, Secret, Variable, or * for all"`
 }
 
 func (r *role) Create() *tools.Tool {
 	tool := &mcp.Tool{
 		Name:        "perses_create_project_role",
-		Description: "Create a project role with specified permissions",
+		Description: "Create a project role with a single permission made of actions (read, create, update, delete or *) applied to project-level scopes (Dashboard, Datasource, EphemeralDashboard, Folder, Project, Role, RoleBinding, Secret, Variable or *). For read-only access to dashboards use actions=[\"read\"], scopes=[\"Dashboard\"]. Bind it to users with perses_create_project_role_binding. Fails if the role exists. Only available when authorization is enabled on the Perses server (config security.enable_auth=true); otherwise the API answers 404 'document not found' (reads) or 405 'Method Not Allowed' (writes), which does not mean the project or object is missing.",
 		InputSchema: &jsonschema.Schema{
 			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
@@ -197,14 +197,14 @@ func (r *role) Create() *tools.Tool {
 				},
 				"actions": {
 					Type:        tools.SchemaTypeArray,
-					Description: "List of actions (e.g., read, create, update, delete)",
+					Description: "Actions granted: read, create, update, delete, or * for all",
 					Items: &jsonschema.Schema{
 						Type: tools.SchemaTypeString,
 					},
 				},
 				"scopes": {
 					Type:        tools.SchemaTypeArray,
-					Description: "List of scopes (resource kinds the role applies to, must not be global scopes)",
+					Description: "Project resource kinds the actions apply to: Dashboard, Datasource, EphemeralDashboard, Folder, Project, Role, RoleBinding, Secret, Variable, or * for all",
 					Items: &jsonschema.Schema{
 						Type: tools.SchemaTypeString,
 					},
@@ -280,14 +280,14 @@ func (r *role) Create() *tools.Tool {
 type UpdateProjectRoleInput struct {
 	Project string   `json:"project" jsonschema:"Project name"`
 	Name    string   `json:"name" jsonschema:"Role name"`
-	Actions []string `json:"actions" jsonschema:"List of actions (e.g., read, create, update, delete)"`
-	Scopes  []string `json:"scopes" jsonschema:"List of scopes (resource kinds the role applies to, must not be global scopes)"`
+	Actions []string `json:"actions" jsonschema:"Actions granted: read, create, update, delete, or * for all"`
+	Scopes  []string `json:"scopes" jsonschema:"Project resource kinds the actions apply to: Dashboard, Datasource, EphemeralDashboard, Folder, Project, Role, RoleBinding, Secret, Variable, or * for all"`
 }
 
 func (r *role) Update() *tools.Tool {
 	tool := &mcp.Tool{
 		Name:        "perses_update_project_role",
-		Description: "Update an existing project role with specified permissions",
+		Description: "Replace the permissions of an existing project role with the given actions and scopes (same values as perses_create_project_role). Previous permissions are discarded, so include everything the role should keep.",
 		InputSchema: &jsonschema.Schema{
 			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
@@ -307,14 +307,14 @@ func (r *role) Update() *tools.Tool {
 				},
 				"actions": {
 					Type:        tools.SchemaTypeArray,
-					Description: "List of actions (e.g., read, create, update, delete)",
+					Description: "Actions granted: read, create, update, delete, or * for all",
 					Items: &jsonschema.Schema{
 						Type: tools.SchemaTypeString,
 					},
 				},
 				"scopes": {
 					Type:        tools.SchemaTypeArray,
-					Description: "List of scopes (resource kinds the role applies to, must not be global scopes)",
+					Description: "Project resource kinds the actions apply to: Dashboard, Datasource, EphemeralDashboard, Folder, Project, Role, RoleBinding, Secret, Variable, or * for all",
 					Items: &jsonschema.Schema{
 						Type: tools.SchemaTypeString,
 					},
@@ -395,7 +395,7 @@ type DeleteProjectRoleInput struct {
 func (r *role) Delete() *tools.Tool {
 	tool := &mcp.Tool{
 		Name:        "perses_delete_project_role",
-		Description: "Delete a project role",
+		Description: "Permanently delete a project role. Role bindings referencing it stop granting access.",
 		InputSchema: &jsonschema.Schema{
 			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{

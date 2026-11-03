@@ -1106,23 +1106,31 @@ func TestGetAndList(t *testing.T) {
 	found := mustCall(t, session, "perses_get_dashboard_by_name", map[string]any{"project": "myproject", "name": "cpu", "panels": []string{"p1"}})
 	assert.NotContains(t, found, "available", "available is only returned when a key is missing")
 
-	text := mustFail(t, session, "perses_get_dashboard_by_name", map[string]any{"project": "myproject", "name": "cpu", "panels": []string{""}})
-	assert.Contains(t, text, "panels")
+	for _, empty := range [][]string{{}, {" "}} {
+		outlined := mustCall(t, session, "perses_get_dashboard_by_name", map[string]any{"project": "myproject", "name": "cpu", "summary": false, "panels": empty})
+		assert.Nil(t, outlined["kind"], "an empty panel selection must not fall back to the full dashboard")
+		assert.NotEmpty(t, outlined["panelList"], "an empty panel selection returns the outline")
+	}
 
-	text = mustFail(t, session, "perses_get_dashboard_by_name", map[string]any{"project": "myproject", "name": "cpu", "summary": false, "panels": []string{}})
-	assert.Contains(t, text, "panels")
-	assert.NotContains(t, text, `"kind"`, "an empty panel selection must not fall back to the full dashboard")
+	for _, guessed := range [][]string{{""}, {"nope"}} {
+		fallback := mustCall(t, session, "perses_get_dashboard_by_name", map[string]any{"project": "myproject", "name": "cpu", "panels": guessed})
+		assert.NotEmpty(t, fallback["panelList"], "guessed keys must fall back to the outline")
+	}
 
-	text = mustFail(t, session, "perses_get_dashboard_by_name", map[string]any{"project": "myproject", "name": "nope"})
+	text := mustFail(t, session, "perses_get_dashboard_by_name", map[string]any{"project": "myproject", "name": "nope"})
 	assert.Contains(t, text, "does not exist")
 
 	list, isError := callTool(t, session, "perses_list_dashboards", map[string]any{"project": "myproject"})
 	require.False(t, isError)
-	var listed []map[string]any
+	var listed struct {
+		Count      int              `json:"count"`
+		Dashboards []map[string]any `json:"dashboards"`
+	}
 	require.NoError(t, json.Unmarshal([]byte(list), &listed))
-	require.Len(t, listed, 1)
-	assert.Equal(t, "cpu", listed[0]["name"])
-	assert.Equal(t, float64(1), listed[0]["panels"])
+	assert.Equal(t, 1, listed.Count)
+	require.Len(t, listed.Dashboards, 1)
+	assert.Equal(t, "cpu", listed.Dashboards[0]["name"])
+	assert.Equal(t, float64(1), listed.Dashboards[0]["panels"])
 }
 
 func TestDashboardLinksOmitCredentials(t *testing.T) {
@@ -1167,8 +1175,10 @@ func TestGetMissingPanelsOnEmptyDashboard(t *testing.T) {
 	mustCall(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": dash})
 
 	result := mustCall(t, session, "perses_get_dashboard_by_name", map[string]any{"project": "myproject", "name": "cpu", "panels": []string{"p1"}})
+	// None of the requested keys exists: the outline (with its empty panelList) comes back with missing.
 	assert.Equal(t, []any{"p1"}, result["missing"])
-	assert.Equal(t, map[string]any{}, result["available"], "an empty dashboard reports that no panel is available")
+	assert.Nil(t, result["panelList"])
+	assert.Nil(t, result["kind"])
 }
 
 func TestAvailablePanelsWithoutDisplay(t *testing.T) {

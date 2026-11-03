@@ -49,7 +49,7 @@ func (g *globalRoleBinding) GetTools() []*tools.Tool {
 func (g *globalRoleBinding) List() *tools.Tool {
 	tool := &mcp.Tool{
 		Name:        "perses_list_global_role_bindings",
-		Description: "List all Perses Global Role Bindings",
+		Description: "List all global role bindings: which users (subjects) get which global role. Only available when authorization is enabled on the Perses server (config security.enable_auth=true); otherwise the API answers 404 'document not found' (reads) or 405 'Method Not Allowed' (writes), which does not mean the project or object is missing.",
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Lists all global role bindings in Perses",
 			ReadOnlyHint:    true,
@@ -93,7 +93,7 @@ type GetGlobalRoleBindingByNameInput struct {
 func (g *globalRoleBinding) Get() *tools.Tool {
 	tool := &mcp.Tool{
 		Name:        "perses_get_global_role_binding_by_name",
-		Description: "Get a global role binding by name",
+		Description: "Get one global role binding by name: the bound global role and its user subjects.",
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Gets a global role binding by name in Perses",
 			ReadOnlyHint:    true,
@@ -146,13 +146,13 @@ func (g *globalRoleBinding) Get() *tools.Tool {
 type CreateGlobalRoleBindingInput struct {
 	Name     string   `json:"name" jsonschema:"Global Role Binding name"`
 	Role     string   `json:"role" jsonschema:"Name of the GlobalRole to bind"`
-	Subjects []string `json:"subjects" jsonschema:"List of user names to bind to the role"`
+	Subjects []string `json:"subjects" jsonschema:"User names (Perses login names) that receive the role; the full list replaces any previous subjects"`
 }
 
 func (g *globalRoleBinding) Create() *tools.Tool {
 	tool := &mcp.Tool{
 		Name:        "perses_create_global_role_binding",
-		Description: "Create a global role binding that binds users to a global role",
+		Description: "Grant an existing global role to a list of user names. Fails if the binding name exists. Only available when authorization is enabled on the Perses server (config security.enable_auth=true); otherwise the API answers 404 'document not found' (reads) or 405 'Method Not Allowed' (writes), which does not mean the project or object is missing.",
 		InputSchema: &jsonschema.Schema{
 			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
@@ -170,7 +170,7 @@ func (g *globalRoleBinding) Create() *tools.Tool {
 				},
 				"subjects": {
 					Type:        "array",
-					Description: "List of user names to bind to the role",
+					Description: "User names (Perses login names) that receive the role; the full list replaces any previous subjects",
 					Items: &jsonschema.Schema{
 						Type: tools.SchemaTypeString,
 					},
@@ -236,13 +236,13 @@ func (g *globalRoleBinding) Create() *tools.Tool {
 type UpdateGlobalRoleBindingInput struct {
 	Name     string   `json:"name" jsonschema:"Global Role Binding name"`
 	Role     string   `json:"role" jsonschema:"Name of the GlobalRole to bind"`
-	Subjects []string `json:"subjects" jsonschema:"List of user names to bind to the role"`
+	Subjects []string `json:"subjects" jsonschema:"User names (Perses login names) that receive the role; the full list replaces any previous subjects"`
 }
 
 func (g *globalRoleBinding) Update() *tools.Tool {
 	tool := &mcp.Tool{
 		Name:        "perses_update_global_role_binding",
-		Description: "Update an existing global role binding",
+		Description: "Replace the role and the complete subject list of an existing global role binding. Users not listed lose the grant, so read it first to add or remove one user.",
 		InputSchema: &jsonschema.Schema{
 			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
@@ -260,7 +260,7 @@ func (g *globalRoleBinding) Update() *tools.Tool {
 				},
 				"subjects": {
 					Type:        "array",
-					Description: "List of user names to bind to the role",
+					Description: "User names (Perses login names) that receive the role; the full list replaces any previous subjects",
 					Items: &jsonschema.Schema{
 						Type: tools.SchemaTypeString,
 					},
@@ -330,7 +330,7 @@ type DeleteGlobalRoleBindingInput struct {
 func (g *globalRoleBinding) Delete() *tools.Tool {
 	tool := &mcp.Tool{
 		Name:        "perses_delete_global_role_binding",
-		Description: "Delete a global role binding",
+		Description: "Permanently delete a global role binding; its users lose the permissions it granted.",
 		InputSchema: &jsonschema.Schema{
 			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{

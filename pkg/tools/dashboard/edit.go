@@ -31,7 +31,7 @@ import (
 // editProperties are the input properties shared by the incremental tools.
 func editProperties(extra map[string]*jsonschema.Schema) map[string]*jsonschema.Schema {
 	properties := map[string]*jsonschema.Schema{
-		string(tools.ProjectResource): projectSchema("Project of the dashboard"),
+		string(tools.ProjectResource): projectSchema("Project of the dashboard (metadata.name from perses_list_projects)"),
 		tools.ResourceName:            nameSchema("Name of the existing dashboard to modify"),
 		expectedVersionProperty:       expectedVersionSchema(),
 		dryRunProperty:                dryRunSchema(),
@@ -98,14 +98,18 @@ func (d *dashboard) SetPanels() *tools.Tool {
 			"panels, placements or remove. Replaced panels keep their position. New panels take the first free spot of the " +
 			"24-column Grid group named by layout (created if missing; last group by default), sized width x height " +
 			"(default 12x6); placements set exact positions. Removals apply first. Validates before saving and returns " +
-			"a summary of changes or field-level validation errors.",
+			"a summary of changes or field-level validation errors. See perses_get_plugin_schema for the spec of a panel or query " +
+			"plugin kind. Explicit placements are not checked for overlap: when widening or moving a panel, also place the panels it would cover.",
 		InputSchema: &jsonschema.Schema{
 			Type: tools.SchemaTypeObject,
 			Properties: editProperties(map[string]*jsonschema.Schema{
 				"panels": {
 					Types: []string{tools.SchemaTypeObject, tools.SchemaTypeString},
-					Description: "Map of panel key to panel: {\"<key>\": {\"kind\": \"Panel\", \"spec\": {\"display\": {\"name\": \"...\"}, " +
-						"\"plugin\": {...}, \"queries\": [...]}}}. Optional for placements-only edits. Keys must match " + tools.PatternResourceName + ".",
+					Description: "Map of panel key to panel, e.g. {\"total\": {\"kind\": \"Panel\", \"spec\": {\"display\": {\"name\": \"Total\"}, " +
+						"\"plugin\": {\"kind\": \"StatChart\", \"spec\": {\"calculation\": \"last\"}}, \"queries\": [{\"kind\": \"TimeSeriesQuery\", " +
+						"\"spec\": {\"plugin\": {\"kind\": \"PrometheusTimeSeriesQuery\", \"spec\": {\"query\": \"count(up)\"}}}}]}}}. " +
+						"A query uses the default datasource of its kind unless its plugin spec names one, e.g. \"datasource\": {\"kind\": \"PrometheusDatasource\", \"name\": \"<name>\"}. " +
+						"Optional for placements-only edits. Keys must match " + tools.PatternResourceName + ".",
 				},
 				"order": {
 					Type: tools.SchemaTypeArray,
@@ -149,8 +153,8 @@ func (d *dashboard) SetPanels() *tools.Tool {
 				},
 				"remove": {
 					Type: tools.SchemaTypeArray,
-					Description: "Keys of panels to delete, together with their layout items; must not overlap panels or " +
-						"placements. Unknown keys are reported and ignored.",
+					Description: "Keys of panels to delete (panelList[].key from perses_get_dashboard_by_name, not titles), together " +
+						"with their layout items; other panels do not move. Must not overlap panels or placements. Unknown keys are reported and ignored.",
 					Items:       &jsonschema.Schema{Type: tools.SchemaTypeString, MinLength: new(1)},
 					UniqueItems: true,
 				},
@@ -378,7 +382,8 @@ func (d *dashboard) SetVariables() *tools.Tool {
 		Description: "Add, replace or remove variables of an existing dashboard. A variable with the same spec.name is " +
 			"replaced in place, others are appended; removals apply first. Variables are {kind: TextVariable|ListVariable, " +
 			"spec: {name, display: {name}, plugin: {kind: e.g. PrometheusLabelValuesVariable, spec: {labelName, matchers}}, " +
-			"allowAllValue, allowMultiple}}; use them in queries as $name.",
+			"allowAllValue, allowMultiple}}; a TextVariable has no plugin: {kind: TextVariable, spec: {name, value}}. " +
+			"Use them in queries as $name (with allowMultiple, match with =~\"$name\").",
 		InputSchema: &jsonschema.Schema{
 			Type: tools.SchemaTypeObject,
 			Properties: editProperties(map[string]*jsonschema.Schema{
@@ -389,8 +394,9 @@ func (d *dashboard) SetVariables() *tools.Tool {
 				},
 				"remove": {
 					Type: tools.SchemaTypeArray,
-					Description: "Names (spec.name) of variables to delete; must not overlap the variables being set. " +
-						"Unknown names are reported and ignored.",
+					Description: "Names (spec.name) of variables to delete; must not overlap the variables being set. If a remaining " +
+						"variable or panel query still references $name, nothing is saved and the validation errors name the dependent; " +
+						"remove dependents in the same call. Unknown names are reported and ignored.",
 					Items:       &jsonschema.Schema{Type: tools.SchemaTypeString, MinLength: new(1)},
 					UniqueItems: true,
 				},

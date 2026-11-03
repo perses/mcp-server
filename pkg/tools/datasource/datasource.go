@@ -53,7 +53,7 @@ type QueryProjectDatasourceInput struct {
 	DatasourceName string            `json:"datasource_name" jsonschema:"Datasource name"`
 	Method         string            `json:"method,omitempty" jsonschema:"HTTP method (default GET)"`
 	Path           string            `json:"path,omitempty" jsonschema:"Datasource endpoint path (e.g. /api/v1/query_range)"`
-	QueryParams    map[string]string `json:"query_params,omitempty" jsonschema:"Query string parameters"`
+	QueryParams    map[string]string `json:"query_params,omitempty" jsonschema:"Query string parameters, e.g. {\"query\": \"sum(rate(http_requests_total[5m]))\"} or for query_range also start, end (RFC3339 or unix seconds) and step (e.g. 60s)"`
 	Body           string            `json:"body,omitempty" jsonschema:"Raw request body (JSON or form payload)"`
 	Headers        map[string]string `json:"headers,omitempty" jsonschema:"Optional additional request headers"`
 }
@@ -61,7 +61,7 @@ type QueryProjectDatasourceInput struct {
 func (d *datasource) Query() *tools.Tool {
 	tool := &mcp.Tool{
 		Name:        "perses_query_project_datasource",
-		Description: "Query a project datasource through Perses proxy",
+		Description: "Send an HTTP request to a project datasource through the Perses proxy, using the backend's native API. Set path relative to the datasource URL; without it the backend web UI (HTML) is returned. The path and parameters depend on the datasource kind (Prometheus, Tempo, Loki, OpenSearch, ...); see the path and query_params parameters for Prometheus. Returns the backend response body unchanged (usually JSON); a non-2xx status is returned as an error containing the HTTP status and body. Bodies over 1 MiB are cut and end with a '[response truncated ...]' marker, so always aggregate or filter so results stay small. Use perses_query_global_datasource for global datasources.",
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Queries a project datasource through Perses proxy",
 			ReadOnlyHint:    true,
@@ -74,14 +74,14 @@ func (d *datasource) Query() *tools.Tool {
 			Properties: map[string]*jsonschema.Schema{
 				string(tools.ProjectResource): {
 					Type:        tools.SchemaTypeString,
-					Description: "Project name",
+					Description: "Project name (metadata.name from perses_list_projects)",
 					MinLength:   new(1),
 					MaxLength:   new(75),
 					Pattern:     tools.PatternResourceName,
 				},
 				"datasource_name": {
 					Type:        tools.SchemaTypeString,
-					Description: "Datasource name",
+					Description: "Datasource metadata.name, as returned by perses_list_project_datasources",
 					MinLength:   new(1),
 					MaxLength:   new(75),
 					Pattern:     tools.PatternResourceName,
@@ -93,11 +93,11 @@ func (d *datasource) Query() *tools.Tool {
 				},
 				"path": {
 					Type:        tools.SchemaTypeString,
-					Description: "Datasource endpoint path",
+					Description: "Backend API path relative to the datasource URL. Required in practice: an empty path returns the backend web UI. For Prometheus/Thanos: /api/v1/query (instant; the value is data.result[i].value[1]), /api/v1/query_range, /api/v1/labels",
 				},
 				"query_params": {
 					Type:        tools.SchemaTypeObject,
-					Description: "Query string parameters",
+					Description: "Query string parameters. For Prometheus: {\"query\": \"count(up)\"}; query_range also needs start, end (RFC3339 or unix seconds) and step (e.g. 60s). To list metric names by prefix use query count by (__name__) ({__name__=~\"kube_pod_.*\"}): label-values endpoints with regex matchers often time out on large Thanos backends, and there is no timeout parameter",
 					AdditionalProperties: &jsonschema.Schema{
 						Type: tools.SchemaTypeString,
 					},
@@ -160,7 +160,7 @@ type ListProjectDatasourcesInput struct {
 func (d *datasource) List() *tools.Tool {
 	tool := &mcp.Tool{
 		Name:        "perses_list_project_datasources",
-		Description: "List Datasources for a specific project",
+		Description: "List the datasources defined in one project (full objects: name, plugin kind, proxy URL, default flag). Dashboards in a project can also use global datasources, so an empty list is normal; call perses_list_global_datasources as well to see everything a dashboard can query. A project datasource overrides a global one with the same name.",
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Lists datasources for a specific project in Perses",
 			ReadOnlyHint:    true,
@@ -173,7 +173,7 @@ func (d *datasource) List() *tools.Tool {
 			Properties: map[string]*jsonschema.Schema{
 				string(tools.ProjectResource): {
 					Type:        tools.SchemaTypeString,
-					Description: "Project name",
+					Description: "Project name (metadata.name from perses_list_projects)",
 					MinLength:   new(1),
 					MaxLength:   new(75),
 					Pattern:     tools.PatternResourceName,
@@ -218,7 +218,7 @@ type GetProjectDatasourceByNameInput struct {
 func (d *datasource) Get() *tools.Tool {
 	tool := &mcp.Tool{
 		Name:        "perses_get_project_datasource_by_name",
-		Description: "Get a datasource by name in a specific project",
+		Description: "Get the full definition of one project datasource by its metadata.name (plugin kind, proxy/direct URL, default flag). Fails if it does not exist in that project; it may be a global datasource instead (perses_get_global_datasource_by_name).",
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Gets a datasource by name in a specific project in Perses",
 			ReadOnlyHint:    true,
@@ -231,14 +231,14 @@ func (d *datasource) Get() *tools.Tool {
 			Properties: map[string]*jsonschema.Schema{
 				string(tools.ProjectResource): {
 					Type:        tools.SchemaTypeString,
-					Description: "Project name",
+					Description: "Project name (metadata.name from perses_list_projects)",
 					MinLength:   new(1),
 					MaxLength:   new(75),
 					Pattern:     tools.PatternResourceName,
 				},
 				tools.ResourceName: {
 					Type:        tools.SchemaTypeString,
-					Description: "Datasource name",
+					Description: "Datasource metadata.name, as returned by perses_list_project_datasources",
 					MinLength:   new(1),
 					MaxLength:   new(75),
 					Pattern:     tools.PatternResourceName,
@@ -277,26 +277,26 @@ func (d *datasource) Get() *tools.Tool {
 
 type CreateDatasourceInput struct {
 	Project    string `json:"project" jsonschema:"Project name to create the datasource in"`
-	Datasource string `json:"datasource" jsonschema:"Datasource JSON as string"`
+	Datasource string `json:"datasource" jsonschema:"Complete datasource JSON as a string: {kind: Datasource, metadata: {name, project}, spec: {default, plugin: {kind, spec}}}"`
 }
 
 func (d *datasource) Create() *tools.Tool {
 	tool := &mcp.Tool{
 		Name:        "perses_create_project_datasource",
-		Description: "Create a new datasource in a specific project",
+		Description: "Create a datasource in a project from its complete JSON: {kind: Datasource, metadata: {name, project}, spec: {default, plugin: {kind, spec}}}. The plugin spec differs per datasource kind (e.g. Prometheus, Tempo, OpenSearch, Alertmanager); see perses_list_plugins for installed kinds and perses_get_plugin_schema for the spec of one kind; check it first with perses_validate_datasource. Reachability is not checked: afterwards call perses_validate_datasource with name and check_connectivity:true. Fails if the name already exists. Returns the created object.",
 		InputSchema: &jsonschema.Schema{
 			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
 				string(tools.ProjectResource): {
 					Type:        tools.SchemaTypeString,
-					Description: "Project name",
+					Description: "Project name (metadata.name from perses_list_projects)",
 					MinLength:   new(1),
 					MaxLength:   new(75),
 					Pattern:     tools.PatternResourceName,
 				},
 				string(tools.DatasourceResource): {
 					Type:        tools.SchemaTypeString,
-					Description: "Datasource JSON as string",
+					Description: "Complete datasource JSON as a string: {kind: Datasource, metadata: {name, project}, spec: {default, plugin: {kind, spec}}}",
 				},
 			},
 			Required: []string{string(tools.ProjectResource), string(tools.DatasourceResource)},
@@ -344,26 +344,26 @@ func (d *datasource) Create() *tools.Tool {
 
 type UpdateDatasourceInput struct {
 	Project    string `json:"project" jsonschema:"Project name to update the datasource in"`
-	Datasource string `json:"datasource" jsonschema:"Datasource JSON as string"`
+	Datasource string `json:"datasource" jsonschema:"Complete datasource JSON as a string: {kind: Datasource, metadata: {name, project}, spec: {default, plugin: {kind, spec}}}"`
 }
 
 func (d *datasource) Update() *tools.Tool {
 	tool := &mcp.Tool{
 		Name:        "perses_update_project_datasource",
-		Description: "Update an existing datasource in a specific project",
+		Description: "Replace an existing project datasource with the complete JSON given (same shape as perses_create_project_datasource; metadata.name selects the datasource). Fields you omit are removed, so read it first with perses_get_project_datasource_by_name and change only what you need. Returns the updated object.",
 		InputSchema: &jsonschema.Schema{
 			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
 				string(tools.ProjectResource): {
 					Type:        tools.SchemaTypeString,
-					Description: "Project name",
+					Description: "Project name (metadata.name from perses_list_projects)",
 					MinLength:   new(1),
 					MaxLength:   new(75),
 					Pattern:     tools.PatternResourceName,
 				},
 				string(tools.DatasourceResource): {
 					Type:        tools.SchemaTypeString,
-					Description: "Datasource JSON as string",
+					Description: "Complete datasource JSON as a string: {kind: Datasource, metadata: {name, project}, spec: {default, plugin: {kind, spec}}}",
 				},
 			},
 			Required: []string{string(tools.ProjectResource), string(tools.DatasourceResource)},
@@ -417,20 +417,20 @@ type DeleteDatasourceInput struct {
 func (d *datasource) Delete() *tools.Tool {
 	tool := &mcp.Tool{
 		Name:        "perses_delete_project_datasource",
-		Description: "Delete a datasource from a specific project",
+		Description: "Permanently delete a datasource from a project. Dashboard panels that reference it by name will stop returning data unless a global datasource with the same name exists. Cannot be undone.",
 		InputSchema: &jsonschema.Schema{
 			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
 				string(tools.ProjectResource): {
 					Type:        tools.SchemaTypeString,
-					Description: "Project name",
+					Description: "Project name (metadata.name from perses_list_projects)",
 					MinLength:   new(1),
 					MaxLength:   new(75),
 					Pattern:     tools.PatternResourceName,
 				},
 				tools.ResourceName: {
 					Type:        tools.SchemaTypeString,
-					Description: "Datasource name",
+					Description: "Datasource metadata.name, as returned by perses_list_project_datasources",
 					MinLength:   new(1),
 					MaxLength:   new(75),
 					Pattern:     tools.PatternResourceName,

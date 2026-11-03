@@ -43,7 +43,7 @@ func (p *plugin) GetTools() []*tools.Tool {
 func (p *plugin) List() *tools.Tool {
 	tool := &mcp.Tool{
 		Name:        "perses_list_plugins",
-		Description: "List all Perses Plugins",
+		Description: "List the plugin modules installed on the Perses server and the plugin kinds each provides (Panel, Query, Variable, Datasource), with versions and load status. Use the kind names (e.g. TimeSeriesChart, PrometheusTimeSeriesQuery) in dashboard JSON and with perses_get_plugin_schema for field definitions.",
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Lists all plugins in Perses",
 			ReadOnlyHint:    true,

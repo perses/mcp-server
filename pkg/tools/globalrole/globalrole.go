@@ -50,7 +50,7 @@ func (g *globalRole) GetTools() []*tools.Tool {
 func (g *globalRole) List() *tools.Tool {
 	tool := &mcp.Tool{
 		Name:        "perses_list_global_roles",
-		Description: "List all Perses Global Roles",
+		Description: "List all global roles with their permissions (actions + scopes). Global roles apply across all projects and to global resources; they are granted through global role bindings. Only available when authorization is enabled on the Perses server (config security.enable_auth=true); otherwise the API answers 404 'document not found' (reads) or 405 'Method Not Allowed' (writes), which does not mean the project or object is missing.",
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Lists all global roles in Perses",
 			ReadOnlyHint:    true,
@@ -94,7 +94,7 @@ type GetGlobalRoleByNameInput struct {
 func (g *globalRole) Get() *tools.Tool {
 	tool := &mcp.Tool{
 		Name:        "perses_get_global_role_by_name",
-		Description: "Get a global role by name",
+		Description: "Get one global role by name with its permissions (actions + scopes).",
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Gets a global role by name in Perses",
 			ReadOnlyHint:    true,
@@ -146,14 +146,14 @@ func (g *globalRole) Get() *tools.Tool {
 
 type CreateGlobalRoleInput struct {
 	Name    string   `json:"name" jsonschema:"Global Role name"`
-	Actions []string `json:"actions" jsonschema:"List of actions (e.g., read, create, update, delete)"`
-	Scopes  []string `json:"scopes" jsonschema:"List of scopes (resource kinds the role applies to)"`
+	Actions []string `json:"actions" jsonschema:"Actions granted: read, create, update, delete, or * for all"`
+	Scopes  []string `json:"scopes" jsonschema:"Resource kinds the actions apply to, e.g. GlobalDatasource, GlobalVariable, GlobalRole, GlobalRoleBinding, GlobalSecret, User, Dashboard, Project, or * for all"`
 }
 
 func (g *globalRole) Create() *tools.Tool {
 	tool := &mcp.Tool{
 		Name:        "perses_create_global_role",
-		Description: "Create a global role with specified permissions",
+		Description: "Create a global role with a single permission made of actions (read, create, update, delete or *) applied to scopes, which may be global (GlobalDatasource, GlobalRole, GlobalRoleBinding, GlobalSecret, GlobalVariable, User) or project-level kinds (Dashboard, Project, ...) applying to all projects, or *. Bind it with perses_create_global_role_binding. Fails if the role exists. Only available when authorization is enabled on the Perses server (config security.enable_auth=true); otherwise the API answers 404 'document not found' (reads) or 405 'Method Not Allowed' (writes), which does not mean the project or object is missing.",
 		InputSchema: &jsonschema.Schema{
 			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
@@ -166,14 +166,14 @@ func (g *globalRole) Create() *tools.Tool {
 				},
 				"actions": {
 					Type:        tools.SchemaTypeArray,
-					Description: "List of actions (e.g., read, create, update, delete)",
+					Description: "Actions granted: read, create, update, delete, or * for all",
 					Items: &jsonschema.Schema{
 						Type: tools.SchemaTypeString,
 					},
 				},
 				"scopes": {
 					Type:        tools.SchemaTypeArray,
-					Description: "List of scopes (resource kinds the role applies to)",
+					Description: "Resource kinds the actions apply to, e.g. GlobalDatasource, GlobalVariable, GlobalRole, GlobalRoleBinding, GlobalSecret, User, Dashboard, Project, or * for all",
 					Items: &jsonschema.Schema{
 						Type: tools.SchemaTypeString,
 					},
@@ -243,14 +243,14 @@ func (g *globalRole) Create() *tools.Tool {
 
 type UpdateGlobalRoleInput struct {
 	Name    string   `json:"name" jsonschema:"Global Role name"`
-	Actions []string `json:"actions" jsonschema:"List of actions (e.g., read, create, update, delete)"`
-	Scopes  []string `json:"scopes" jsonschema:"List of scopes (resource kinds the role applies to)"`
+	Actions []string `json:"actions" jsonschema:"Actions granted: read, create, update, delete, or * for all"`
+	Scopes  []string `json:"scopes" jsonschema:"Resource kinds the actions apply to, e.g. GlobalDatasource, GlobalVariable, GlobalRole, GlobalRoleBinding, GlobalSecret, User, Dashboard, Project, or * for all"`
 }
 
 func (g *globalRole) Update() *tools.Tool {
 	tool := &mcp.Tool{
 		Name:        "perses_update_global_role",
-		Description: "Update an existing global role with specified permissions",
+		Description: "Replace the permissions of an existing global role with the given actions and scopes (same values as perses_create_global_role). Previous permissions are discarded.",
 		InputSchema: &jsonschema.Schema{
 			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
@@ -263,14 +263,14 @@ func (g *globalRole) Update() *tools.Tool {
 				},
 				"actions": {
 					Type:        tools.SchemaTypeArray,
-					Description: "List of actions (e.g., read, create, update, delete)",
+					Description: "Actions granted: read, create, update, delete, or * for all",
 					Items: &jsonschema.Schema{
 						Type: tools.SchemaTypeString,
 					},
 				},
 				"scopes": {
 					Type:        tools.SchemaTypeArray,
-					Description: "List of scopes (resource kinds the role applies to)",
+					Description: "Resource kinds the actions apply to, e.g. GlobalDatasource, GlobalVariable, GlobalRole, GlobalRoleBinding, GlobalSecret, User, Dashboard, Project, or * for all",
 					Items: &jsonschema.Schema{
 						Type: tools.SchemaTypeString,
 					},
@@ -345,7 +345,7 @@ type DeleteGlobalRoleInput struct {
 func (g *globalRole) Delete() *tools.Tool {
 	tool := &mcp.Tool{
 		Name:        "perses_delete_global_role",
-		Description: "Delete a global role",
+		Description: "Permanently delete a global role. Global role bindings referencing it stop granting access.",
 		InputSchema: &jsonschema.Schema{
 			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{

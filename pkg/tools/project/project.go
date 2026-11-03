@@ -38,7 +38,7 @@ func New(client apiClient.ClientInterface) resource.Resource {
 }
 
 type CreateProjectInput struct {
-	Project     string `json:"project" jsonschema:"Name of the project to create"`
+	Project     string `json:"project" jsonschema:"Permanent project name (metadata.name), e.g. my-team"`
 	DisplayName string `json:"displayName" jsonschema:"Display name for the project"`
 	Description string `json:"description" jsonschema:"Description for the project"`
 }
@@ -52,7 +52,7 @@ func (p *project) Create() *tools.Tool {
 			IdempotentHint:  true,
 			OpenWorldHint:   new(false),
 		},
-		Description: "Create a new Perses Project",
+		Description: "Create an empty project, the namespace that holds dashboards, datasources, variables, roles and role bindings. The project argument is its permanent name (letters, digits, _ . -); displayName is the human-readable title. Fails if it already exists.",
 		InputSchema: &jsonschema.Schema{
 			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
@@ -123,7 +123,7 @@ type ListProjectsInput struct{}
 func (p *project) List() *tools.Tool {
 	tool := &mcp.Tool{
 		Name:        "perses_list_projects",
-		Description: "List all Perses projects",
+		Description: "List all projects (name, creation and update time). Projects are the namespaces that contain dashboards, datasources, variables, roles and role bindings; most other tools need a project name from here.",
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Lists all projects in Perses",
 			ReadOnlyHint:    true,
@@ -168,7 +168,7 @@ type UpdateProjectInput struct {
 func (p *project) Update() *tools.Tool {
 	tool := &mcp.Tool{
 		Name:        "perses_update_project",
-		Description: "Update an existing Perses Project",
+		Description: "Set the display name and description of an existing project, identified by name. The project name itself cannot be changed; to rename, create a new project and move its resources. Fields you omit are cleared. Returns the updated project.",
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Updates an existing project in Perses",
 			ReadOnlyHint:    false,
@@ -247,7 +247,7 @@ type DeleteProjectInput struct {
 func (p *project) Delete() *tools.Tool {
 	tool := &mcp.Tool{
 		Name:        "perses_delete_project",
-		Description: "Delete a Perses project",
+		Description: "Permanently delete a project and everything in it (dashboards, datasources, variables, roles, role bindings). Cannot be undone; confirm with the user first.",
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Deletes a project in Perses",
 			ReadOnlyHint:    false,
@@ -299,7 +299,7 @@ type GetProjectInput struct {
 func (p *project) Get() *tools.Tool {
 	tool := &mcp.Tool{
 		Name:        "perses_get_project_by_name",
-		Description: "Get a project by name in Perses",
+		Description: "Get one project by name: display name, description and timestamps. It does not list the project's content; use perses_list_dashboards, perses_list_project_datasources or perses_list_project_variables for that. Fails if the project does not exist; see perses_list_projects.",
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Gets a project by name in Perses",
 			ReadOnlyHint:    true,

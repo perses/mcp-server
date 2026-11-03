@@ -53,7 +53,7 @@ type ProjectRoleBindingInput struct {
 func (r *roleBinding) List() *tools.Tool {
 	tool := &mcp.Tool{
 		Name:        "perses_list_project_role_bindings",
-		Description: "List Role Bindings for a specific project",
+		Description: "List the role bindings of one project: which users (subjects) get which project role. Only available when authorization is enabled on the Perses server (config security.enable_auth=true); otherwise the API answers 404 'document not found' (reads) or 405 'Method Not Allowed' (writes), which does not mean the project or object is missing.",
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Lists role bindings for a specific project in Perses",
 			ReadOnlyHint:    true,
@@ -111,7 +111,7 @@ type GetProjectRoleBindingByNameInput struct {
 func (r *roleBinding) Get() *tools.Tool {
 	tool := &mcp.Tool{
 		Name:        "perses_get_project_role_binding_by_name",
-		Description: "Get a role binding by name in a specific project",
+		Description: "Get one project role binding by name: the bound role and its user subjects.",
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Gets a role binding by name in a specific project in Perses",
 			ReadOnlyHint:    true,
@@ -172,13 +172,13 @@ type CreateProjectRoleBindingInput struct {
 	Project  string   `json:"project" jsonschema:"Project name"`
 	Name     string   `json:"name" jsonschema:"Role Binding name"`
 	Role     string   `json:"role" jsonschema:"Name of the Role to bind"`
-	Subjects []string `json:"subjects" jsonschema:"List of user names to bind to the role"`
+	Subjects []string `json:"subjects" jsonschema:"User names (Perses login names) that receive the role; the full list replaces any previous subjects"`
 }
 
 func (r *roleBinding) Create() *tools.Tool {
 	tool := &mcp.Tool{
 		Name:        "perses_create_project_role_binding",
-		Description: "Create a project role binding that binds users to a role",
+		Description: "Grant a project role (must already exist in the same project) to a list of user names. Fails if the binding name exists. Only available when authorization is enabled on the Perses server (config security.enable_auth=true); otherwise the API answers 404 'document not found' (reads) or 405 'Method Not Allowed' (writes), which does not mean the project or object is missing.",
 		InputSchema: &jsonschema.Schema{
 			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
@@ -203,7 +203,7 @@ func (r *roleBinding) Create() *tools.Tool {
 				},
 				"subjects": {
 					Type:        "array",
-					Description: "List of user names to bind to the role",
+					Description: "User names (Perses login names) that receive the role; the full list replaces any previous subjects",
 					Items: &jsonschema.Schema{
 						Type: tools.SchemaTypeString,
 					},
@@ -275,13 +275,13 @@ type UpdateProjectRoleBindingInput struct {
 	Project  string   `json:"project" jsonschema:"Project name"`
 	Name     string   `json:"name" jsonschema:"Role Binding name"`
 	Role     string   `json:"role" jsonschema:"Name of the Role to bind"`
-	Subjects []string `json:"subjects" jsonschema:"List of user names to bind to the role"`
+	Subjects []string `json:"subjects" jsonschema:"User names (Perses login names) that receive the role; the full list replaces any previous subjects"`
 }
 
 func (r *roleBinding) Update() *tools.Tool {
 	tool := &mcp.Tool{
 		Name:        "perses_update_project_role_binding",
-		Description: "Update an existing project role binding",
+		Description: "Replace the role and the complete subject list of an existing project role binding. Users not listed lose the grant, so read it first with perses_get_project_role_binding_by_name to add or remove one user.",
 		InputSchema: &jsonschema.Schema{
 			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
@@ -306,7 +306,7 @@ func (r *roleBinding) Update() *tools.Tool {
 				},
 				"subjects": {
 					Type:        "array",
-					Description: "List of user names to bind to the role",
+					Description: "User names (Perses login names) that receive the role; the full list replaces any previous subjects",
 					Items: &jsonschema.Schema{
 						Type: tools.SchemaTypeString,
 					},
@@ -382,7 +382,7 @@ type DeleteProjectRoleBindingInput struct {
 func (r *roleBinding) Delete() *tools.Tool {
 	tool := &mcp.Tool{
 		Name:        "perses_delete_project_role_binding",
-		Description: "Delete a project role binding",
+		Description: "Permanently delete a project role binding; its users lose the permissions it granted.",
 		InputSchema: &jsonschema.Schema{
 			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{

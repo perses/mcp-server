@@ -50,7 +50,7 @@ func (g *globalVariable) GetTools() []*tools.Tool {
 func (g *globalVariable) List() *tools.Tool {
 	tool := &mcp.Tool{
 		Name:        "perses_list_global_variables",
-		Description: "List all Global Variables",
+		Description: "List the variables shared by all dashboards of all projects. Project-level and dashboard-level variables with the same name take precedence.",
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Lists all global variables in Perses",
 			ReadOnlyHint:    true,
@@ -94,7 +94,7 @@ type GetGlobalVariableByNameInput struct {
 func (g *globalVariable) Get() *tools.Tool {
 	tool := &mcp.Tool{
 		Name:        "perses_get_global_variable_by_name",
-		Description: "Get a global variable by name",
+		Description: "Get one global variable by name: its kind (TextVariable or ListVariable), value or list plugin settings, and metadata.version. Global variables are available to every dashboard of every project as $name, unless a project or dashboard variable with the same name overrides them. Fails if the name does not exist; see perses_list_global_variables.",
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Gets a global variable by name in Perses",
 			ReadOnlyHint:    true,
@@ -152,7 +152,7 @@ type CreateGlobalVariableInput struct {
 func (g *globalVariable) Create() *tools.Tool {
 	tool := &mcp.Tool{
 		Name:        "perses_create_global_variable",
-		Description: "Create a global variable (TextVariable type)",
+		Description: "Create a global TextVariable (a constant string, referenced in queries as $name) available to all dashboards in all projects. Fails if the name exists.",
 		InputSchema: &jsonschema.Schema{
 			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
@@ -227,7 +227,7 @@ type UpdateGlobalVariableInput struct {
 func (g *globalVariable) Update() *tools.Tool {
 	tool := &mcp.Tool{
 		Name:        "perses_update_global_variable",
-		Description: "Update an existing global variable (TextVariable type)",
+		Description: "Set the value of an existing global variable; it is rewritten as a TextVariable (any list configuration is replaced).",
 		InputSchema: &jsonschema.Schema{
 			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
@@ -301,7 +301,7 @@ type DeleteGlobalVariableInput struct {
 func (g *globalVariable) Delete() *tools.Tool {
 	tool := &mcp.Tool{
 		Name:        "perses_delete_global_variable",
-		Description: "Delete a global variable",
+		Description: "Permanently delete a global variable. Dashboards in every project that reference $name will no longer resolve it unless a project or dashboard variable defines it. Cannot be undone; to only change its value use perses_update_global_variable.",
 		InputSchema: &jsonschema.Schema{
 			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{

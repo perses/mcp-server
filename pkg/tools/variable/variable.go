@@ -54,7 +54,7 @@ type ListProjectVariablesInput struct {
 func (v *projectVariable) List() *tools.Tool {
 	tool := &mcp.Tool{
 		Name:        "perses_list_project_variables",
-		Description: "List variables for a specific project",
+		Description: "List the variables shared by all dashboards of one project (not the variables defined inside a dashboard; those appear in perses_get_dashboard_by_name). Global variables are listed by perses_list_global_variables.",
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Lists variables for a specific project in Perses",
 			ReadOnlyHint:    true,
@@ -67,7 +67,7 @@ func (v *projectVariable) List() *tools.Tool {
 			Properties: map[string]*jsonschema.Schema{
 				string(tools.ProjectResource): {
 					Type:        tools.SchemaTypeString,
-					Description: "Project name",
+					Description: "Project name (metadata.name from perses_list_projects)",
 					MinLength:   new(1),
 					MaxLength:   new(75),
 					Pattern:     tools.PatternResourceName,
@@ -112,7 +112,7 @@ type GetProjectVariableByNameInput struct {
 func (v *projectVariable) Get() *tools.Tool {
 	tool := &mcp.Tool{
 		Name:        "perses_get_project_variable_by_name",
-		Description: "Get a variable by name in a specific project",
+		Description: "Get one project-level variable by name: its kind (TextVariable or ListVariable), value or list plugin settings, and metadata.version. Variables defined inside a dashboard are not project variables; read those with perses_get_dashboard_by_name. Fails if the name does not exist in the project; see perses_list_project_variables.",
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Gets a variable by name in a specific project in Perses",
 			ReadOnlyHint:    true,
@@ -125,7 +125,7 @@ func (v *projectVariable) Get() *tools.Tool {
 			Properties: map[string]*jsonschema.Schema{
 				string(tools.ProjectResource): {
 					Type:        tools.SchemaTypeString,
-					Description: "Project name",
+					Description: "Project name (metadata.name from perses_list_projects)",
 					MinLength:   new(1),
 					MaxLength:   new(75),
 					Pattern:     tools.PatternResourceName,
@@ -178,7 +178,7 @@ type CreateProjectVariableInput struct {
 func (v *projectVariable) Create() *tools.Tool {
 	tool := &mcp.Tool{
 		Name:        "perses_create_project_variable",
-		Description: "Create a project level variable (TextVariable type)",
+		Description: "Create a project-level TextVariable (a constant string, referenced in queries as $name) shared by all dashboards of the project. To add a variable to a single dashboard, or a ListVariable, use perses_set_dashboard_variables instead. Fails if the name exists.",
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Creates a project level variable in Perses",
 			ReadOnlyHint:    false,
@@ -198,7 +198,7 @@ func (v *projectVariable) Create() *tools.Tool {
 				},
 				string(tools.ProjectResource): {
 					Type:        tools.SchemaTypeString,
-					Description: "Project name",
+					Description: "Project name (metadata.name from perses_list_projects)",
 					MinLength:   new(1),
 					MaxLength:   new(75),
 					Pattern:     tools.PatternResourceName,
@@ -267,7 +267,7 @@ type UpdateProjectVariableInput struct {
 func (v *projectVariable) Update() *tools.Tool {
 	tool := &mcp.Tool{
 		Name:        "perses_update_project_variable",
-		Description: "Update an existing project level variable (TextVariable type)",
+		Description: "Set the value of an existing project-level variable; it is rewritten as a TextVariable (any list configuration is replaced).",
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Updates a project level variable in Perses",
 			ReadOnlyHint:    false,
@@ -287,7 +287,7 @@ func (v *projectVariable) Update() *tools.Tool {
 				},
 				string(tools.ProjectResource): {
 					Type:        tools.SchemaTypeString,
-					Description: "Project name",
+					Description: "Project name (metadata.name from perses_list_projects)",
 					MinLength:   new(1),
 					MaxLength:   new(75),
 					Pattern:     tools.PatternResourceName,
@@ -355,7 +355,7 @@ type DeleteProjectVariableInput struct {
 func (v *projectVariable) Delete() *tools.Tool {
 	tool := &mcp.Tool{
 		Name:        "perses_delete_project_variable",
-		Description: "Delete a project level variable",
+		Description: "Permanently delete a project-level variable. Dashboards of the project that reference $name in queries will no longer resolve it unless a global variable with the same name exists. Cannot be undone; to only change its value use perses_update_project_variable.",
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Deletes a project level variable in Perses",
 			ReadOnlyHint:    false,
@@ -375,7 +375,7 @@ func (v *projectVariable) Delete() *tools.Tool {
 				},
 				string(tools.ProjectResource): {
 					Type:        tools.SchemaTypeString,
-					Description: "Project name",
+					Description: "Project name (metadata.name from perses_list_projects)",
 					MinLength:   new(1),
 					MaxLength:   new(75),
 					Pattern:     tools.PatternResourceName,

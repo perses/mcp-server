@@ -82,6 +82,12 @@ func TestDecode(t *testing.T) {
 		}
 		assert.ElementsMatch(t, []string{"metadata.name", "metadata.project"}, paths)
 	})
+	t.Run("generic variable kind", func(t *testing.T) {
+		raw := `{"metadata": {"name": "d"}, "spec": {"panels": {}, "layouts": [], "variables": [{"kind": "Variable", "spec": {"name": "env"}}]}}`
+		_, issues := Decode(json.RawMessage(raw), "proj")
+		require.Len(t, issues, 1)
+		assert.Contains(t, issues[0].Hint, "TextVariable")
+	})
 	t.Run("dangling reference", func(t *testing.T) {
 		raw := `{"metadata": {"name": "d"}, "spec": {"panels": {}, "layouts": [{"kind": "Grid", "spec": {"items": [
 		  {"x": 0, "y": 0, "width": 12, "height": 6, "content": {"$ref": "#/spec/panels/nope"}}]}}]}}`
@@ -560,6 +566,7 @@ func TestSummarize(t *testing.T) {
 	assert.Equal(t, []string{"layout 0: x=0 y=0 w=12 h=6"}, outline.PanelList[0].Placement)
 	assert.Empty(t, outline.PanelList[1].Placement)
 	assert.Equal(t, "inst", outline.VariableList[0].Name)
+	assert.Equal(t, map[string]any{"labelName": "instance"}, outline.VariableList[0].PluginSpec, "the outline must expose the label without the full dashboard")
 	assert.Equal(t, "Row", outline.LayoutList[0].Title)
 }
 

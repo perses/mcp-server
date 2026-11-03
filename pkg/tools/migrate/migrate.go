@@ -61,9 +61,11 @@ func (m *migrate) Migrate() *tools.Tool {
 	tool := &mcp.Tool{
 		Name: "perses_migrate_dashboard",
 		Description: "Convert a Grafana dashboard into a native Perses dashboard. " +
-			"Use this tool to translate exported Grafana dashboard JSON into the Perses dashboard model, " +
-			"The result is returned as JSON only and is NOT saved to Perses; " +
-			"use the dashboard create tool to persist it.",
+			"Pass the exported Grafana dashboard JSON (from Grafana 'Export > Export for sharing externally' or the API). " +
+			"Returns the Perses dashboard JSON only; nothing is saved. metadata.name is taken from the Grafana uid, so change it " +
+			"if another name is wanted. To persist it, set metadata.project and call " +
+			"perses_validate_dashboard, then perses_create_dashboard. If the export contains __inputs placeholders " +
+			"(e.g. ${DS_PROMETHEUS}), map them to existing Perses datasource names with input.",
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Migrates a Grafana dashboard to the Perses format",
 			ReadOnlyHint:    true,
