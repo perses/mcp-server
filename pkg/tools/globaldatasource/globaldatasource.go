@@ -57,7 +57,7 @@ type QueryGlobalDatasourceInput struct {
 	DatasourceName string            `json:"datasource_name" jsonschema:"Datasource name"`
 	Method         string            `json:"method,omitempty" jsonschema:"HTTP method (default GET)"`
 	Path           string            `json:"path,omitempty" jsonschema:"Datasource endpoint path (e.g. /api/v1/query_range)"`
-	QueryParams    map[string]string `json:"query_params,omitempty" jsonschema:"Query string parameters"`
+	QueryParams    map[string]string `json:"query_params,omitempty" jsonschema:"Query string parameters, e.g. {\"query\": \"sum(rate(http_requests_total[5m]))\"} or for query_range also start, end (RFC3339 or unix seconds) and step (e.g. 60s)"`
 	Body           string            `json:"body,omitempty" jsonschema:"Raw request body (JSON or form payload)"`
 	Headers        map[string]string `json:"headers,omitempty" jsonschema:"Optional additional request headers"`
 }
@@ -65,7 +65,7 @@ type QueryGlobalDatasourceInput struct {
 func (g *globalDatasource) Query() *tools.Tool {
 	tool := &mcp.Tool{
 		Name:        "perses_query_global_datasource",
-		Description: "Query a global datasource through Perses proxy",
+		Description: "Send an HTTP request to a global datasource through the Perses proxy, using the backend's native API. Set path relative to the datasource URL; without it the backend web UI (HTML) is returned. The path and parameters depend on the datasource kind (Prometheus, Tempo, Loki, OpenSearch, ...); see the path and query_params parameters for Prometheus. Returns the backend response body unchanged (usually JSON); a non-2xx status is returned as an error containing the HTTP status and body. Bodies over 1 MiB are cut and end with a '[response truncated ...]' marker, so always aggregate or filter so results stay small. Use perses_query_project_datasource for project datasources; a 404 'datasource doesn't exist' means the name is wrong (see perses_list_global_datasources).",
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Queries a global datasource through Perses proxy",
 			ReadOnlyHint:    true,
@@ -78,7 +78,7 @@ func (g *globalDatasource) Query() *tools.Tool {
 			Properties: map[string]*jsonschema.Schema{
 				"datasource_name": {
 					Type:        tools.SchemaTypeString,
-					Description: "Datasource name",
+					Description: "Global datasource metadata.name, as returned by perses_list_global_datasources",
 					MinLength:   new(1),
 					MaxLength:   new(75),
 					Pattern:     tools.PatternResourceName,
@@ -90,11 +90,11 @@ func (g *globalDatasource) Query() *tools.Tool {
 				},
 				"path": {
 					Type:        tools.SchemaTypeString,
-					Description: "Datasource endpoint path",
+					Description: "Backend API path relative to the datasource URL. Required in practice: an empty path returns the backend web UI. For Prometheus/Thanos: /api/v1/query (instant; the value is data.result[i].value[1]), /api/v1/query_range, /api/v1/labels",
 				},
 				"query_params": {
 					Type:        tools.SchemaTypeObject,
-					Description: "Query string parameters",
+					Description: "Query string parameters. For Prometheus: {\"query\": \"count(up)\"}; query_range also needs start, end (RFC3339 or unix seconds) and step (e.g. 60s). To list metric names by prefix use query count by (__name__) ({__name__=~\"kube_pod_.*\"}): label-values endpoints with regex matchers often time out on large Thanos backends, and there is no timeout parameter",
 					AdditionalProperties: &jsonschema.Schema{
 						Type: tools.SchemaTypeString,
 					},
@@ -153,7 +153,7 @@ func (g *globalDatasource) Query() *tools.Tool {
 func (g *globalDatasource) List() *tools.Tool {
 	tool := &mcp.Tool{
 		Name:        "perses_list_global_datasources",
-		Description: "List all Perses Global Datasources",
+		Description: "List all global datasources (shared by every project): name, plugin kind, proxy URL and whether it is the default for its kind. Panels that do not name a datasource use the default one. Most dashboards query these rather than project datasources.",
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Lists all global datasources in Perses",
 			ReadOnlyHint:    true,
@@ -197,7 +197,7 @@ type GetGlobalDatasourceByNameInput struct {
 func (g *globalDatasource) Get() *tools.Tool {
 	tool := &mcp.Tool{
 		Name:        "perses_get_global_datasource_by_name",
-		Description: "Get a global datasource by name",
+		Description: "Get the full definition of one global datasource by name: plugin kind, proxy or direct URL, default flag and metadata.version. Use it to find the backend URL (e.g. to create a project datasource pointing at the same backend) or before perses_update_global_datasource, which overwrites unspecified settings. Fails if the name does not exist; see perses_list_global_datasources.",
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Gets a global datasource by name in Perses",
 			ReadOnlyHint:    true,
@@ -249,8 +249,8 @@ func (g *globalDatasource) Get() *tools.Tool {
 
 type CreateGlobalDatasourceInput struct {
 	Name        string `json:"name" jsonschema:"Global Datasource name"`
-	Type        string `json:"type" jsonschema:"Type of datasource"`
-	URL         string `json:"url" jsonschema:"Datasource URL"`
+	Type        string `json:"type" jsonschema:"Datasource plugin kind, e.g. PrometheusDatasource or TempoDatasource (see perses_list_plugins for installed kinds); the URL is configured as an HTTP proxy or direct URL"`
+	URL         string `json:"url" jsonschema:"Backend base URL reachable from the Perses server, e.g. http://prometheus.monitoring.svc:9090"`
 	DisplayName string `json:"display_name,omitempty" jsonschema:"Display name for the datasource (optional, defaults to name)"`
 	ProxyType   string `json:"proxy_type,omitempty" jsonschema:"Proxy type: HTTPProxy for server-side proxy, direct for browser direct access (optional, defaults to HTTPProxy)"`
 }
@@ -258,7 +258,7 @@ type CreateGlobalDatasourceInput struct {
 func (g *globalDatasource) Create() *tools.Tool {
 	tool := &mcp.Tool{
 		Name:        "perses_create_global_datasource",
-		Description: "Create a new Perses Global Datasource",
+		Description: "Create a global datasource (available to every project) from a name, a plugin type and a URL. Only a simple proxied (HTTPProxy, default) or direct URL configuration is supported; it is never marked as default. For other settings use perses_create_project_datasource with full JSON instead. Fails if the name already exists.",
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Creates a new global datasource in Perses",
 			ReadOnlyHint:    false,
@@ -278,12 +278,12 @@ func (g *globalDatasource) Create() *tools.Tool {
 				},
 				"type": {
 					Type:        tools.SchemaTypeString,
-					Description: "Type of datasource",
+					Description: "Datasource plugin kind, e.g. PrometheusDatasource or TempoDatasource (see perses_list_plugins for installed kinds); the URL is configured as an HTTP proxy or direct URL",
 					Enum:        []any{"PrometheusDatasource", "TempoDatasource"},
 				},
 				"url": {
 					Type:        tools.SchemaTypeString,
-					Description: "Datasource URL",
+					Description: "Backend base URL reachable from the Perses server, e.g. http://prometheus.monitoring.svc:9090",
 					MinLength:   new(1),
 				},
 				"display_name": {
@@ -334,8 +334,8 @@ func (g *globalDatasource) Create() *tools.Tool {
 
 type UpdateGlobalDatasourceInput struct {
 	Name        string `json:"name" jsonschema:"Global Datasource name"`
-	Type        string `json:"type" jsonschema:"Type of datasource"`
-	URL         string `json:"url" jsonschema:"Datasource URL"`
+	Type        string `json:"type" jsonschema:"Datasource plugin kind, e.g. PrometheusDatasource or TempoDatasource (see perses_list_plugins for installed kinds); the URL is configured as an HTTP proxy or direct URL"`
+	URL         string `json:"url" jsonschema:"Backend base URL reachable from the Perses server, e.g. http://prometheus.monitoring.svc:9090"`
 	DisplayName string `json:"display_name,omitempty" jsonschema:"Display name for the datasource (optional, defaults to name)"`
 	ProxyType   string `json:"proxy_type,omitempty" jsonschema:"Proxy type: HTTPProxy for server-side proxy, direct for browser direct access (optional, defaults to HTTPProxy)"`
 }
@@ -343,7 +343,7 @@ type UpdateGlobalDatasourceInput struct {
 func (g *globalDatasource) Update() *tools.Tool {
 	tool := &mcp.Tool{
 		Name:        "perses_update_global_datasource",
-		Description: "Update an existing Perses Global Datasource",
+		Description: "Replace an existing global datasource with the given type, URL, display name and proxy type. Settings not expressible through these fields (custom headers, allowed endpoints, default flag) are lost, so check the current definition with perses_get_global_datasource_by_name first.",
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Updates an existing global datasource in Perses",
 			ReadOnlyHint:    false,
@@ -363,12 +363,12 @@ func (g *globalDatasource) Update() *tools.Tool {
 				},
 				"type": {
 					Type:        tools.SchemaTypeString,
-					Description: "Type of datasource",
+					Description: "Datasource plugin kind, e.g. PrometheusDatasource or TempoDatasource (see perses_list_plugins for installed kinds); the URL is configured as an HTTP proxy or direct URL",
 					Enum:        []any{"PrometheusDatasource", "TempoDatasource"},
 				},
 				"url": {
 					Type:        tools.SchemaTypeString,
-					Description: "Datasource URL",
+					Description: "Backend base URL reachable from the Perses server, e.g. http://prometheus.monitoring.svc:9090",
 					MinLength:   new(1),
 				},
 				"display_name": {
@@ -424,7 +424,7 @@ type DeleteGlobalDatasourceInput struct {
 func (g *globalDatasource) Delete() *tools.Tool {
 	tool := &mcp.Tool{
 		Name:        "perses_delete_global_datasource",
-		Description: "Delete a global datasource",
+		Description: "Permanently delete a global datasource. Dashboards in every project that rely on it will stop returning data. Cannot be undone.",
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Deletes a global datasource in Perses",
 			ReadOnlyHint:    false,

@@ -29,8 +29,8 @@ Resource: `dashboard`
 
 | Tool                           | Description                                | Required parameters    |
 |--------------------------------|--------------------------------------------|------------------------|
-| `perses_list_dashboards`       | List all dashboards of a project           | `project`              |
-| `perses_get_dashboard_by_name` | Get an outline by default; use `summary: false` for complete JSON before read-modify-write, or `panels: [keys]` for those full panels regardless of `summary` | `project`, `name` |
+| `perses_list_dashboards`       | List the dashboards of a project as `{count, dashboards}`; `count` is exact even if a client truncates the array | `project` |
+| `perses_get_dashboard_by_name` | Get an outline by default (variables with their plugin spec, default and value; panels with key, title and placement); use `summary: false` for complete JSON before read-modify-write, or `panels: [keys]` for those full panels regardless of `summary`. Unknown keys are listed in `missing` with the `available` keys; if none exists, or `panels` is empty, the outline is returned | `project`, `name` |
 | `perses_create_dashboard`      | Create a dashboard in a project            | `project`, `dashboard` |
 | `perses_update_dashboard`      | Update an existing dashboard of a project  | `project`, `dashboard` |
 | `perses_delete_dashboard`      | Delete a dashboard from a project          | `project`, `name`      |
@@ -88,6 +88,8 @@ dashboard to answer a question, without cluttering the project.
 
 The parameter `dashboard` is an ephemeral dashboard in the
 [Perses format](https://perses.dev/docs/perses/latest/api/ephemeral-dashboard/).
+When ephemeral dashboards are disabled on the Perses server (`ephemeral_dashboard.enable: false`), these tools fail with
+an error that says so explicitly instead of a bare 404 or 405.
 
 `perses_validate_dashboard` checks the dashboard configuration against installed plugin CUE schemas without saving it.
 `perses_get_plugin_schema` provides plugin field definitions.

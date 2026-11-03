@@ -31,7 +31,7 @@ import (
 // editProperties are the input properties shared by the incremental tools.
 func editProperties(extra map[string]*jsonschema.Schema) map[string]*jsonschema.Schema {
 	properties := map[string]*jsonschema.Schema{
-		string(tools.ProjectResource): projectSchema("Project of the dashboard"),
+		string(tools.ProjectResource): projectSchema("Project of the dashboard (metadata.name from perses_list_projects)"),
 		tools.ResourceName:            nameSchema("Name of the existing dashboard to modify"),
 		expectedVersionProperty:       expectedVersionSchema(),
 		dryRunProperty:                dryRunSchema(),
@@ -98,14 +98,19 @@ func (d *dashboard) SetPanels() *tools.Tool {
 			"New panels use the first free spot in the 24-column Grid group named by layout (created if missing; " +
 			"last group by default), with width x height (default 12x6). Explicit placements are reserved first. " +
 			"Use order for auto-placement sequence; remaining keys are alphabetical, not JSON object order. " +
-			"Validates before saving; returns a summary of changes or field-level validation errors.",
+			"Validates before saving; returns a summary of changes or field-level validation errors. " +
+			"See perses_get_plugin_schema for the spec of a panel or query plugin kind. " +
+			"Explicit placements are not checked for overlap: when widening or moving a panel, also place the panels it would cover.",
 		InputSchema: &jsonschema.Schema{
 			Type: tools.SchemaTypeObject,
 			Properties: editProperties(map[string]*jsonschema.Schema{
 				"panels": {
 					Types: []string{tools.SchemaTypeObject, tools.SchemaTypeString},
-					Description: "Map of panel key to panel: {\"<key>\": {\"kind\": \"Panel\", \"spec\": {\"display\": {\"name\": \"...\"}, " +
-						"\"plugin\": {...}, \"queries\": [...]}}}. Optional for placements-only edits. Keys must match " + tools.PatternResourceName + ".",
+					Description: "Map of panel key to panel, e.g. {\"total\": {\"kind\": \"Panel\", \"spec\": {\"display\": {\"name\": \"Total\"}, " +
+						"\"plugin\": {\"kind\": \"StatChart\", \"spec\": {\"calculation\": \"last\"}}, \"queries\": [{\"kind\": \"TimeSeriesQuery\", " +
+						"\"spec\": {\"plugin\": {\"kind\": \"PrometheusTimeSeriesQuery\", \"spec\": {\"query\": \"count(up)\"}}}}]}}}. " +
+						"A query uses the default datasource of its kind unless its plugin spec names one, e.g. \"datasource\": {\"kind\": \"PrometheusDatasource\", \"name\": \"<name>\"}. " +
+						"Optional for placements-only edits. Keys must match " + tools.PatternResourceName + ".",
 				},
 				"order": {
 					Type: tools.SchemaTypeArray,
@@ -334,8 +339,9 @@ type RemovePanelsInput struct {
 func (d *dashboard) RemovePanels() *tools.Tool {
 	tool := &mcp.Tool{
 		Name: "perses_remove_dashboard_panels",
-		Description: "Remove panels from an existing dashboard by key, together with the layout items displaying " +
-			"them. Unknown keys are reported and ignored.",
+		Description: "Remove panels from an existing dashboard by panel key (panelList[].key from perses_get_dashboard_by_name, " +
+			"not the title), together with the layout items displaying them; other panels do not move. Unknown keys are " +
+			"reported and ignored. Use dry_run:true to preview. To delete the whole dashboard use perses_delete_dashboard.",
 		InputSchema: &jsonschema.Schema{
 			Type: tools.SchemaTypeObject,
 			Properties: editProperties(map[string]*jsonschema.Schema{
@@ -386,7 +392,8 @@ func (d *dashboard) SetVariables() *tools.Tool {
 		Description: "Add or replace variables of an existing dashboard. A variable with the same spec.name is " +
 			"replaced in place, others are appended. Variables are {kind: TextVariable|ListVariable, spec: {name, " +
 			"display: {name}, plugin: {kind: e.g. PrometheusLabelValuesVariable, spec: {labelName, matchers}}, " +
-			"allowAllValue, allowMultiple}}; use them in queries as $name.",
+			"allowAllValue, allowMultiple}}; a TextVariable has no plugin: {kind: TextVariable, spec: {name, value}}. " +
+			"Use them in queries as $name (with allowMultiple, match with =~\"$name\").",
 		InputSchema: &jsonschema.Schema{
 			Type: tools.SchemaTypeObject,
 			Properties: editProperties(map[string]*jsonschema.Schema{
@@ -453,7 +460,7 @@ type RemoveVariablesInput struct {
 func (d *dashboard) RemoveVariables() *tools.Tool {
 	tool := &mcp.Tool{
 		Name:        "perses_remove_dashboard_variables",
-		Description: "Remove variables from an existing dashboard by name. Unknown names are reported and ignored.",
+		Description: "Remove variables from an existing dashboard by spec.name. The removal is validated first: if another variable (e.g. in its matchers) or a panel query still references $name, nothing is saved and the result is {valid:false, errors:[...]} naming the dependent; remove or edit the dependents first, or remove them together in one call. Names that do not exist are reported and ignored. Use dry_run:true to preview.",
 		InputSchema: &jsonschema.Schema{
 			Type: tools.SchemaTypeObject,
 			Properties: editProperties(map[string]*jsonschema.Schema{

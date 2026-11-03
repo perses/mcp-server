@@ -53,7 +53,8 @@ func (v *validation) Datasource() *tools.Tool {
 			"Returns {valid, errors, warnings, connectivity}: errors and warnings have the JSON path of the field, a " +
 			"message and often a hint. Warnings flag configs that are valid but likely do not work (directUrl only, " +
 			"localhost proxy URL, blocked endpoints, name hiding a global datasource). check_connectivity:true queries " +
-			"the datasource through the Perses server proxy (nothing is saved).",
+			"the datasource through the Perses server proxy (nothing is saved) and adds connectivity {status: ok|error, latency_ms}; " +
+			"valid:true alone only means the spec matches the schema, not that the backend is reachable.",
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Validates a datasource and checks its connectivity",
 			ReadOnlyHint:    true,

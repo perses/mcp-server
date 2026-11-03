@@ -21,6 +21,7 @@ import (
 
 	v1 "github.com/perses/perses/pkg/model/api/v1"
 	"github.com/perses/spec/go/dashboard"
+	"github.com/perses/spec/go/dashboard/variable"
 )
 
 // Summary is the compact description of a dashboard returned by the write tools instead of the whole dashboard.
@@ -58,11 +59,19 @@ type PanelOutline struct {
 	Placement []string `json:"placement,omitempty"`
 }
 
-// VariableOutline describes a variable.
+// VariableOutline describes a variable with the settings an agent usually asks about (value, default, label,
+// matchers), so that reading them does not require the complete dashboard.
 type VariableOutline struct {
 	Name   string `json:"name"`
 	Kind   string `json:"kind"`
 	Plugin string `json:"plugin,omitempty"`
+	// PluginSpec is the spec of a ListVariable plugin, e.g. {labelName, matchers} or {expr}.
+	PluginSpec    any                    `json:"pluginSpec,omitempty"`
+	DefaultValue  *variable.DefaultValue `json:"defaultValue,omitempty"`
+	AllowMultiple bool                   `json:"allowMultiple,omitempty"`
+	AllowAllValue bool                   `json:"allowAllValue,omitempty"`
+	// Value is the value of a TextVariable.
+	Value string `json:"value,omitempty"`
 }
 
 // LayoutOutline describes a layout group.
@@ -117,13 +126,20 @@ func OutlineOf(d *v1.Dashboard, base *url.URL) Outline {
 	}
 	sort.Strings(outline.Datasources)
 
-	for _, variable := range d.Spec.Variables {
-		item := VariableOutline{Kind: string(variable.Kind)}
-		if variable.Spec != nil {
-			item.Name = variable.Spec.GetName()
+	for _, v := range d.Spec.Variables {
+		item := VariableOutline{Kind: string(v.Kind)}
+		if v.Spec != nil {
+			item.Name = v.Spec.GetName()
 		}
-		if spec, ok := variable.Spec.(*dashboard.ListVariableSpec); ok {
+		switch spec := v.Spec.(type) {
+		case *dashboard.ListVariableSpec:
 			item.Plugin = spec.Plugin.Kind
+			item.PluginSpec = spec.Plugin.Spec
+			item.DefaultValue = spec.DefaultValue
+			item.AllowMultiple = spec.AllowMultiple
+			item.AllowAllValue = spec.AllowAllValue
+		case *dashboard.TextVariableSpec:
+			item.Value = spec.Value
 		}
 		outline.VariableList = append(outline.VariableList, item)
 	}

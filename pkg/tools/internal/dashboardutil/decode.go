@@ -157,6 +157,9 @@ func decodeIssue(err error) Issue {
 	case duplicateVariablePattern.MatchString(message):
 		index, _ := strconv.Atoi(duplicateVariablePattern.FindStringSubmatch(message)[1])
 		return Issue{Path: fmt.Sprintf("spec.variables[%d].spec.name", index), Message: message, Hint: "variable names must be unique"}
+	case strings.Contains(message, "unknown variable.kind"):
+		return Issue{Path: "spec.variables[].kind", Message: message,
+			Hint: `dashboard variables use kind "TextVariable" ({name, value}) or "ListVariable" ({name, plugin: {kind, spec}}), not "Variable"`}
 	case strings.Contains(message, "spec cannot be empty"):
 		return Issue{Path: "spec", Message: message, Hint: "spec must contain at least panels and layouts"}
 	}

@@ -1009,25 +1009,37 @@ func TestGetAndList(t *testing.T) {
 		some := mustCall(t, session, "perses_get_dashboard_by_name", arguments)
 		assert.Len(t, some["panels"], 1)
 		assert.Equal(t, []any{"nope"}, some["missing"])
+		assert.Contains(t, some["available"], "p1", "missing keys must come with the available ones")
 		panel := some["panels"].(map[string]any)["p1"].(map[string]any)
 		plugin := panel["spec"].(map[string]any)["plugin"].(map[string]any)
 		assert.Equal(t, "mean", plugin["spec"].(map[string]any)["calculation"])
 	}
 
-	text := mustFail(t, session, "perses_get_dashboard_by_name", map[string]any{"project": "myproject", "name": "cpu", "summary": false, "panels": []string{}})
-	assert.Contains(t, text, "panels")
-	assert.NotContains(t, text, `"kind"`, "an empty panel selection must not fall back to the full dashboard")
+	for _, empty := range [][]string{{}, {" "}} {
+		outlined := mustCall(t, session, "perses_get_dashboard_by_name", map[string]any{"project": "myproject", "name": "cpu", "summary": false, "panels": empty})
+		assert.Nil(t, outlined["kind"], "an empty panel selection must not fall back to the full dashboard")
+		assert.NotEmpty(t, outlined["panelList"], "an empty panel selection returns the outline")
+	}
 
-	text = mustFail(t, session, "perses_get_dashboard_by_name", map[string]any{"project": "myproject", "name": "nope"})
+	for _, guessed := range [][]string{{""}, {"nope"}} {
+		fallback := mustCall(t, session, "perses_get_dashboard_by_name", map[string]any{"project": "myproject", "name": "cpu", "panels": guessed})
+		assert.NotEmpty(t, fallback["panelList"], "guessed keys must fall back to the outline")
+	}
+
+	text := mustFail(t, session, "perses_get_dashboard_by_name", map[string]any{"project": "myproject", "name": "nope"})
 	assert.Contains(t, text, "does not exist")
 
 	list, isError := callTool(t, session, "perses_list_dashboards", map[string]any{"project": "myproject"})
 	require.False(t, isError)
-	var listed []map[string]any
+	var listed struct {
+		Count      int              `json:"count"`
+		Dashboards []map[string]any `json:"dashboards"`
+	}
 	require.NoError(t, json.Unmarshal([]byte(list), &listed))
-	require.Len(t, listed, 1)
-	assert.Equal(t, "cpu", listed[0]["name"])
-	assert.Equal(t, float64(1), listed[0]["panels"])
+	assert.Equal(t, 1, listed.Count)
+	require.Len(t, listed.Dashboards, 1)
+	assert.Equal(t, "cpu", listed.Dashboards[0]["name"])
+	assert.Equal(t, float64(1), listed.Dashboards[0]["panels"])
 }
 
 func TestDashboardLinksOmitCredentials(t *testing.T) {

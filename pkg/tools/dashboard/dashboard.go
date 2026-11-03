@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"strings"
 
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -224,8 +225,11 @@ type listedDashboard struct {
 func (d *dashboard) List() *tools.Tool {
 	tool := &mcp.Tool{
 		Name: "perses_list_dashboards",
-		Description: "List the dashboards of a project: name, display name, version and panel count. " +
-			"Use perses_get_dashboard_by_name to read one.",
+		Description: "List the dashboards of a project. Returns {count, dashboards: [{name, display, version, panels, " +
+			"variables, updatedAt}]}: count is the exact number of dashboards, so use it rather than counting the array, " +
+			"which can be long (about 140 bytes per dashboard, hundreds in large projects) and may be truncated by your client. " +
+			"Use it to find a dashboard name (display is the title shown in the UI) or the one with the most panels or variables; " +
+			"use perses_get_dashboard_by_name to read one. Fails if the project does not exist (see perses_list_projects).",
 		Annotations: &mcp.ToolAnnotations{
 			DestructiveHint: new(false),
 			IdempotentHint:  true,
@@ -236,7 +240,7 @@ func (d *dashboard) List() *tools.Tool {
 		InputSchema: &jsonschema.Schema{
 			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
-				string(tools.ProjectResource): projectSchema("Project name"),
+				string(tools.ProjectResource): projectSchema("Project name (metadata.name from perses_list_projects)"),
 			},
 			Required: []string{string(tools.ProjectResource)},
 		},
@@ -263,7 +267,7 @@ func (d *dashboard) List() *tools.Tool {
 			}
 			listed = append(listed, item)
 		}
-		return textResult(listed)
+		return textResult(listResult{Count: len(listed), Dashboards: listed})
 	}
 
 	return &tools.Tool{
@@ -286,15 +290,32 @@ type panelsResult struct {
 	dashboardutil.Summary
 	Panels  map[string]*dashboardSpec.Panel `json:"panels"`
 	Missing []string                        `json:"missing,omitempty"`
+	// Available maps every panel key of the dashboard to its title; only set when some requested keys are missing.
+	Available map[string]string `json:"available,omitempty"`
+}
+
+// outlineResult is the outline returned when none of the requested panels exists, so the caller sees the keys.
+type outlineResult struct {
+	dashboardutil.Outline
+	Missing []string `json:"missing"`
+}
+
+// listResult is the response of the list tool; count comes first so it survives client-side truncation.
+type listResult struct {
+	Count      int               `json:"count"`
+	Dashboards []listedDashboard `json:"dashboards"`
 }
 
 func (d *dashboard) Get() *tools.Tool {
 	tool := &mcp.Tool{
 		Name: "perses_get_dashboard_by_name",
-		Description: "Get a dashboard by name in a project. By default returns a compact outline " +
-			"(panel keys, plugins, placement, variables, layouts, URL) to decide what to change. " +
-			"Set summary=false to get the complete dashboard JSON before read-modify-write, such as perses_update_dashboard. " +
-			"Pass panels=[keys] to read those full panel definitions regardless of summary.",
+		Description: "Get one dashboard of a project. Call it first with only project and name: the default response is a compact outline with " +
+			"variableList (per variable: name, kind, plugin, pluginSpec such as labelName/matchers or expr, defaultValue, allowMultiple, allowAllValue, or value for a TextVariable), " +
+			"layoutList and panelList, where each panel has its key, title (name), plugin kind, query count and placement, but NOT its queries. " +
+			"To read queries (e.g. PromQL), find the panel key by title in panelList and call again with panels=[key]; keys are the map keys of spec.panels " +
+			"(e.g. 0_0 or cpu), never titles, so do not guess them. That response contains only the requested panels; when a key does not exist it is listed in missing " +
+			"and available maps every key to its title; if none exists, the outline is returned with missing. Set summary=false only when you need the complete dashboard JSON (often 10+ KB), e.g. before perses_update_dashboard; " +
+			"for small changes use the perses_set_dashboard_* / perses_remove_dashboard_* tools instead. Fails with 'does not exist' if the name is wrong; use perses_list_dashboards to find names.",
 		Annotations: &mcp.ToolAnnotations{
 			DestructiveHint: new(false),
 			IdempotentHint:  true,
@@ -305,7 +326,7 @@ func (d *dashboard) Get() *tools.Tool {
 		InputSchema: &jsonschema.Schema{
 			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
-				string(tools.ProjectResource): projectSchema("Project name"),
+				string(tools.ProjectResource): projectSchema("Project name (metadata.name from perses_list_projects)"),
 				tools.ResourceName:            nameSchema("Dashboard name"),
 				"summary": {
 					Type:        tools.SchemaTypeBoolean,
@@ -314,9 +335,8 @@ func (d *dashboard) Get() *tools.Tool {
 				},
 				"panels": {
 					Type:        tools.SchemaTypeArray,
-					Description: "Return only the panels with these keys (plus the summary).",
+					Description: "Omit (or pass []) on the first call to get the outline. Panel keys taken from panelList[].key of a previous outline (not titles, not placeholders) whose full definitions, including queries, to return. The response then omits the variable, panel and layout lists.",
 					Items:       &jsonschema.Schema{Type: tools.SchemaTypeString},
-					MinItems:    new(1),
 				},
 			},
 			Required: []string{string(tools.ProjectResource), tools.ResourceName},
@@ -328,14 +348,41 @@ func (d *dashboard) Get() *tools.Tool {
 		if err != nil {
 			return nil, nil, err
 		}
+		var keys []string
+		for _, key := range input.Panels {
+			if strings.TrimSpace(key) != "" {
+				keys = append(keys, key)
+			}
+		}
+		found := false
+		for _, key := range keys {
+			_, ok := dash.Spec.Panels[key]
+			found = found || ok
+		}
 		switch {
-		case len(input.Panels) > 0:
+		case input.Panels != nil && len(keys) == 0:
+			// An empty or blank selection asks for nothing specific: answer with the outline, never the full dashboard.
+			return textResult(dashboardutil.OutlineOf(dash, d.baseURL()))
+		case len(keys) > 0 && !found:
+			// Guessed keys: answer with the outline so that the next call can use real keys.
+			return textResult(outlineResult{Outline: dashboardutil.OutlineOf(dash, d.baseURL()), Missing: keys})
+		case len(keys) > 0:
 			result := panelsResult{Summary: dashboardutil.Summarize(dash, d.baseURL()), Panels: map[string]*dashboardSpec.Panel{}}
-			for _, key := range input.Panels {
+			for _, key := range keys {
 				if panel, ok := dash.Spec.Panels[key]; ok {
 					result.Panels[key] = panel
 				} else {
 					result.Missing = append(result.Missing, key)
+				}
+			}
+			if len(result.Missing) > 0 {
+				result.Available = map[string]string{}
+				for key, panel := range dash.Spec.Panels {
+					title := ""
+					if panel.Spec.Display != nil {
+						title = panel.Spec.Display.Name
+					}
+					result.Available[key] = title
 				}
 			}
 			return textResult(result)
@@ -362,11 +409,11 @@ type DeleteDashboardInput struct {
 func (d *dashboard) Delete() *tools.Tool {
 	tool := &mcp.Tool{
 		Name:        "perses_delete_dashboard",
-		Description: "Delete a dashboard from a specific project",
+		Description: "Permanently delete a dashboard from a project. Cannot be undone; to only remove some panels or variables use perses_remove_dashboard_panels or perses_remove_dashboard_variables.",
 		InputSchema: &jsonschema.Schema{
 			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
-				string(tools.ProjectResource): projectSchema("Project name"),
+				string(tools.ProjectResource): projectSchema("Project name (metadata.name from perses_list_projects)"),
 				tools.ResourceName:            nameSchema("Dashboard name"),
 			},
 			Required: []string{string(tools.ProjectResource), tools.ResourceName},

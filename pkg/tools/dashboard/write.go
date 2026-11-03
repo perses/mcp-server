@@ -139,7 +139,7 @@ func (d *dashboard) Update() *tools.Tool {
 		InputSchema: &jsonschema.Schema{
 			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
-				string(tools.ProjectResource): projectSchema("Project of the dashboard"),
+				string(tools.ProjectResource): projectSchema("Project of the dashboard (metadata.name from perses_list_projects)"),
 				"dashboard":                   dashboardSchema("The complete dashboard; metadata.name identifies the dashboard to replace."),
 				expectedVersionProperty:       expectedVersionSchema(),
 				dryRunProperty:                dryRunSchema(),

@@ -345,7 +345,7 @@ perses-mcp-server --config /path/to/config.yaml
 
 | Tool                                | Description                                                                                                     | Required Parameters          |
 | ----------------------------------- | --------------------------------------------------------------------------------------------------------------- | ---------------------------- |
-| `perses_list_dashboards`            | List the dashboards of a project (name, display name, version, panel count)                                     | `project`                    |
+| `perses_list_dashboards`            | List the dashboards of a project as `{count, dashboards}` (name, display name, version, panel and variable counts) | `project`                    |
 | `perses_get_dashboard_by_name`      | Get an outline by default; `summary: false` returns complete JSON for read-modify-write, `panels: [keys]` returns those full panels regardless of `summary` | `project`, `name` |
 | `perses_create_dashboard`           | Create a dashboard (object or JSON string); fails if it exists; options `dry_run`, `include_dashboard`           | `project`, `dashboard`       |
 | `perses_update_dashboard`           | Replace an existing dashboard; options `expected_version`, `dry_run`, `include_dashboard`                       | `project`, `dashboard`       |
