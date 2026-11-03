@@ -182,7 +182,7 @@ func TestSchemaTools(t *testing.T) {
 			title:     "plugin schema",
 			tool:      "perses_get_plugin_schema",
 			arguments: map[string]any{"kind": "TimeSeriesChart"},
-			expected:  timeSeriesChartSchema,
+			expected:  notExpandedNotice + timeSeriesChartSchema,
 		},
 		{
 			title:     "unknown plugin kind returns an error",
@@ -192,18 +192,11 @@ func TestSchemaTools(t *testing.T) {
 			expected:  `"LineChart" is not a plugin kind; ` + notPluginKindHint,
 		},
 		{
-			title:     "unknown version returns an error keeping the underlying one",
-			tool:      "perses_get_plugin_schema",
-			arguments: map[string]any{"kind": "LineChart", "version": "1.0.0"},
-			isError:   true,
-			expected:  `no schema of plugin "LineChart" matches version "1.0.0" and registry "perses.dev": something wrong happened with the request to the API.  Message: document not found StatusCode: 404`,
-		},
-		{
-			title:     "unknown registry returns an error keeping the underlying one",
+			title:     "unknown plugin kind in another registry names the registry",
 			tool:      "perses_get_plugin_schema",
 			arguments: map[string]any{"kind": "LineChart", "registry": "example.com"},
 			isError:   true,
-			expected:  `no schema of plugin "LineChart" matches version "latest" and registry "example.com": something wrong happened with the request to the API.  Message: document not found StatusCode: 404`,
+			expected:  `no plugin "LineChart" in registry "example.com"`,
 		},
 	}
 
@@ -229,7 +222,28 @@ func TestGetPluginSchemaRequest(t *testing.T) {
 	perses := &fakePerses{}
 	session := connect(t, perses)
 
-	result, text := callTool(t, session, "perses_get_plugin_schema", map[string]any{"kind": "TimeSeriesChart", "version": "0.14.0", "registry": "perses.dev"})
+	result, text := callTool(t, session, "perses_get_plugin_schema", map[string]any{"kind": "TimeSeriesChart"})
+	if result.IsError {
+		t.Fatalf("unexpected error: %s", text)
+	}
+	requests := perses.received()
+	if len(requests) == 0 {
+		t.Fatal("expected a request to Perses")
+	}
+	request := requests[len(requests)-1]
+	if request.URL.Path != "/api/v1/schemas/plugins/TimeSeriesChart" || request.URL.RawQuery != "" {
+		t.Errorf("unexpected request %s", request.URL)
+	}
+	if got := request.Header.Get("Authorization"); got != authorization {
+		t.Errorf("expected the configured authorization header, got %q", got)
+	}
+}
+
+func TestGetPluginSchemaRequestWithRegistry(t *testing.T) {
+	perses := &fakePerses{}
+	session := connect(t, perses)
+
+	result, text := callTool(t, session, "perses_get_plugin_schema", map[string]any{"kind": "TimeSeriesChart", "registry": "example.com"})
 	if result.IsError {
 		t.Fatalf("unexpected error: %s", text)
 	}
@@ -237,12 +251,8 @@ func TestGetPluginSchemaRequest(t *testing.T) {
 	if len(requests) != 1 {
 		t.Fatalf("expected 1 request, got %d", len(requests))
 	}
-	request := requests[0]
-	if request.URL.Path != "/api/v1/schemas/plugins/TimeSeriesChart" || request.URL.RawQuery != "registry=perses.dev&version=0.14.0" {
+	if request := requests[0]; request.URL.Path != "/api/v1/schemas/plugins/TimeSeriesChart" || request.URL.RawQuery != "registry=example.com" {
 		t.Errorf("unexpected request %s", request.URL)
-	}
-	if got := request.Header.Get("Authorization"); got != authorization {
-		t.Errorf("expected the configured authorization header, got %q", got)
 	}
 }
 
@@ -264,8 +274,8 @@ func TestGetPluginSchemaAcceptsHyphensAndDots(t *testing.T) {
 	perses := &fakePerses{}
 	session := connect(t, perses)
 
-	callTool(t, session, "perses_get_plugin_schema", map[string]any{"kind": "my-plugin.v2", "version": "1.0.0"})
-	if paths := perses.paths(); len(paths) != 1 || paths[0] != "/api/v1/schemas/plugins/my-plugin.v2" {
+	callTool(t, session, "perses_get_plugin_schema", map[string]any{"kind": "my-plugin.v2"})
+	if paths := perses.paths(); len(paths) == 0 || paths[len(paths)-1] != "/api/v1/schemas/plugins/my-plugin.v2" {
 		t.Errorf("expected a request to the my-plugin.v2 schema, got %v", paths)
 	}
 }

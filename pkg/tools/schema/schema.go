@@ -38,6 +38,10 @@ var kindPattern = regexp.MustCompile(`^[A-Za-z0-9_-][A-Za-z0-9_.-]*$`)
 const notPluginKindHint = "shared types such as calculation, format and thresholds are expanded inside each " +
 	"plugin's schema. Use perses_list_plugin_schemas to find plugin kinds."
 
+// notExpandedNotice starts the schemas returned without their shared types expanded, so that the caller knows that
+// the definitions of calculation, thresholds and the other shared types are not included.
+const notExpandedNotice = "// Shared types such as calculation and thresholds are not expanded in this schema.\n"
+
 type schema struct {
 	client       apiClient.ClientInterface
 	pluginBlocks *pluginBlocks
@@ -90,17 +94,17 @@ func (s *schema) List() *tools.Tool {
 }
 
 type GetPluginSchemaInput struct {
-	Kind     string `json:"kind" jsonschema:"Plugin kind, e.g. TimeSeriesChart"`
-	Version  string `json:"version,omitempty" jsonschema:"Plugin version (default: latest)"`
-	Registry string `json:"registry,omitempty" jsonschema:"Plugin registry (default: perses.dev)"`
+	Kind     string `json:"kind"`
+	Registry string `json:"registry,omitempty"`
 }
 
 func (s *schema) Get() *tools.Tool {
 	tool := &mcp.Tool{
 		Name: "perses_get_plugin_schema",
-		Description: "Get the CUE schema of a plugin installed on the Perses server, e.g. TimeSeriesChart or " +
-			"PrometheusTimeSeriesQuery. Shared types such as calculation, format, thresholds and the datasource " +
-			"selector are expanded inline. Requires Perses v0.55 or later.",
+		Description: "Returns the CUE schema of one installed plugin kind, e.g. StatChart (panel) or " +
+			"PrometheusLabelValuesVariable (variable). Use it before writing or fixing a plugin spec. Shared types " +
+			"such as calculation and thresholds are expanded inline; when they cannot be, the response starts with a " +
+			"comment saying so. Find installed kinds with perses_list_plugins. Requires Perses v0.55 or later.",
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Gets the CUE schema of a plugin in Perses",
 			ReadOnlyHint:    true,
@@ -112,21 +116,18 @@ func (s *schema) Get() *tools.Tool {
 			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
 				"kind": {
-					Type:        tools.SchemaTypeString,
-					Description: "Plugin kind, e.g. TimeSeriesChart",
-					MinLength:   new(1),
-					MaxLength:   new(128),
-					Pattern:     kindPattern.String(),
-				},
-				"version": {
-					Type:        tools.SchemaTypeString,
-					Description: "Plugin version (default: latest)",
-					MaxLength:   new(64),
+					Type: tools.SchemaTypeString,
+					Description: "Plugin kind, case-sensitive, e.g. StatChart or PrometheusLabelValuesVariable. " +
+						"Shared types such as calculation and thresholds are not plugin kinds.",
+					MinLength: new(1),
+					MaxLength: new(128),
+					Pattern:   kindPattern.String(),
 				},
 				"registry": {
-					Type:        tools.SchemaTypeString,
-					Description: "Plugin registry (default: perses.dev)",
-					MaxLength:   new(253),
+					Type: tools.SchemaTypeString,
+					Description: "Plugin registry. Defaults to perses.dev. Set it only for plugins installed from another " +
+						"registry; their shared types are not expanded.",
+					MaxLength: new(253),
 				},
 			},
 			Required: []string{"kind"},
@@ -137,8 +138,10 @@ func (s *schema) Get() *tools.Tool {
 		if !kindPattern.MatchString(input.Kind) {
 			return nil, nil, fmt.Errorf("invalid plugin kind %q", input.Kind)
 		}
-		// The dashboard schema only covers the latest version of each plugin, regardless of its registry.
-		if input.Version == "" && input.Registry == "" {
+		// Only the plugins of the default registry are expanded: the dashboard schema holds one schema per kind,
+		// whatever its registry.
+		defaultRegistry := input.Registry == "" || input.Registry == plugin.DefaultRegistry
+		if defaultRegistry {
 			block, found, err := s.pluginBlocks.get(input.Kind)
 			switch {
 			case err != nil:
@@ -149,21 +152,17 @@ func (s *schema) Get() *tools.Tool {
 				logrus.WithField("kind", input.Kind).Debug("plugin kind not found in the dashboard schema, falling back to the plugin schema endpoint")
 			}
 		}
-		definition, err := s.client.Schema().Plugin(url.PathEscape(input.Kind), &apiClient.PluginSchemaQuery{
-			Version:  input.Version,
-			Registry: input.Registry,
-		})
+		definition, err := s.client.Schema().Plugin(url.PathEscape(input.Kind), &apiClient.PluginSchemaQuery{Registry: input.Registry})
 		if errors.Is(err, perseshttp.RequestNotFoundError) {
-			if input.Version != "" || input.Registry != "" {
-				return nil, nil, fmt.Errorf("no schema of plugin %q matches version %q and registry %q: %w",
-					input.Kind, valueOrDefault(input.Version, plugin.LatestVersion), valueOrDefault(input.Registry, plugin.DefaultRegistry), err)
+			if !defaultRegistry {
+				return nil, nil, fmt.Errorf("no plugin %q in registry %q", input.Kind, input.Registry)
 			}
 			return nil, nil, fmt.Errorf("%q is not a plugin kind; %s", input.Kind, notPluginKindHint)
 		}
 		if err != nil {
 			return nil, nil, fmt.Errorf("error retrieving the schema of plugin '%s': %w", input.Kind, err)
 		}
-		return textResult(definition), nil, nil
+		return textResult(append([]byte(notExpandedNotice), definition...)), nil, nil
 	}
 
 	return &tools.Tool{
@@ -187,13 +186,6 @@ func (s *schema) Update() *tools.Tool {
 // Delete is not supported for schemas
 func (s *schema) Delete() *tools.Tool {
 	return nil
-}
-
-func valueOrDefault(value, defaultValue string) string {
-	if value == "" {
-		return defaultValue
-	}
-	return value
 }
 
 func textResult(text []byte) *mcp.CallToolResult {

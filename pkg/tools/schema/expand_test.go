@@ -102,24 +102,24 @@ func TestGetPluginSchemaExpansion(t *testing.T) {
 			expectedPaths:   []string{"/api/v1/schemas/dashboards", "/api/v1/plugins"},
 		},
 		{
-			title:           "version uses the plugin schema endpoint",
+			title:           "default registry set explicitly is expanded",
 			dashboardSchema: sampleDashboardSchema,
-			arguments:       map[string]any{"kind": "TimeSeriesChart", "version": "0.14.0"},
-			expected:        timeSeriesChartSchema,
-			expectedPaths:   []string{"/api/v1/schemas/plugins/TimeSeriesChart"},
+			arguments:       map[string]any{"kind": "StatChart", "registry": "perses.dev"},
+			expected:        expandedStatChart,
+			expectedPaths:   []string{"/api/v1/schemas/dashboards", "/api/v1/plugins"},
 		},
 		{
-			title:           "registry uses the plugin schema endpoint",
+			title:           "another registry uses the plugin schema endpoint",
 			dashboardSchema: sampleDashboardSchema,
-			arguments:       map[string]any{"kind": "TimeSeriesChart", "registry": "perses.dev"},
-			expected:        timeSeriesChartSchema,
+			arguments:       map[string]any{"kind": "TimeSeriesChart", "registry": "example.com"},
+			expected:        notExpandedNotice + timeSeriesChartSchema,
 			expectedPaths:   []string{"/api/v1/schemas/plugins/TimeSeriesChart"},
 		},
 		{
 			title:           "kind missing from the dashboard schema falls back to the plugin schema endpoint",
 			dashboardSchema: sampleDashboardSchema,
 			arguments:       map[string]any{"kind": "TimeSeriesChart"},
-			expected:        timeSeriesChartSchema,
+			expected:        notExpandedNotice + timeSeriesChartSchema,
 			expectedPaths:   []string{"/api/v1/schemas/dashboards", "/api/v1/plugins", "/api/v1/schemas/plugins/TimeSeriesChart"},
 		},
 		{
@@ -132,7 +132,7 @@ func TestGetPluginSchemaExpansion(t *testing.T) {
 				 "spec": {"schemasPath": "schemas", "plugins": [{"kind": "Panel", "spec": {"display": {"name": "Stat Chart"}, "name": "StatChart"}}]}}
 			]`,
 			arguments:     map[string]any{"kind": "StatChart"},
-			expected:      statChartSchema,
+			expected:      notExpandedNotice + statChartSchema,
 			expectedPaths: []string{"/api/v1/schemas/dashboards", "/api/v1/plugins", "/api/v1/schemas/plugins/StatChart"},
 		},
 		{
@@ -143,7 +143,7 @@ func TestGetPluginSchemaExpansion(t *testing.T) {
 				 "spec": {"schemasPath": "schemas", "plugins": [{"kind": "Panel", "spec": {"display": {"name": "Stat Chart"}, "name": "StatChart"}}]}}
 			]`,
 			arguments:     map[string]any{"kind": "StatChart"},
-			expected:      statChartSchema,
+			expected:      notExpandedNotice + statChartSchema,
 			expectedPaths: []string{"/api/v1/schemas/dashboards", "/api/v1/plugins", "/api/v1/schemas/plugins/StatChart"},
 		},
 		{
@@ -151,20 +151,20 @@ func TestGetPluginSchemaExpansion(t *testing.T) {
 			dashboardSchema: sampleDashboardSchema,
 			pluginModules:   "error",
 			arguments:       map[string]any{"kind": "StatChart"},
-			expected:        statChartSchema,
+			expected:        notExpandedNotice + statChartSchema,
 			expectedPaths:   []string{"/api/v1/schemas/dashboards", "/api/v1/plugins", "/api/v1/schemas/plugins/StatChart"},
 		},
 		{
 			title:         "dashboard schema error falls back to the plugin schema endpoint",
 			arguments:     map[string]any{"kind": "TimeSeriesChart"},
-			expected:      timeSeriesChartSchema,
+			expected:      notExpandedNotice + timeSeriesChartSchema,
 			expectedPaths: []string{"/api/v1/schemas/dashboards", "/api/v1/schemas/plugins/TimeSeriesChart"},
 		},
 		{
 			title:           "invalid dashboard schema falls back to the plugin schema endpoint",
 			dashboardSchema: "#Plugin_Panel_StatChart: {",
 			arguments:       map[string]any{"kind": "TimeSeriesChart"},
-			expected:        timeSeriesChartSchema,
+			expected:        notExpandedNotice + timeSeriesChartSchema,
 			expectedPaths:   []string{"/api/v1/schemas/dashboards", "/api/v1/schemas/plugins/TimeSeriesChart"},
 		},
 		{
