@@ -27,6 +27,9 @@ import (
 // maxBodyBytes caps response body size to prevent overwhelming LLM context windows.
 const maxBodyBytes = 1 << 20 // 1 MiB
 
+// truncatedMarker is appended to the text of a response whose body exceeded maxBodyBytes.
+var truncatedMarker = fmt.Sprintf("\n[response truncated: exceeded %d MiB limit]", maxBodyBytes>>20)
+
 // blockedInputHeaders lists headers callers must not override; the Perses proxy
 // manages auth via the configured Secret, not via tool input.
 var blockedInputHeaders = map[string]struct{}{
@@ -68,10 +71,44 @@ func GlobalDatasourceProxyPath(datasource, subPath string) string {
 		NormalizePath(subPath))
 }
 
-type QueryResult struct {
-	StatusCode int               `json:"status_code"`
-	Headers    map[string]string `json:"headers,omitempty"`
-	Body       string            `json:"body,omitempty"`
+// Response is the raw answer of the Perses proxy.
+type Response struct {
+	StatusCode int
+	Body       []byte
+	// Truncated reports whether the body exceeded maxBodyBytes and was cut to that size.
+	Truncated bool
+}
+
+// Text returns the body of a successful response unchanged, so that the query tools return what the datasource
+// answered, like the other tools return what Perses answered. A non-2xx response is returned as an error that contains
+// the HTTP status and the body. When the body was truncated, a marker is appended so that the truncation is visible.
+func (r *Response) Text() (string, error) {
+	body := string(r.Body)
+	if r.StatusCode < 200 || r.StatusCode >= 300 {
+		body = strings.TrimSpace(body)
+		if r.Truncated {
+			body += truncatedMarker
+		}
+		return "", fmt.Errorf("datasource returned HTTP %d %s: %s",
+			r.StatusCode, http.StatusText(r.StatusCode), body)
+	}
+	if r.Truncated {
+		body += truncatedMarker
+	}
+	return body, nil
+}
+
+// readResponse reads at most maxBodyBytes of the body and flags the response as truncated when the body is larger.
+func readResponse(resp *http.Response) (*Response, error) {
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxBodyBytes+1))
+	if err != nil {
+		return nil, fmt.Errorf("error reading response body: %w", err)
+	}
+	truncated := len(body) > maxBodyBytes
+	if truncated {
+		body = body[:maxBodyBytes]
+	}
+	return &Response{StatusCode: resp.StatusCode, Body: body, Truncated: truncated}, nil
 }
 
 type Helper struct {
@@ -101,7 +138,7 @@ func NormalizePath(path string) string {
 	return path
 }
 
-func (h *Helper) Do(ctx context.Context, input ProxyQuery) (*QueryResult, error) {
+func (h *Helper) Do(ctx context.Context, input ProxyQuery) (*Response, error) {
 	restClient := h.client.RESTClient()
 	if restClient == nil || restClient.Client == nil {
 		return nil, fmt.Errorf("perses REST client is not configured")
@@ -171,21 +208,5 @@ func (h *Helper) Do(ctx context.Context, input ProxyQuery) (*QueryResult, error)
 		_ = resp.Body.Close()
 	}()
 
-	body, err := io.ReadAll(io.LimitReader(resp.Body, maxBodyBytes))
-	if err != nil {
-		return nil, err
-	}
-
-	headers := map[string]string{}
-	for key, values := range resp.Header {
-		if len(values) > 0 {
-			headers[key] = strings.Join(values, ", ")
-		}
-	}
-
-	return &QueryResult{
-		StatusCode: resp.StatusCode,
-		Headers:    headers,
-		Body:       string(body),
-	}, nil
+	return readResponse(resp)
 }

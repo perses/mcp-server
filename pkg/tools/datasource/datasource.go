@@ -129,19 +129,18 @@ func (d *datasource) Query() *tools.Tool {
 			Headers:     input.Headers,
 		}
 
-		result, err := helper.Do(ctx, sharedInput)
+		resp, err := helper.Do(ctx, sharedInput)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, fmt.Errorf("error querying datasource '%s' in project '%s': %w", input.DatasourceName, input.Project, err)
 		}
-
-		resultJSON, err := json.Marshal(result)
+		text, err := resp.Text()
 		if err != nil {
-			return nil, nil, fmt.Errorf("error marshalling datasource query result: %w", err)
+			return nil, nil, fmt.Errorf("error querying datasource '%s' in project '%s': %w", input.DatasourceName, input.Project, err)
 		}
 
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{
-				&mcp.TextContent{Text: string(resultJSON)},
+				&mcp.TextContent{Text: text},
 			},
 		}, nil, nil
 	}

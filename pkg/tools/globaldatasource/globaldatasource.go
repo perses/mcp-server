@@ -126,19 +126,18 @@ func (g *globalDatasource) Query() *tools.Tool {
 			Headers:     input.Headers,
 		}
 
-		result, err := helper.Do(ctx, sharedInput)
+		resp, err := helper.Do(ctx, sharedInput)
+		if err != nil {
+			return nil, nil, fmt.Errorf("error querying global datasource '%s': %w", input.DatasourceName, err)
+		}
+		text, err := resp.Text()
 		if err != nil {
 			return nil, nil, fmt.Errorf("error querying global datasource '%s': %w", input.DatasourceName, err)
 		}
 
-		resultJSON, err := json.Marshal(result)
-		if err != nil {
-			return nil, nil, fmt.Errorf("error marshalling global datasource query result: %w", err)
-		}
-
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{
-				&mcp.TextContent{Text: string(resultJSON)},
+				&mcp.TextContent{Text: text},
 			},
 		}, nil, nil
 	}
