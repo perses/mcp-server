@@ -13,8 +13,8 @@
 
 // Package dashboard provides the MCP tools managing Perses dashboards.
 //
-// Besides the usual list/get/create/update/delete tools, it provides incremental tools (set/remove panels,
-// variables and layouts) so that a dashboard can be built step by step without re-sending the whole document.
+// Besides the usual list/get/create/update/delete tools, it provides incremental tools (set panels,
+// variables and panel groups) so that a dashboard can be built step by step without re-sending the whole document.
 // Validation is done by the Perses server, whose errors are returned unchanged.
 package dashboard
 
@@ -28,6 +28,7 @@ import (
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/perses/mcp-server/pkg/tools"
+	"github.com/perses/mcp-server/pkg/tools/internal/dashboardutil"
 	"github.com/perses/mcp-server/pkg/tools/resource"
 	apiClient "github.com/perses/perses/pkg/client/api"
 	v1Client "github.com/perses/perses/pkg/client/api/v1"
@@ -139,12 +140,14 @@ type writeResult struct {
 	Dashboard *v1.Dashboard `json:"dashboard,omitempty"`
 }
 
-func jsonResult(value any) (*mcp.CallToolResult, any, error) {
-	result, err := tools.JSONResult(value)
+func textResult(value any) (*mcp.CallToolResult, any, error) {
+	text, err := dashboardutil.MarshalText(value)
 	if err != nil {
 		return nil, nil, fmt.Errorf("error marshalling the response: %w", err)
 	}
-	return result, nil, nil
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{&mcp.TextContent{Text: text}},
+	}, nil, nil
 }
 
 // get fetches a dashboard, translating a 404 into a readable error.
@@ -219,7 +222,7 @@ func (d *dashboard) List() *tools.Tool {
 			}
 			listed = append(listed, item)
 		}
-		return jsonResult(listed)
+		return textResult(listed)
 	}
 
 	return &tools.Tool{
@@ -289,7 +292,7 @@ func (d *dashboard) Get() *tools.Tool {
 		}
 		switch {
 		case len(input.Panels) > 0:
-			result := panelsResult{Summary: Summarize(dash, dash.Metadata.Project, d.baseURL()), Panels: map[string]*dashboardSpec.Panel{}}
+			result := panelsResult{Summary: Summarize(dash, d.baseURL()), Panels: map[string]*dashboardSpec.Panel{}}
 			for _, key := range input.Panels {
 				if panel, ok := dash.Spec.Panels[key]; ok {
 					result.Panels[key] = panel
@@ -300,11 +303,11 @@ func (d *dashboard) Get() *tools.Tool {
 			if len(result.Missing) > 0 {
 				result.Available = availablePanels(dash)
 			}
-			return jsonResult(result)
+			return textResult(result)
 		case input.Summary == nil || *input.Summary:
-			return jsonResult(OutlineOf(dash, d.baseURL()))
+			return textResult(OutlineOf(dash, d.baseURL()))
 		default:
-			return jsonResult(dash)
+			return textResult(dash)
 		}
 	}
 

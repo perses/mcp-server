@@ -11,9 +11,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package dashboardutil contains the dashboard logic shared by the MCP tools: decoding the dashboard argument,
-// compact summaries and grid layout placement. Validation is left to the Perses server, whose messages are returned
-// unchanged.
+// Package dashboardutil contains the dashboard logic shared by the dashboard and validation tools: decoding the
+// dashboard argument and formatting results.
 package dashboardutil
 
 import (
