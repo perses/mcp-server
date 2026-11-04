@@ -28,6 +28,7 @@ import (
 	apiClient "github.com/perses/perses/pkg/client/api"
 	"github.com/perses/perses/pkg/client/perseshttp"
 	"github.com/perses/spec/go/common"
+	"github.com/perses/spec/go/plugin"
 )
 
 const (
@@ -189,7 +190,7 @@ func TestSchemaTools(t *testing.T) {
 			tool:      "perses_get_plugin_schema",
 			arguments: map[string]any{"kind": "LineChart"},
 			isError:   true,
-			expected:  `"LineChart" is not a plugin kind; ` + notPluginKindHint,
+			expected:  noSchemaFound("LineChart"),
 		},
 		{
 			title:     "unknown plugin kind in another registry names the registry",
@@ -289,4 +290,11 @@ func TestSchemaToolsAreReadOnly(t *testing.T) {
 			t.Errorf("%s: expected the %q resource type, got %q", tool.MCPTool.Name, tools.SchemaResource, tool.ResourceType)
 		}
 	}
+}
+
+// noSchemaFound is the error returned when the default registry has no schema for the kind.
+func noSchemaFound(kind string) string {
+	return fmt.Sprintf("no schema of plugin %q found in registry %q; set registry for plugins installed elsewhere "+
+		"(requires Perses v0.55 or later); %s Server error: something wrong happened with the request to the API.  "+
+		"Message: document not found StatusCode: 404", kind, plugin.DefaultRegistry, notPluginKindHint)
 }

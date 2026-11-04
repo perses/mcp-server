@@ -172,7 +172,7 @@ func TestGetPluginSchemaExpansion(t *testing.T) {
 			dashboardSchema: sampleDashboardSchema,
 			arguments:       map[string]any{"kind": "calculation"},
 			isError:         true,
-			expected:        `"calculation" is not a plugin kind; ` + notPluginKindHint,
+			expected:        noSchemaFound("calculation"),
 			expectedPaths:   []string{"/api/v1/schemas/dashboards", "/api/v1/plugins", "/api/v1/schemas/plugins/calculation"},
 		},
 	}
