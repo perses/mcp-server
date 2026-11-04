@@ -28,7 +28,9 @@ import (
 	"github.com/perses/mcp-server/pkg/tools/internal/dashboardutil"
 	apiClient "github.com/perses/perses/pkg/client/api"
 	"github.com/perses/perses/pkg/client/perseshttp"
+	v1 "github.com/perses/perses/pkg/model/api/v1"
 	"github.com/perses/spec/go/common"
+	dashboardSpec "github.com/perses/spec/go/dashboard"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -417,12 +419,19 @@ func TestGetAndList(t *testing.T) {
 		some := mustCall(t, session, "perses_get_dashboard_by_name", arguments)
 		assert.Len(t, some["panels"], 1)
 		assert.Equal(t, []any{"nope"}, some["missing"])
+		assert.Equal(t, map[string]any{"p1": "CPU"}, some["available"], "missing keys come with the available ones")
 		panel := some["panels"].(map[string]any)["p1"].(map[string]any)
 		plugin := panel["spec"].(map[string]any)["plugin"].(map[string]any)
 		assert.Equal(t, "mean", plugin["spec"].(map[string]any)["calculation"])
 	}
 
-	text := mustFail(t, session, "perses_get_dashboard_by_name", map[string]any{"project": "myproject", "name": "cpu", "summary": false, "panels": []string{}})
+	found := mustCall(t, session, "perses_get_dashboard_by_name", map[string]any{"project": "myproject", "name": "cpu", "panels": []string{"p1"}})
+	assert.NotContains(t, found, "available", "available is only returned when a key is missing")
+
+	text := mustFail(t, session, "perses_get_dashboard_by_name", map[string]any{"project": "myproject", "name": "cpu", "panels": []string{""}})
+	assert.Contains(t, text, "panels")
+
+	text = mustFail(t, session, "perses_get_dashboard_by_name", map[string]any{"project": "myproject", "name": "cpu", "summary": false, "panels": []string{}})
 	assert.Contains(t, text, "panels")
 	assert.NotContains(t, text, `"kind"`, "an empty panel selection must not fall back to the full dashboard")
 
@@ -459,12 +468,33 @@ func TestToolDescriptionsStayCompact(t *testing.T) {
 		schema, ok := tool.MCPTool.InputSchema.(*jsonschema.Schema)
 		require.True(t, ok, "expected a JSON Schema for %s", tool.MCPTool.Name)
 		if versionSchema := schema.Properties[expectedVersionProperty]; versionSchema != nil {
-			assert.Contains(t, versionSchema.Description, "best-effort stale-write check", tool.MCPTool.Name)
-			assert.Contains(t, versionSchema.Description, "not provide conditional writes", tool.MCPTool.Name)
+			assert.Contains(t, versionSchema.Description, "best-effort check, not a lock", tool.MCPTool.Name)
 		}
 		if tool.IsWriteTool && tool.MCPTool.Name != "perses_delete_dashboard" {
 			assert.NotContains(t, tool.MCPTool.Description, "Model:", tool.MCPTool.Name)
 			assert.Less(t, len(tool.MCPTool.Description), 1100, tool.MCPTool.Name)
 		}
 	}
+}
+
+func TestGetMissingPanelsOnEmptyDashboard(t *testing.T) {
+	fake := newFakePerses()
+	session := newSession(t, fake)
+	empty := strings.Replace(validDashboard, `"panels": {"p1"`, `"unused": {"p1"`, 1)
+	var dash map[string]any
+	require.NoError(t, json.Unmarshal([]byte(empty), &dash))
+	spec := dash["spec"].(map[string]any)
+	delete(spec, "unused")
+	spec["layouts"] = []any{}
+	mustCall(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": dash})
+
+	result := mustCall(t, session, "perses_get_dashboard_by_name", map[string]any{"project": "myproject", "name": "cpu", "panels": []string{"p1"}})
+	assert.Equal(t, []any{"p1"}, result["missing"])
+	assert.Equal(t, map[string]any{}, result["available"], "an empty dashboard reports that no panel is available")
+}
+
+func TestAvailablePanelsWithoutDisplay(t *testing.T) {
+	dash := &v1.Dashboard{}
+	dash.Spec.Panels = map[string]*dashboardSpec.Panel{"nil": nil, "unnamed": {Kind: "Panel"}}
+	assert.Equal(t, map[string]string{"nil": "", "unnamed": ""}, availablePanels(dash))
 }
