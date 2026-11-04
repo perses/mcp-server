@@ -36,8 +36,7 @@ func (d *dashboard) Create() *tools.Tool {
 	tool := &mcp.Tool{
 		Name: "perses_create_dashboard",
 		Description: "Create a dashboard in a project from its complete JSON definition. The dashboard is validated " +
-			"by the Perses server first; on failure the result lists the errors with the JSON path of each offending " +
-			"field (e.g. spec.panels.cpu.spec.plugin.spec.calculation) so that only that field needs fixing. " +
+			"by the Perses server first; on failure the error is the message of the Perses server. " +
 			"Returns a short summary (name, version, counts, URL), not the dashboard. " +
 			"Fails if a dashboard with the same name exists; use perses_update_dashboard to change it. " +
 			"Set dry_run=true to only validate.",
@@ -61,19 +60,15 @@ func (d *dashboard) Create() *tools.Tool {
 	}
 
 	handler := func(_ context.Context, _ *mcp.CallToolRequest, input CreateDashboardInput) (*mcp.CallToolResult, any, error) { //nolint:unparam
-		dash, issues := dashboardutil.Decode(input.Dashboard, input.Project)
-		if len(issues) > 0 {
-			return invalidResult(dashboardutil.NewValidation(issues, nil))
-		}
-		validation, err := d.validate(dash)
+		dash, err := dashboardutil.DecodeDashboard(input.Dashboard, input.Project)
 		if err != nil {
 			return nil, nil, err
 		}
-		if validation != nil && !validation.Valid {
-			return invalidResult(validation)
+		if err := d.validate(dash); err != nil {
+			return nil, nil, err
 		}
 
-		result := writeResult{Action: "created", DryRun: input.DryRun, Warnings: warningsOf(validation)}
+		result := writeResult{Action: "created", DryRun: input.DryRun}
 		if input.DryRun {
 			result.Action = "would_create"
 			_, err := d.api(input.Project).Get(dash.Metadata.Name)
@@ -132,8 +127,7 @@ func (d *dashboard) Update() *tools.Tool {
 	tool := &mcp.Tool{
 		Name: "perses_update_dashboard",
 		Description: "Replace an existing dashboard with its complete JSON definition (the dashboard must exist). " +
-			"Validation errors are returned with the JSON path of each offending field; the response is a short " +
-			"summary.",
+			"Validation errors are the messages of the Perses server; the response is a short summary.",
 		InputSchema: &jsonschema.Schema{
 			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
@@ -155,9 +149,9 @@ func (d *dashboard) Update() *tools.Tool {
 	}
 
 	handler := func(_ context.Context, _ *mcp.CallToolRequest, input UpdateDashboardInput) (*mcp.CallToolResult, any, error) { //nolint:unparam
-		dash, issues := dashboardutil.Decode(input.Dashboard, input.Project)
-		if len(issues) > 0 {
-			return invalidResult(dashboardutil.NewValidation(issues, nil))
+		dash, err := dashboardutil.DecodeDashboard(input.Dashboard, input.Project)
+		if err != nil {
+			return nil, nil, err
 		}
 		// Perses checks the read and update permissions independently: read the dashboard only when needed, so that
 		// an update-only role can still update. Without the read, the PUT itself rejects a missing dashboard.
@@ -206,14 +200,10 @@ type editRequest struct {
 
 // save validates the modified dashboard then updates it, unless this is a dry run.
 func (d *dashboard) save(req editRequest, dash *v1.Dashboard, changes []string) (*mcp.CallToolResult, any, error) {
-	validation, err := d.validate(dash)
-	if err != nil {
+	if err := d.validate(dash); err != nil {
 		return nil, nil, err
 	}
-	if validation != nil && !validation.Valid {
-		return invalidResult(validation)
-	}
-	result := writeResult{Action: "updated", DryRun: req.dryRun, Changes: changes, Warnings: warningsOf(validation)}
+	result := writeResult{Action: "updated", DryRun: req.dryRun, Changes: changes}
 	if req.dryRun {
 		result.Action = "would_update"
 		result.Summary = dashboardutil.Summarize(dash, d.baseURL())
