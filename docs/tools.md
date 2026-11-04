@@ -215,8 +215,8 @@ Resource: `validate`
 
 These tools validate resources without creating or modifying anything, and stay available in read-only mode.
 They take resources as JSON objects and return `{valid: true}`, or `{valid: false, error}` where `error` is the
-message of the Perses server (or of the Perses model when the resource cannot be decoded), unchanged. Connection and
-unexpected server errors are tool errors.
+message of the Perses model when the resource cannot be decoded. When the Perses server rejects the resource, or cannot
+be reached, the tool returns the error of the Perses client unchanged as a tool error.
 
 | Tool                         | Description                                      | Required parameters        | Optional parameters                             |
 |------------------------------|--------------------------------------------------|----------------------------|-------------------------------------------------|

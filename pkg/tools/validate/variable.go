@@ -35,7 +35,7 @@ func (v *validation) Variable() *tools.Tool {
 	tool := &mcp.Tool{
 		Name: "perses_validate_variable",
 		Description: "Validate a project or global variable against the plugin schemas without saving it. Returns " +
-			"{valid: true}, or {valid: false, error} with the message of the Perses server.",
+			"{valid: true}, or the error of the Perses server.",
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Validates a variable against Perses schemas",
 			ReadOnlyHint:    true,
@@ -90,11 +90,11 @@ func (v *validation) validateVariable(input ValidateVariableInput) (*result, err
 		if entity.Metadata.Project == "" {
 			entity.Metadata.Project = input.Project
 		}
-		return serverResult(v.client.Validate().Variable(entity), "error validating the project variable")
+		return serverResult(v.client.Validate().Variable(entity))
 	}
 	entity := &v1.GlobalVariable{}
 	if err := decodeResource(input.Variable, variableKinds, scope, entity); err != nil {
 		return invalid(err), nil
 	}
-	return serverResult(v.client.Validate().GlobalVariable(entity), "error validating the global variable")
+	return serverResult(v.client.Validate().GlobalVariable(entity))
 }

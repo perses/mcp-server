@@ -27,7 +27,7 @@ const (
 	scopeGlobal  = "global"
 )
 
-// result is the result of the validation tools. Error is the message of Perses, unchanged.
+// result is the result of the validation tools. Error is set when the resource cannot be decoded.
 type result struct {
 	Valid bool   `json:"valid"`
 	Error string `json:"error,omitempty"`
@@ -38,16 +38,13 @@ func invalid(err error) *result {
 	return &result{Error: err.Error()}
 }
 
-// serverResult converts the response of the Perses validation API: a 400 response is a validation failure, whose
-// message is returned unchanged; any other error is a tool error.
-func serverResult(err error, format string, args ...any) (*result, error) {
-	if err == nil {
-		return &result{Valid: true}, nil
+// serverResult converts the response of the Perses validation API. An error, including a validation failure, is
+// returned unchanged as a tool error.
+func serverResult(err error) (*result, error) {
+	if err != nil {
+		return nil, err
 	}
-	if message, ok := dashboardutil.IsBadRequest(err); ok {
-		return &result{Error: message}, nil
-	}
-	return nil, fmt.Errorf(format+": %w", append(args, err)...)
+	return &result{Valid: true}, nil
 }
 
 // resourceKinds describes a resource that exists in a project and a global flavor, e.g. Datasource and GlobalDatasource.

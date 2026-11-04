@@ -49,7 +49,7 @@ func (v *validation) Datasource() *tools.Tool {
 	tool := &mcp.Tool{
 		Name: "perses_validate_datasource",
 		Description: "Validate a project or global datasource without saving it, or check a saved one by name. " +
-			"Returns {valid, error, warnings, connectivity}: error is the message of the Perses server. Warnings flag " +
+			"Returns {valid, error, warnings, connectivity}, or the error of the Perses server. Warnings flag " +
 			"configs that are valid but likely do not work (directUrl only, localhost proxy URL, blocked endpoints, " +
 			"another default datasource, name hiding a global datasource). check_connectivity:true queries the " +
 			"datasource through the Perses server proxy (nothing is saved).",
@@ -154,7 +154,7 @@ func (v *validation) validateDatasourceDocument(input ValidateDatasourceInput) (
 			entity.Metadata.Project = input.Project
 		}
 		ref := datasourceRef{scope: scope, project: entity.Metadata.Project, name: entity.Metadata.Name, spec: entity.Spec}
-		validation, err := serverResult(v.client.Validate().Datasource(entity), "error validating the project datasource")
+		validation, err := serverResult(v.client.Validate().Datasource(entity))
 		return ref, validation, err
 	}
 	entity := &v1.GlobalDatasource{}
@@ -162,7 +162,7 @@ func (v *validation) validateDatasourceDocument(input ValidateDatasourceInput) (
 		return datasourceRef{}, invalid(err), nil
 	}
 	ref := datasourceRef{scope: scope, name: entity.Metadata.Name, spec: entity.Spec}
-	validation, err := serverResult(v.client.Validate().GlobalDatasource(entity), "error validating the global datasource")
+	validation, err := serverResult(v.client.Validate().GlobalDatasource(entity))
 	return ref, validation, err
 }
 

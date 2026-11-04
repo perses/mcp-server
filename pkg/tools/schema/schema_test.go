@@ -20,7 +20,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -299,12 +298,6 @@ func TestValidateDashboard(t *testing.T) {
 			expectedProject: "other",
 		},
 		{
-			title:           "dashboard rejected by the Perses schemas",
-			dashboard:       dashboardObject(t, strings.Replace(validDashboard, `"mean"`, `"average"`, 1)),
-			expected:        `{"valid":false,"error":` + strconv.Quote(invalidCalculationMessage) + `}`,
-			expectedProject: "myproject",
-		},
-		{
 			title:     "not a dashboard",
 			dashboard: dashboardObject(t, strings.Replace(validDashboard, `"kind": "Dashboard"`, `"kind": "EphemeralDashboard"`, 1)),
 			expected:  `{"valid":false,"error":"invalid kind: \"EphemeralDashboard\" for a Dashboard type"}`,
@@ -333,16 +326,18 @@ func dashboardObject(t *testing.T, document string) map[string]any {
 	return object
 }
 
-func TestValidateDashboardServerError(t *testing.T) {
+func TestValidateDashboardPersesErrors(t *testing.T) {
 	session := connect(t, &fakePerses{})
 
-	dashboard := dashboardObject(t, strings.Replace(validDashboard, `"mean"`, `"crash"`, 1))
-	result, text := callTool(t, session, "perses_validate_dashboard", map[string]any{"project": "myproject", "dashboard": dashboard})
-	if !result.IsError {
-		t.Fatalf("expected a tool error when the validation cannot be performed, got %s", text)
-	}
-	if !strings.Contains(text, "error validating dashboard in project 'myproject'") {
-		t.Errorf("unexpected error %q", text)
+	for replacement, message := range map[string]string{
+		`"average"`: invalidCalculationMessage,
+		`"crash"`:   "internal server error",
+	} {
+		dashboard := dashboardObject(t, strings.Replace(validDashboard, `"mean"`, replacement, 1))
+		result, text := callTool(t, session, "perses_validate_dashboard", map[string]any{"project": "myproject", "dashboard": dashboard})
+		if !result.IsError || !strings.Contains(text, message) {
+			t.Errorf("expected the error of the Perses client unchanged, got %s", text)
+		}
 	}
 }
 

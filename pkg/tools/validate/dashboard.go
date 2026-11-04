@@ -33,8 +33,8 @@ func (v *validation) Dashboard() *tools.Tool {
 	tool := &mcp.Tool{
 		Name: "perses_validate_dashboard",
 		Description: "Validate a dashboard against the dashboard and plugin schemas of the Perses server without " +
-			"saving it, e.g. to check a draft in read-only mode. Returns {valid: true}, or {valid: false, error} with " +
-			"the message of the Perses server. Creating or updating a dashboard runs the same validation.",
+			"saving it, e.g. to check a draft in read-only mode. Returns {valid: true}, or the error of the Perses " +
+			"server. Creating or updating a dashboard runs the same validation.",
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Validates a dashboard against Perses schemas",
 			ReadOnlyHint:    true,
@@ -88,5 +88,5 @@ func (v *validation) validateDashboard(input ValidateDashboardInput) (*result, e
 	if err != nil {
 		return invalid(err), nil
 	}
-	return serverResult(v.client.Validate().Dashboard(dashboardObj), "error validating dashboard in project '%s'", input.Project)
+	return serverResult(v.client.Validate().Dashboard(dashboardObj))
 }

@@ -174,7 +174,6 @@ func TestValidationServerErrors(t *testing.T) {
 		status  int
 		body    string
 		message string
-		isError bool
 	}{
 		{
 			name: "datasource plugin field", tool: "perses_validate_datasource", args: map[string]any{"datasource": rawJSON(projectDtsJSON)},
@@ -196,7 +195,8 @@ func TestValidationServerErrors(t *testing.T) {
 		},
 		{
 			name: "server failure", tool: "perses_validate_datasource", args: map[string]any{"datasource": rawJSON(projectDtsJSON)},
-			path: "POST /api/validate/datasources", status: http.StatusInternalServerError, body: `{"message":"boom"}`, isError: true,
+			path: "POST /api/validate/datasources", status: http.StatusInternalServerError, body: `{"message":"boom"}`,
+			message: "internal server error",
 		},
 	}
 	for _, testCase := range testCases {
@@ -205,15 +205,8 @@ func TestValidationServerErrors(t *testing.T) {
 				testCase.path: {status: testCase.status, body: testCase.body},
 			}}
 			result, text := call(t, connect(t, perses), testCase.tool, testCase.args)
-			if testCase.isError {
-				if !result.IsError {
-					t.Fatalf("expected a tool error, got %s", text)
-				}
-				return
-			}
-			decoded := decode(t, result, text)
-			if decoded.Valid || decoded.Error != testCase.message {
-				t.Errorf("expected the message of Perses unchanged, got %s", text)
+			if !result.IsError || !strings.Contains(text, testCase.message) {
+				t.Errorf("expected the error of the Perses client unchanged, got %s", text)
 			}
 		})
 	}
