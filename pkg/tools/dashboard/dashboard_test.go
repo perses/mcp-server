@@ -283,13 +283,14 @@ func TestCreate(t *testing.T) {
 		assert.Contains(t, text, "perses_update_dashboard")
 		assert.Equal(t, 2, fake.requests["POST /api/v1/projects/myproject/dashboards"], "the dry run must not save")
 	})
-	t.Run("validation error is the message of Perses", func(t *testing.T) {
+	t.Run("validation error is the error of the Perses client", func(t *testing.T) {
 		fake := newFakePerses()
 		session := newSession(t, fake)
 		invalid := strings.ReplaceAll(validDashboard, `p1`, `p2`)
 		invalid = strings.Replace(invalid, `"mean"`, `"average"`, 1)
 		text := mustFail(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": object(t, invalid)})
-		assert.Equal(t, "bad request: bad request: invalid panel p2: spec.calculation: conflicting values \"mean\" and \"average\":\n    1:1\n", text)
+		assert.Contains(t, text, "invalid panel p2: spec.calculation: conflicting values \"mean\" and \"average\"")
+		assert.Contains(t, text, "StatusCode: 400")
 		assert.Empty(t, fake.dashboards)
 	})
 	t.Run("decode error is the message of the Perses model", func(t *testing.T) {

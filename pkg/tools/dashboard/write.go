@@ -16,12 +16,14 @@ package dashboard
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/perses/mcp-server/pkg/tools"
 	"github.com/perses/mcp-server/pkg/tools/internal/dashboardutil"
+	"github.com/perses/perses/pkg/client/perseshttp"
 	v1 "github.com/perses/perses/pkg/model/api/v1"
 )
 
@@ -36,7 +38,7 @@ func (d *dashboard) Create() *tools.Tool {
 	tool := &mcp.Tool{
 		Name: "perses_create_dashboard",
 		Description: "Create a dashboard in a project from its complete JSON definition. The dashboard is validated " +
-			"by the Perses server first; on failure the error is the message of the Perses server. " +
+			"by the Perses server first; on failure the error of the Perses server is returned. " +
 			"Returns a short summary (name, version, counts, URL), not the dashboard. " +
 			"Fails if a dashboard with the same name exists; use perses_update_dashboard to change it. " +
 			"Set dry_run=true to only validate.",
@@ -64,7 +66,7 @@ func (d *dashboard) Create() *tools.Tool {
 		if err != nil {
 			return nil, nil, err
 		}
-		if err := d.validate(dash); err != nil {
+		if err := d.client.Validate().Dashboard(dash); err != nil {
 			return nil, nil, err
 		}
 
@@ -75,7 +77,7 @@ func (d *dashboard) Create() *tools.Tool {
 			switch {
 			case err == nil:
 				return nil, nil, alreadyExistsError(dash.Metadata.Name, input.Project)
-			case dashboardutil.IsNotFound(err):
+			case errors.Is(err, perseshttp.RequestNotFoundError):
 			default:
 				return nil, nil, fmt.Errorf("error checking whether dashboard '%s' exists in project '%s': %w", dash.Metadata.Name, input.Project, err)
 			}
@@ -86,7 +88,7 @@ func (d *dashboard) Create() *tools.Tool {
 		saved, err := d.api(input.Project).Create(dash)
 		switch {
 		case err == nil:
-		case dashboardutil.IsConflict(err):
+		case errors.Is(err, perseshttp.ConflictError):
 			return nil, nil, alreadyExistsError(dash.Metadata.Name, input.Project)
 		default:
 			return nil, nil, fmt.Errorf("error creating dashboard '%s' in project '%s': %w", dash.Metadata.Name, input.Project, err)
@@ -200,7 +202,7 @@ type editRequest struct {
 
 // save validates the modified dashboard then updates it, unless this is a dry run.
 func (d *dashboard) save(req editRequest, dash *v1.Dashboard, changes []string) (*mcp.CallToolResult, any, error) {
-	if err := d.validate(dash); err != nil {
+	if err := d.client.Validate().Dashboard(dash); err != nil {
 		return nil, nil, err
 	}
 	result := writeResult{Action: "updated", DryRun: req.dryRun, Changes: changes}
@@ -211,7 +213,7 @@ func (d *dashboard) save(req editRequest, dash *v1.Dashboard, changes []string) 
 	}
 	saved, err := d.api(req.project).Update(dash)
 	if err != nil {
-		if dashboardutil.IsNotFound(err) {
+		if errors.Is(err, perseshttp.RequestNotFoundError) {
 			return nil, nil, notFoundError(req.name, req.project)
 		}
 		return nil, nil, fmt.Errorf("error updating dashboard '%s' in project '%s': %w", req.name, req.project, err)
