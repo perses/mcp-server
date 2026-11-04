@@ -88,17 +88,17 @@ type SetPanelsInput struct {
 	Width      int                  `json:"width,omitempty"`
 	Height     int                  `json:"height,omitempty"`
 	Placements map[string]Placement `json:"placements,omitempty"`
+	Remove     []string             `json:"remove,omitempty"`
 }
 
 func (d *dashboard) SetPanels() *tools.Tool {
 	tool := &mcp.Tool{
 		Name: "perses_set_dashboard_panels",
-		Description: "Add or replace panels, or move/resize existing panels with placements alone, without resending the dashboard. " +
-			"Supply at least one panel or placement. Replacing a panel keeps its position unless placements overrides it. " +
-			"New panels use the first free spot in the 24-column Grid group named by layout (created if missing; " +
-			"last group by default), with width x height (default 12x6). Explicit placements are reserved first. " +
-			"Use order for auto-placement sequence; remaining keys are alphabetical, not JSON object order. " +
-			"Validates before saving; returns a summary of changes or field-level validation errors.",
+		Description: "Add, replace, move, resize or remove panels without resending the dashboard. Give at least one of " +
+			"panels, placements or remove. Replaced panels keep their position. New panels take the first free spot of the " +
+			"24-column Grid group named by layout (created if missing; last group by default), sized width x height " +
+			"(default 12x6); placements set exact positions. Removals apply first. Validates before saving and returns " +
+			"a summary of changes or field-level validation errors.",
 		InputSchema: &jsonschema.Schema{
 			Type: tools.SchemaTypeObject,
 			Properties: editProperties(map[string]*jsonschema.Schema{
@@ -147,6 +147,13 @@ func (d *dashboard) SetPanels() *tools.Tool {
 						Required: []string{"x", "y"},
 					},
 				},
+				"remove": {
+					Type: tools.SchemaTypeArray,
+					Description: "Keys of panels to delete, together with their layout items; must not overlap panels or " +
+						"placements. Unknown keys are reported and ignored.",
+					Items:       &jsonschema.Schema{Type: tools.SchemaTypeString, MinLength: new(1)},
+					UniqueItems: true,
+				},
 			}),
 			Required: []string{string(tools.ProjectResource), tools.ResourceName},
 		},
@@ -160,15 +167,33 @@ func (d *dashboard) SetPanels() *tools.Tool {
 				return invalidResult(dashboardutil.NewValidation([]dashboardutil.Issue{*issue}, nil))
 			}
 		}
-		if len(panels) == 0 && len(input.Placements) == 0 {
+		if len(panels) == 0 && len(input.Placements) == 0 && len(input.Remove) == 0 {
 			return invalidResult(dashboardutil.NewValidation([]dashboardutil.Issue{{
 				Path:    "panels",
-				Message: "give at least one panel or placement",
-				Hint:    "use placements to move or resize existing panels, or perses_set_dashboard_layout to replace a layout group",
+				Message: "give at least one panel, placement or key to remove",
+				Hint:    "use placements to move or resize existing panels, remove to delete panels, or perses_set_dashboard_layout to replace a layout group",
 			}}, nil))
 		}
+		if len(panels) == 0 && len(input.Placements) == 0 && len(input.Order) > 0 {
+			return nil, nil, fmt.Errorf("order: only applies to keys given in panels or placements")
+		}
+		for _, key := range input.Remove {
+			_, inPanels := panels[key]
+			_, inPlacements := input.Placements[key]
+			if inPanels || inPlacements {
+				return nil, nil, fmt.Errorf("remove: panel %q is also given in panels or placements; a key can be either removed or set", key)
+			}
+		}
 		return d.edit(input.request(), func(dash *v1.Dashboard) ([]string, error) {
-			return setPanels(dash, panels, input)
+			changes := removePanels(dash, input.Remove)
+			if len(panels) == 0 && len(input.Placements) == 0 {
+				return changes, nil
+			}
+			set, err := setPanels(dash, panels, input)
+			if err != nil {
+				return nil, err
+			}
+			return append(changes, set...), nil
 		})
 	}
 
@@ -187,7 +212,7 @@ func setPanels(dash *v1.Dashboard, panels map[string]*dashboardSpec.Panel, input
 	keys := make([]string, 0, len(panels)+len(input.Placements))
 	for key, panel := range panels {
 		if panel == nil {
-			return nil, fmt.Errorf("panels.%s is null: give a panel object, or use perses_remove_dashboard_panels to remove it", key)
+			return nil, fmt.Errorf("panels.%s is null: give a panel object, or list the key in remove to delete it", key)
 		}
 		if !dashboardutil.IsValidKey(key) {
 			return nil, fmt.Errorf("panels.%s: the key must match %s", key, tools.PatternResourceName)
@@ -326,66 +351,33 @@ func placeExplicitly(dash *v1.Dashboard, keys []string, input SetPanelsInput) (m
 	return placedItems, nil
 }
 
-type RemovePanelsInput struct {
-	editInput
-	Panels []string `json:"panels"`
-}
-
-func (d *dashboard) RemovePanels() *tools.Tool {
-	tool := &mcp.Tool{
-		Name: "perses_remove_dashboard_panels",
-		Description: "Remove panels from an existing dashboard by key, together with the layout items displaying " +
-			"them. Unknown keys are reported and ignored.",
-		InputSchema: &jsonschema.Schema{
-			Type: tools.SchemaTypeObject,
-			Properties: editProperties(map[string]*jsonschema.Schema{
-				"panels": {
-					Type:        tools.SchemaTypeArray,
-					Description: "Keys of the panels to remove (the <key> of '#/spec/panels/<key>').",
-					Items:       &jsonschema.Schema{Type: tools.SchemaTypeString},
-					MinItems:    new(1),
-				},
-			}),
-			Required: []string{string(tools.ProjectResource), tools.ResourceName, "panels"},
-		},
-		Annotations: editAnnotations("Removes panels from a dashboard in Perses"),
+// removePanels deletes the panels and the layout items displaying them; unknown keys are reported.
+func removePanels(dash *v1.Dashboard, keys []string) []string {
+	var changes []string
+	for _, key := range keys {
+		if _, ok := dash.Spec.Panels[key]; !ok {
+			changes = append(changes, fmt.Sprintf("panel %s not found", key))
+			continue
+		}
+		delete(dash.Spec.Panels, key)
+		items := dashboardutil.RemovePanelItems(dash.Spec.Layouts, key)
+		changes = append(changes, fmt.Sprintf("removed panel %s and %d layout item(s)", key, items))
 	}
-
-	handler := func(_ context.Context, _ *mcp.CallToolRequest, input RemovePanelsInput) (*mcp.CallToolResult, any, error) { //nolint:unparam
-		return d.edit(input.request(), func(dash *v1.Dashboard) ([]string, error) {
-			var changes []string
-			for _, key := range input.Panels {
-				if _, ok := dash.Spec.Panels[key]; !ok {
-					changes = append(changes, fmt.Sprintf("panel %s not found", key))
-					continue
-				}
-				delete(dash.Spec.Panels, key)
-				items := dashboardutil.RemovePanelItems(dash.Spec.Layouts, key)
-				changes = append(changes, fmt.Sprintf("removed panel %s and %d layout item(s)", key, items))
-			}
-			return changes, nil
-		})
-	}
-
-	return &tools.Tool{
-		MCPTool:      tool,
-		IsWriteTool:  true,
-		ResourceType: tools.DashboardResource,
-		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, tool, handler) },
-	}
+	return changes
 }
 
 type SetVariablesInput struct {
 	editInput
-	Variables json.RawMessage `json:"variables"`
+	Variables json.RawMessage `json:"variables,omitempty"`
+	Remove    []string        `json:"remove,omitempty"`
 }
 
 func (d *dashboard) SetVariables() *tools.Tool {
 	tool := &mcp.Tool{
 		Name: "perses_set_dashboard_variables",
-		Description: "Add or replace variables of an existing dashboard. A variable with the same spec.name is " +
-			"replaced in place, others are appended. Variables are {kind: TextVariable|ListVariable, spec: {name, " +
-			"display: {name}, plugin: {kind: e.g. PrometheusLabelValuesVariable, spec: {labelName, matchers}}, " +
+		Description: "Add, replace or remove variables of an existing dashboard. A variable with the same spec.name is " +
+			"replaced in place, others are appended; removals apply first. Variables are {kind: TextVariable|ListVariable, " +
+			"spec: {name, display: {name}, plugin: {kind: e.g. PrometheusLabelValuesVariable, spec: {labelName, matchers}}, " +
 			"allowAllValue, allowMultiple}}; use them in queries as $name.",
 		InputSchema: &jsonschema.Schema{
 			Type: tools.SchemaTypeObject,
@@ -395,22 +387,40 @@ func (d *dashboard) SetVariables() *tools.Tool {
 					Description: "The variables to add or replace, as in spec.variables.",
 					Items:       &jsonschema.Schema{Type: tools.SchemaTypeObject},
 				},
+				"remove": {
+					Type: tools.SchemaTypeArray,
+					Description: "Names (spec.name) of variables to delete; must not overlap the variables being set. " +
+						"Unknown names are reported and ignored.",
+					Items:       &jsonschema.Schema{Type: tools.SchemaTypeString, MinLength: new(1)},
+					UniqueItems: true,
+				},
 			}),
-			Required: []string{string(tools.ProjectResource), tools.ResourceName, "variables"},
+			Required: []string{string(tools.ProjectResource), tools.ResourceName},
 		},
-		Annotations: editAnnotations("Adds or replaces variables of a dashboard in Perses"),
+		Annotations: editAnnotations("Adds, replaces or removes variables of a dashboard in Perses"),
 	}
 
 	handler := func(_ context.Context, _ *mcp.CallToolRequest, input SetVariablesInput) (*mcp.CallToolResult, any, error) { //nolint:unparam
 		var variables []dashboardSpec.Variable
-		if issue := dashboardutil.DecodeValue(input.Variables, "variables", &variables); issue != nil {
-			return invalidResult(dashboardutil.NewValidation([]dashboardutil.Issue{*issue}, nil))
+		if len(input.Variables) > 0 {
+			if issue := dashboardutil.DecodeValue(input.Variables, "variables", &variables); issue != nil {
+				return invalidResult(dashboardutil.NewValidation([]dashboardutil.Issue{*issue}, nil))
+			}
 		}
-		if len(variables) == 0 {
-			return nil, nil, fmt.Errorf("variables is empty: give at least one variable")
+		if len(variables) == 0 && len(input.Remove) == 0 {
+			return nil, nil, fmt.Errorf("give at least one variable to set or one name to remove")
+		}
+		removed := make(map[string]bool, len(input.Remove))
+		for _, name := range input.Remove {
+			removed[name] = true
+		}
+		for _, variable := range variables {
+			if variable.Spec != nil && removed[variable.Spec.GetName()] {
+				return nil, nil, fmt.Errorf("remove: variable %q is also given in variables; a name can be either removed or set", variable.Spec.GetName())
+			}
 		}
 		return d.edit(input.request(), func(dash *v1.Dashboard) ([]string, error) {
-			var changes []string
+			changes := removeVariables(dash, input.Remove)
 			for _, variable := range variables {
 				if variable.Spec == nil {
 					return nil, fmt.Errorf("a variable has no spec")
@@ -445,52 +455,19 @@ func variableIndex(dash *v1.Dashboard, name string) int {
 	return -1
 }
 
-type RemoveVariablesInput struct {
-	editInput
-	Variables []string `json:"variables"`
-}
-
-func (d *dashboard) RemoveVariables() *tools.Tool {
-	tool := &mcp.Tool{
-		Name:        "perses_remove_dashboard_variables",
-		Description: "Remove variables from an existing dashboard by name. Unknown names are reported and ignored.",
-		InputSchema: &jsonschema.Schema{
-			Type: tools.SchemaTypeObject,
-			Properties: editProperties(map[string]*jsonschema.Schema{
-				"variables": {
-					Type:        tools.SchemaTypeArray,
-					Description: "Names (spec.name) of the variables to remove.",
-					Items:       &jsonschema.Schema{Type: tools.SchemaTypeString},
-					MinItems:    new(1),
-				},
-			}),
-			Required: []string{string(tools.ProjectResource), tools.ResourceName, "variables"},
-		},
-		Annotations: editAnnotations("Removes variables from a dashboard in Perses"),
+// removeVariables deletes the variables by name; unknown names are reported.
+func removeVariables(dash *v1.Dashboard, names []string) []string {
+	var changes []string
+	for _, name := range names {
+		index := variableIndex(dash, name)
+		if index < 0 {
+			changes = append(changes, fmt.Sprintf("variable %s not found", name))
+			continue
+		}
+		dash.Spec.Variables = append(dash.Spec.Variables[:index], dash.Spec.Variables[index+1:]...)
+		changes = append(changes, fmt.Sprintf("removed variable %s", name))
 	}
-
-	handler := func(_ context.Context, _ *mcp.CallToolRequest, input RemoveVariablesInput) (*mcp.CallToolResult, any, error) { //nolint:unparam
-		return d.edit(input.request(), func(dash *v1.Dashboard) ([]string, error) {
-			var changes []string
-			for _, name := range input.Variables {
-				index := variableIndex(dash, name)
-				if index < 0 {
-					changes = append(changes, fmt.Sprintf("variable %s not found", name))
-					continue
-				}
-				dash.Spec.Variables = append(dash.Spec.Variables[:index], dash.Spec.Variables[index+1:]...)
-				changes = append(changes, fmt.Sprintf("removed variable %s", name))
-			}
-			return changes, nil
-		})
-	}
-
-	return &tools.Tool{
-		MCPTool:      tool,
-		IsWriteTool:  true,
-		ResourceType: tools.DashboardResource,
-		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, tool, handler) },
-	}
+	return changes
 }
 
 type SetLayoutInput struct {
@@ -504,11 +481,10 @@ type SetLayoutInput struct {
 func (d *dashboard) SetLayout() *tools.Tool {
 	tool := &mcp.Tool{
 		Name: "perses_set_dashboard_layout",
-		Description: "Add, replace or remove one layout group (a row of panels) of an existing dashboard. The " +
-			"group is selected by 'index' (position in spec.layouts) or 'title'; when none matches, the layout is " +
-			"appended. Set remove=true to delete the selected group (its panels stay in spec.panels and can be " +
-			"placed again). A layout is {kind: Grid, spec: {display: {title, collapse: {open: true}}, items: [{x, y, " +
-			"width, height, content: {$ref: '#/spec/panels/<key>'}}]}} on a 24-column grid.",
+		Description: "Add, replace or remove one layout group (section) selected by index or title; an unmatched " +
+			"layout is appended, and remove=true deletes the group but keeps its panels. To move panels between groups, " +
+			"prefer perses_set_dashboard_panels with layout and placements. A layout is {kind: Grid, spec: {display: " +
+			"{title, collapse: {open: true}}, items: [{x, y, width, height, content: {$ref: '#/spec/panels/<key>'}}]}}.",
 		InputSchema: &jsonschema.Schema{
 			Type: tools.SchemaTypeObject,
 			Properties: editProperties(map[string]*jsonschema.Schema{
