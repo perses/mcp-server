@@ -30,7 +30,7 @@ Resource: `dashboard`
 | Tool                           | Description                                | Required parameters    |
 |--------------------------------|--------------------------------------------|------------------------|
 | `perses_list_dashboards`       | List all dashboards of a project           | `project`              |
-| `perses_get_dashboard_by_name` | Get an outline by default; use `summary: false` for complete JSON before read-modify-write, or `panels: [keys]` for those full panels regardless of `summary` | `project`, `name` |
+| `perses_get_dashboard_by_name` | Get an outline by default; use `summary: false` for complete JSON before read-modify-write, or `panels: [keys]` for those full panels regardless of `summary`; unknown keys are listed in `missing` with the `available` keys | `project`, `name` |
 | `perses_create_dashboard`      | Create a dashboard in a project            | `project`, `dashboard` |
 | `perses_update_dashboard`      | Update an existing dashboard of a project  | `project`, `dashboard` |
 | `perses_delete_dashboard`      | Delete a dashboard from a project          | `project`, `name`      |

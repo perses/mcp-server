@@ -101,7 +101,7 @@ func dashboardSchema(description string) *jsonschema.Schema {
 func dryRunSchema() *jsonschema.Schema {
 	return &jsonschema.Schema{
 		Type:        tools.SchemaTypeBoolean,
-		Description: "Validate the result against the Perses server and report what would happen without saving anything.",
+		Description: "Validate and report the result without saving.",
 		Default:     json.RawMessage("false"),
 	}
 }
@@ -109,9 +109,8 @@ func dryRunSchema() *jsonschema.Schema {
 func expectedVersionSchema() *jsonschema.Schema {
 	return &jsonschema.Schema{
 		Type: "integer",
-		Description: "Optional metadata.version from your latest read; the tool fails without saving if it detects a " +
-			"changed version before writing. This is a best-effort stale-write check, not an atomic lock: Perses does " +
-			"not provide conditional writes, so a concurrent update after the check can still race.",
+		Description: "metadata.version from your last read; rejects the write if the dashboard changed since " +
+			"(best-effort check, not a lock).",
 		Minimum: new(0.0),
 	}
 }
@@ -119,7 +118,7 @@ func expectedVersionSchema() *jsonschema.Schema {
 func includeDashboardSchema() *jsonschema.Schema {
 	return &jsonschema.Schema{
 		Type:        tools.SchemaTypeBoolean,
-		Description: "Return the complete saved dashboard in addition to the summary. Off by default to keep the response small.",
+		Description: "Also return the complete saved dashboard (off by default).",
 		Default:     json.RawMessage("false"),
 	}
 }
@@ -280,6 +279,8 @@ type panelsResult struct {
 	dashboardutil.Summary
 	Panels  map[string]*dashboardSpec.Panel `json:"panels"`
 	Missing []string                        `json:"missing,omitempty"`
+	// Available maps every panel key to its display name, only when some keys are missing, so the caller can retry.
+	Available map[string]string `json:"available,omitzero"`
 }
 
 func (d *dashboard) Get() *tools.Tool {
@@ -307,10 +308,11 @@ func (d *dashboard) Get() *tools.Tool {
 					Default:     json.RawMessage("true"),
 				},
 				"panels": {
-					Type:        tools.SchemaTypeArray,
-					Description: "Return only the panels with these keys (plus the summary).",
-					Items:       &jsonschema.Schema{Type: tools.SchemaTypeString},
-					MinItems:    new(1),
+					Type: tools.SchemaTypeArray,
+					Description: "Return only the panels with these keys (plus the summary). Keys are the panel IDs of the outline " +
+						"(spec.panels keys), not display names; unknown keys are listed in missing with the available keys.",
+					Items:    &jsonschema.Schema{Type: tools.SchemaTypeString, MinLength: new(1)},
+					MinItems: new(1),
 				},
 			},
 			Required: []string{string(tools.ProjectResource), tools.ResourceName},
@@ -331,6 +333,9 @@ func (d *dashboard) Get() *tools.Tool {
 				} else {
 					result.Missing = append(result.Missing, key)
 				}
+			}
+			if len(result.Missing) > 0 {
+				result.Available = availablePanels(dash)
 			}
 			return textResult(result)
 		case input.Summary == nil || *input.Summary:
@@ -395,4 +400,17 @@ func (d *dashboard) Delete() *tools.Tool {
 		ResourceType: tools.DashboardResource,
 		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, tool, handler) },
 	}
+}
+
+// availablePanels maps each panel key of the dashboard to its display name.
+func availablePanels(dash *v1.Dashboard) map[string]string {
+	available := make(map[string]string, len(dash.Spec.Panels))
+	for key, panel := range dash.Spec.Panels {
+		name := ""
+		if panel != nil && panel.Spec.Display != nil {
+			name = panel.Spec.Display.Name
+		}
+		available[key] = name
+	}
+	return available
 }
