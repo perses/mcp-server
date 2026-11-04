@@ -32,9 +32,9 @@ func TextResult(text string) *mcp.CallToolResult {
 // JSONResult encodes v as compact JSON and returns it as a single text content block.
 //
 // HTML escaping is disabled on purpose. By default, encoding/json turns '<', '>' and '&'
-// into \u003c, \u003e and \u0026. PromQL and other query languages rely on these characters
-// (e.g. `rate(x[5m]) > 0 && y < 1`), and the escaped form is harder for models to read and
-// costs extra tokens.
+// into \u003c, \u003e and \u0026. Queries rely on these characters (e.g. PromQL
+// `rate(x[5m]) > 0 and y < 1`, or '&' in label values and URLs), and the escaped form is
+// harder for models to read and costs extra tokens.
 func JSONResult(v any) (*mcp.CallToolResult, error) {
 	text, err := marshalJSON(v)
 	if err != nil {

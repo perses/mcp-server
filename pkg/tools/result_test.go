@@ -59,8 +59,8 @@ func TestJSONResult(t *testing.T) {
 		},
 		{
 			name:  "PromQL is not HTML-escaped",
-			value: map[string]string{"query": `rate(http_requests_total[5m]) > 0 && up < 1`},
-			want:  `{"query":"rate(http_requests_total[5m]) > 0 && up < 1"}`,
+			value: map[string]string{"query": `rate(http_requests_total{path="/a?b=1&c=2"}[5m]) > 0 and up < 1`},
+			want:  `{"query":"rate(http_requests_total{path=\"/a?b=1&c=2\"}[5m]) > 0 and up < 1"}`,
 		},
 		{
 			name:  "raw message is compacted",
