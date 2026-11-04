@@ -98,14 +98,14 @@ func (d *dashboard) SetPanels() *tools.Tool {
 			"panels, placements or remove. Replaced panels keep their position. New panels take the first free spot of the " +
 			"24-column Grid group named by layout (created if missing; last group by default), sized width x height " +
 			"(default 12x6); placements set exact positions. Removals apply first. Validates before saving and returns " +
-			"a summary of changes or field-level validation errors.",
+			"a summary of changes, or the validation error of the Perses server.",
 		InputSchema: &jsonschema.Schema{
 			Type: tools.SchemaTypeObject,
 			Properties: editProperties(map[string]*jsonschema.Schema{
 				"panels": {
-					Types: []string{tools.SchemaTypeObject, tools.SchemaTypeString},
+					Type: tools.SchemaTypeObject,
 					Description: "Map of panel key to panel: {\"<key>\": {\"kind\": \"Panel\", \"spec\": {\"display\": {\"name\": \"...\"}, " +
-						"\"plugin\": {...}, \"queries\": [...]}}}. Optional for placements-only edits. Keys must match " + tools.PatternResourceName + ".",
+						"\"plugin\": {...}, \"queries\": [...]}}}. Optional for placements-only edits.",
 				},
 				"order": {
 					Type: tools.SchemaTypeArray,
@@ -163,16 +163,12 @@ func (d *dashboard) SetPanels() *tools.Tool {
 	handler := func(_ context.Context, _ *mcp.CallToolRequest, input SetPanelsInput) (*mcp.CallToolResult, any, error) { //nolint:unparam
 		var panels map[string]*dashboardSpec.Panel
 		if len(input.Panels) > 0 {
-			if issue := dashboardutil.DecodeValue(input.Panels, "panels", &panels); issue != nil {
-				return invalidResult(dashboardutil.NewValidation([]dashboardutil.Issue{*issue}, nil))
+			if err := json.Unmarshal(input.Panels, &panels); err != nil {
+				return nil, nil, err
 			}
 		}
 		if len(panels) == 0 && len(input.Placements) == 0 && len(input.Remove) == 0 {
-			return invalidResult(dashboardutil.NewValidation([]dashboardutil.Issue{{
-				Path:    "panels",
-				Message: "give at least one panel, placement or key to remove",
-				Hint:    "use placements to move or resize existing panels, remove to delete panels, or perses_set_dashboard_layout to replace a layout group",
-			}}, nil))
+			return nil, nil, fmt.Errorf("give at least one panel, placement or key to remove")
 		}
 		if len(panels) == 0 && len(input.Placements) == 0 && len(input.Order) > 0 {
 			return nil, nil, fmt.Errorf("order: only applies to keys given in panels or placements")
@@ -213,9 +209,6 @@ func setPanels(dash *v1.Dashboard, panels map[string]*dashboardSpec.Panel, input
 	for key, panel := range panels {
 		if panel == nil {
 			return nil, fmt.Errorf("panels.%s is null: give a panel object, or list the key in remove to delete it", key)
-		}
-		if !dashboardutil.IsValidKey(key) {
-			return nil, fmt.Errorf("panels.%s: the key must match %s", key, tools.PatternResourceName)
 		}
 		keys = append(keys, key)
 	}
@@ -383,7 +376,7 @@ func (d *dashboard) SetVariables() *tools.Tool {
 			Type: tools.SchemaTypeObject,
 			Properties: editProperties(map[string]*jsonschema.Schema{
 				"variables": {
-					Types:       []string{tools.SchemaTypeArray, tools.SchemaTypeString},
+					Type:        tools.SchemaTypeArray,
 					Description: "The variables to add or replace, as in spec.variables.",
 					Items:       &jsonschema.Schema{Type: tools.SchemaTypeObject},
 				},
@@ -403,8 +396,8 @@ func (d *dashboard) SetVariables() *tools.Tool {
 	handler := func(_ context.Context, _ *mcp.CallToolRequest, input SetVariablesInput) (*mcp.CallToolResult, any, error) { //nolint:unparam
 		var variables []dashboardSpec.Variable
 		if len(input.Variables) > 0 {
-			if issue := dashboardutil.DecodeValue(input.Variables, "variables", &variables); issue != nil {
-				return invalidResult(dashboardutil.NewValidation([]dashboardutil.Issue{*issue}, nil))
+			if err := json.Unmarshal(input.Variables, &variables); err != nil {
+				return nil, nil, err
 			}
 		}
 		if len(variables) == 0 && len(input.Remove) == 0 {
@@ -489,7 +482,7 @@ func (d *dashboard) SetLayout() *tools.Tool {
 			Type: tools.SchemaTypeObject,
 			Properties: editProperties(map[string]*jsonschema.Schema{
 				"layout": {
-					Types:       []string{tools.SchemaTypeObject, tools.SchemaTypeString},
+					Type:        tools.SchemaTypeObject,
 					Description: "The layout group to add or to replace the selected one with, as in spec.layouts. Required unless remove=true.",
 				},
 				"index": {
@@ -518,8 +511,8 @@ func (d *dashboard) SetLayout() *tools.Tool {
 		var layout *dashboardSpec.Layout
 		if len(input.Layout) > 0 && string(input.Layout) != "null" {
 			layout = &dashboardSpec.Layout{}
-			if issue := dashboardutil.DecodeValue(input.Layout, "layout", layout); issue != nil {
-				return invalidResult(dashboardutil.NewValidation([]dashboardutil.Issue{*issue}, nil))
+			if err := json.Unmarshal(input.Layout, layout); err != nil {
+				return nil, nil, err
 			}
 		}
 		if layout == nil && !input.Remove {

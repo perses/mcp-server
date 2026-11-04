@@ -118,8 +118,8 @@ func FindPanelItems(layouts []dashboard.Layout, key string) []PanelLocation {
 	var locations []PanelLocation
 	for i, layout := range layouts {
 		_, tabs := layout.Spec.(*dashboard.TabLayoutSpec)
-		for g, group := range itemGroups(i, layout) {
-			for _, item := range group.items {
+		for g, items := range itemGroups(layout) {
+			for _, item := range items {
 				if panelKeyOf(item) == key {
 					tab := -1
 					if tabs {

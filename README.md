@@ -367,7 +367,7 @@ are rejected unless their definitions are supplied in `panels`. Moving an alread
 group (or tab of a Tabs layout), width and height unless `layout` or the placement's `width`/`height` is given. Placements of a panel displayed
 in several groups or tabs are rejected; use `perses_set_dashboard_layout` for those. Explicit positions are reserved before new panels
 are auto-placed. Use `order: ["b", "a", "c"]` to choose panel processing/auto-placement order; keys not listed are
-processed alphabetically. JSON object key order is not preserved, even when `panels` is supplied as a JSON string.
+processed alphabetically. JSON object key order is not preserved.
 For a complete layout-group replacement, use `perses_set_dashboard_layout`.
 
 `perses_update_dashboard` reads the dashboard first only for `expected_version` or `dry_run`, so a plain
