@@ -26,34 +26,19 @@ import (
 	"github.com/perses/mcp-server/pkg/tools/resource"
 	apiClient "github.com/perses/perses/pkg/client/api/v1"
 	"github.com/perses/perses/pkg/client/perseshttp"
-	v1 "github.com/perses/perses/pkg/model/api/v1"
 	"github.com/perses/spec/go/plugin"
-	"github.com/sirupsen/logrus"
 )
 
 // kindPattern matches the valid plugin kinds, e.g. TimeSeriesChart or my-plugin.v2. The kind is a single segment of
 // the request path: slashes are rejected and it can't start with a dot, so neither "." nor ".." reaches other API paths.
 var kindPattern = regexp.MustCompile(`^[A-Za-z0-9_-][A-Za-z0-9_.-]*$`)
 
-const notPluginKindHint = "shared types such as calculation, format and thresholds are expanded inside each " +
-	"plugin's schema. Use perses_list_plugin_schemas to find plugin kinds."
-
-// notExpandedNotice starts the schemas returned without their shared types expanded, so that the caller knows that
-// the definitions of calculation, thresholds and the other shared types are not included.
-const notExpandedNotice = "// Shared types such as calculation and thresholds are not expanded in this schema.\n"
-
 type schema struct {
-	client       apiClient.ClientInterface
-	pluginBlocks *pluginBlocks
+	client apiClient.ClientInterface
 }
 
 func New(client apiClient.ClientInterface) resource.Resource {
-	s := &schema{client: client}
-	s.pluginBlocks = newPluginBlocks(
-		func() ([]byte, error) { return s.client.Schema().Dashboard() },
-		func() ([]v1.PluginModule, error) { return s.client.Plugin().List() },
-	)
-	return s
+	return &schema{client: client}
 }
 
 func (s *schema) GetTools() []*tools.Tool {
@@ -102,9 +87,8 @@ func (s *schema) Get() *tools.Tool {
 	tool := &mcp.Tool{
 		Name: "perses_get_plugin_schema",
 		Description: "Returns the CUE schema of one installed plugin kind, e.g. StatChart (panel) or " +
-			"PrometheusLabelValuesVariable (variable). Use it before writing or fixing a plugin spec. Shared types " +
-			"such as calculation and thresholds are expanded inline; when they cannot be, the response starts with a " +
-			"comment saying so. Find installed kinds with perses_list_plugins. Requires Perses v0.55 or later.",
+			"PrometheusLabelValuesVariable (variable). Use it before writing or fixing a plugin spec. " +
+			"Find installed kinds with perses_list_plugins. Requires Perses v0.55 or later.",
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Gets the CUE schema of a plugin in Perses",
 			ReadOnlyHint:    true,
@@ -116,18 +100,16 @@ func (s *schema) Get() *tools.Tool {
 			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
 				"kind": {
-					Type: tools.SchemaTypeString,
-					Description: "Plugin kind, case-sensitive, e.g. StatChart or PrometheusLabelValuesVariable. " +
-						"Shared types such as calculation and thresholds are not plugin kinds.",
-					MinLength: new(1),
-					MaxLength: new(128),
-					Pattern:   kindPattern.String(),
+					Type:        tools.SchemaTypeString,
+					Description: "Plugin kind, case-sensitive, e.g. StatChart or PrometheusLabelValuesVariable.",
+					MinLength:   new(1),
+					MaxLength:   new(128),
+					Pattern:     kindPattern.String(),
 				},
 				"registry": {
-					Type: tools.SchemaTypeString,
-					Description: "Plugin registry. Defaults to perses.dev. Set it only for plugins installed from another " +
-						"registry; their shared types are not expanded.",
-					MaxLength: new(253),
+					Type:        tools.SchemaTypeString,
+					Description: "Plugin registry. Defaults to perses.dev. Set it only for plugins installed from another registry.",
+					MaxLength:   new(253),
 				},
 			},
 			Required: []string{"kind"},
@@ -138,35 +120,21 @@ func (s *schema) Get() *tools.Tool {
 		if !kindPattern.MatchString(input.Kind) {
 			return nil, nil, fmt.Errorf("invalid plugin kind %q", input.Kind)
 		}
-		// Only the plugins of the default registry are expanded: the dashboard schema holds one schema per kind,
-		// whatever its registry.
-		defaultRegistry := input.Registry == "" || input.Registry == plugin.DefaultRegistry
-		if defaultRegistry {
-			block, found, err := s.pluginBlocks.get(input.Kind)
-			switch {
-			case err != nil:
-				logrus.WithError(err).Debug("unable to expand the plugin schema, falling back to the plugin schema endpoint")
-			case found:
-				return textResult(block), nil, nil
-			default:
-				logrus.WithField("kind", input.Kind).Debug("plugin kind not found in the dashboard schema, falling back to the plugin schema endpoint")
-			}
-		}
 		definition, err := s.client.Schema().Plugin(url.PathEscape(input.Kind), &apiClient.PluginSchemaQuery{Registry: input.Registry})
 		if errors.Is(err, perseshttp.RequestNotFoundError) {
-			if !defaultRegistry {
+			if input.Registry != "" && input.Registry != plugin.DefaultRegistry {
 				return nil, nil, fmt.Errorf("no plugin %q in registry %q", input.Kind, input.Registry)
 			}
 			return nil, nil, fmt.Errorf(
 				"no schema of plugin %q found in registry %q; set registry for plugins installed elsewhere "+
-					"(requires Perses v0.55 or later); %s Server error: %w",
-				input.Kind, plugin.DefaultRegistry, notPluginKindHint, err,
+					"(requires Perses v0.55 or later). Use perses_list_plugin_schemas to find plugin kinds. Server error: %w",
+				input.Kind, plugin.DefaultRegistry, err,
 			)
 		}
 		if err != nil {
 			return nil, nil, fmt.Errorf("error retrieving the schema of plugin '%s': %w", input.Kind, err)
 		}
-		return textResult(append([]byte(notExpandedNotice), definition...)), nil, nil
+		return textResult(definition), nil, nil
 	}
 
 	return &tools.Tool{

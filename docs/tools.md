@@ -202,7 +202,7 @@ These read-only tools return raw [CUE](https://cuelang.org/) source from Perses 
 | Tool | Description | Required parameters |
 |------|-------------|---------------------|
 | `perses_list_plugin_schemas` | Get all installed plugin schemas | - |
-| `perses_get_plugin_schema` | Get the latest installed schema of one plugin kind with shared types (calculation, format, thresholds, datasource selector) expanded inline; set `registry` for plugins from a registry other than perses.dev | `kind` |
+| `perses_get_plugin_schema` | Get the latest installed schema of one plugin kind; set `registry` for plugins from a registry other than perses.dev | `kind` |
 
 Prefer the single-plugin tool when working on one panel, query, variable, annotation or datasource.
 

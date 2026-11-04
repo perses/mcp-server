@@ -35,24 +35,12 @@ const (
 	authorization         = "Bearer test-token"
 	timeSeriesChartSchema = "#TimeSeriesChart: {\n\tkind: \"TimeSeriesChart\"\n}\n"
 	statChartSchema       = "#StatChart: {\n\tkind: \"StatChart\"\n}\n"
-	// defaultPluginModules mimics /api/v1/plugins: the plugins of sampleDashboardSchema, in the default registry.
-	defaultPluginModules = `[
-	{"kind": "PluginModule", "metadata": {"name": "StatChart", "version": "0.15.0", "registry": ""},
-	 "spec": {"schemasPath": "schemas", "plugins": [{"kind": "Panel", "spec": {"display": {"name": "Stat Chart"}, "name": "StatChart"}}]}},
-	{"kind": "PluginModule", "metadata": {"name": "Prometheus", "version": "0.59.0", "registry": "perses.dev"},
-	 "spec": {"schemasPath": "schemas", "plugins": [{"kind": "TimeSeriesQuery", "spec": {"display": {"name": "Prometheus Time Series Query"}, "name": "PrometheusTimeSeriesQuery"}}]}}
-]`
 )
 
 // fakePerses mimics the schema API of the Perses server and records the requests it receives.
 type fakePerses struct {
-	// dashboardSchema is served by the dashboard schema endpoint, which returns a server error when it's empty.
-	dashboardSchema string
-	// pluginModules is served by the plugin list endpoint, defaultPluginModules when it's empty. "error" returns a
-	// server error.
-	pluginModules string
-	mutex         sync.Mutex
-	requests      []*http.Request
+	mutex    sync.Mutex
+	requests []*http.Request
 }
 
 func (f *fakePerses) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -61,23 +49,6 @@ func (f *fakePerses) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	f.mutex.Unlock()
 
 	switch r.URL.Path {
-	case "/api/v1/schemas/dashboards":
-		if f.dashboardSchema == "" {
-			w.WriteHeader(http.StatusInternalServerError)
-			_ = json.NewEncoder(w).Encode(map[string]string{"message": "internal server error"})
-			return
-		}
-		_, _ = w.Write([]byte(f.dashboardSchema))
-	case "/api/v1/plugins":
-		switch f.pluginModules {
-		case "":
-			_, _ = w.Write([]byte(defaultPluginModules))
-		case "error":
-			w.WriteHeader(http.StatusInternalServerError)
-			_ = json.NewEncoder(w).Encode(map[string]string{"message": "internal server error"})
-		default:
-			_, _ = w.Write([]byte(f.pluginModules))
-		}
 	case "/api/v1/schemas/plugins":
 		_, _ = w.Write([]byte(timeSeriesChartSchema + statChartSchema))
 	case "/api/v1/schemas/plugins/TimeSeriesChart":
@@ -109,13 +80,6 @@ func (f *fakePerses) paths() []string {
 // connect registers the schema tools on an in-memory MCP server backed by perses.
 func connect(t *testing.T, perses http.Handler) *mcp.ClientSession {
 	t.Helper()
-	session, _ := connectSchema(t, perses)
-	return session
-}
-
-// connectSchema is connect that also returns the schema resource, to control its cache.
-func connectSchema(t *testing.T, perses http.Handler) (*mcp.ClientSession, *schema) {
-	t.Helper()
 	httpServer := httptest.NewServer(perses)
 	t.Cleanup(httpServer.Close)
 	restClient := &perseshttp.RESTClient{
@@ -126,8 +90,7 @@ func connectSchema(t *testing.T, perses http.Handler) (*mcp.ClientSession, *sche
 
 	server := mcp.NewServer(&mcp.Implementation{Name: "test-server"}, nil)
 	client := apiClient.NewWithClient(restClient)
-	schemaResource := New(client.V1()).(*schema)
-	toolset := schemaResource.GetTools()
+	toolset := New(client.V1()).GetTools()
 	names := map[string]bool{}
 	for _, tool := range toolset {
 		if names[tool.MCPTool.Name] {
@@ -148,7 +111,7 @@ func connectSchema(t *testing.T, perses http.Handler) (*mcp.ClientSession, *sche
 		t.Fatalf("connecting the client: %v", err)
 	}
 	t.Cleanup(func() { _ = session.Close() })
-	return session, schemaResource
+	return session
 }
 
 func callTool(t *testing.T, session *mcp.ClientSession, name string, arguments map[string]any) (*mcp.CallToolResult, string) {
@@ -183,7 +146,7 @@ func TestSchemaTools(t *testing.T) {
 			title:     "plugin schema",
 			tool:      "perses_get_plugin_schema",
 			arguments: map[string]any{"kind": "TimeSeriesChart"},
-			expected:  notExpandedNotice + timeSeriesChartSchema,
+			expected:  timeSeriesChartSchema,
 		},
 		{
 			title:     "unknown plugin kind returns an error",
@@ -228,10 +191,10 @@ func TestGetPluginSchemaRequest(t *testing.T) {
 		t.Fatalf("unexpected error: %s", text)
 	}
 	requests := perses.received()
-	if len(requests) == 0 {
-		t.Fatal("expected a request to Perses")
+	if len(requests) != 1 {
+		t.Fatalf("expected 1 request, got %d", len(requests))
 	}
-	request := requests[len(requests)-1]
+	request := requests[0]
 	if request.URL.Path != "/api/v1/schemas/plugins/TimeSeriesChart" || request.URL.RawQuery != "" {
 		t.Errorf("unexpected request %s", request.URL)
 	}
@@ -276,7 +239,7 @@ func TestGetPluginSchemaAcceptsHyphensAndDots(t *testing.T) {
 	session := connect(t, perses)
 
 	callTool(t, session, "perses_get_plugin_schema", map[string]any{"kind": "my-plugin.v2"})
-	if paths := perses.paths(); len(paths) == 0 || paths[len(paths)-1] != "/api/v1/schemas/plugins/my-plugin.v2" {
+	if paths := perses.paths(); len(paths) != 1 || paths[0] != "/api/v1/schemas/plugins/my-plugin.v2" {
 		t.Errorf("expected a request to the my-plugin.v2 schema, got %v", paths)
 	}
 }
@@ -295,6 +258,6 @@ func TestSchemaToolsAreReadOnly(t *testing.T) {
 // noSchemaFound is the error returned when the default registry has no schema for the kind.
 func noSchemaFound(kind string) string {
 	return fmt.Sprintf("no schema of plugin %q found in registry %q; set registry for plugins installed elsewhere "+
-		"(requires Perses v0.55 or later); %s Server error: something wrong happened with the request to the API.  "+
-		"Message: document not found StatusCode: 404", kind, plugin.DefaultRegistry, notPluginKindHint)
+		"(requires Perses v0.55 or later). Use perses_list_plugin_schemas to find plugin kinds. Server error: "+
+		"something wrong happened with the request to the API.  Message: document not found StatusCode: 404", kind, plugin.DefaultRegistry)
 }
