@@ -59,6 +59,9 @@ func (p *pluginBlocks) get(kind string) ([]byte, bool, error) {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
 	if p.blocks == nil || p.now().Sub(p.fetchedAt) >= p.ttl {
+		// Record failed attempts too, so subsequent calls can fall back until the next refresh.
+		p.blocks = map[string][]byte{}
+		p.fetchedAt = p.now()
 		source, err := p.fetchSchema()
 		if err != nil {
 			return nil, false, fmt.Errorf("unable to retrieve the dashboard schema: %w", err)
