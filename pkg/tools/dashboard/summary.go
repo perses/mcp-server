@@ -86,14 +86,13 @@ func dashboardURL(base *url.URL, project, name string) string {
 	return page.String()
 }
 
-// summarize builds the summary of a dashboard of the project. The project is passed explicitly because the
-// metadata.project of a dashboard not saved yet can be empty.
-func summarize(d *v1.Dashboard, project string, base *url.URL) summary {
+// summarize builds the summary of a dashboard.
+func summarize(d *v1.Dashboard, base *url.URL) summary {
 	result := summary{
-		Project:   project,
+		Project:   d.Metadata.Project,
 		Name:      d.Metadata.Name,
 		Version:   d.Metadata.Version,
-		URL:       dashboardURL(base, project, d.Metadata.Name),
+		URL:       dashboardURL(base, d.Metadata.Project, d.Metadata.Name),
 		Panels:    len(d.Spec.Panels),
 		Variables: len(d.Spec.Variables),
 		Layouts:   len(d.Spec.Layouts),
@@ -104,10 +103,10 @@ func summarize(d *v1.Dashboard, project string, base *url.URL) summary {
 	return result
 }
 
-// outlineOf builds the outline of a saved dashboard.
+// outlineOf builds the outline of a dashboard.
 func outlineOf(d *v1.Dashboard, base *url.URL) outline {
 	result := outline{
-		summary:         summarize(d, d.Metadata.Project, base),
+		summary:         summarize(d, base),
 		Duration:        string(d.Spec.Duration),
 		RefreshInterval: string(d.Spec.RefreshInterval),
 	}

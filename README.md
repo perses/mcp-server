@@ -350,9 +350,9 @@ perses-mcp-server --config /path/to/config.yaml
 | `perses_create_dashboard`           | Create a dashboard (JSON object); fails if it exists; options `dry_run`, `include_dashboard`                      | `project`, `dashboard`       |
 | `perses_update_dashboard`           | Replace an existing dashboard; options `expected_version`, `dry_run`, `include_dashboard`                       | `project`, `dashboard`       |
 | `perses_delete_dashboard`           | Delete a dashboard from a project                                                                               | `project`, `name`            |
-| `perses_set_dashboard_panels`       | Add, replace, move, resize or `remove` panels in the 24-column grid (`layout`, `width`, `height`, `placements`, `order`, `remove`) | `project`, `name`; at least one entry in `panels`, `placements` or `remove` |
+| `perses_set_dashboard_panels`       | Add, replace or `remove` panels; new panels are appended to a panel `group`                                    | `project`, `name`; at least one entry in `panels` or `remove` |
 | `perses_set_dashboard_variables`    | Add, replace (matched by `spec.name`) or `remove` dashboard variables                                         | `project`, `name`; at least one entry in `variables` or `remove` |
-| `perses_set_dashboard_layout`       | Add, replace (`index` or `title`) or `remove` a layout group                                                    | `project`, `name`            |
+| `perses_set_dashboard_layout`       | Define, replace or `remove` a panel group (`panels`, `panels_per_line`, `panel_height`, `collapsed`)            | `project`, `name`, `title`   |
 
 Perses validates the dashboard against its schemas when the write tools save it (with `dry_run: true`, through its
 validation API without saving). The tools return a short summary (`project`, `name`, `version`, `url`, counts,
@@ -362,14 +362,13 @@ The incremental `set_*` tools read the dashboard, modify it in memory and write 
 `expected_version` to reject a dashboard whose version has changed before editing. This is a client-side
 preflight check, not an atomic server-side lock; a concurrent write after the check can still race.
 
-`perses_set_dashboard_panels` accepts `placements` alone to move or resize existing panels without resending
-their definitions, or together with `panels` to mix moves with additions/replacements. Unknown placement keys
-are rejected unless their definitions are supplied in `panels`. Moving an already placed panel keeps its layout
-group (or tab of a Tabs layout), width and height unless `layout` or the placement's `width`/`height` is given. Placements of a panel displayed
-in several groups or tabs are rejected; use `perses_set_dashboard_layout` for those. Explicit positions are reserved before new panels
-are auto-placed. Use `order: ["b", "a", "c"]` to choose panel processing/auto-placement order; keys not listed are
-processed alphabetically. JSON object key order is not preserved.
-For a complete layout-group replacement, use `perses_set_dashboard_layout`.
+Grid layouts are edited as panel groups, like the Perses SDKs build them: every panel of a group has the same
+size, `24 / panels_per_line` columns wide and `panel_height` rows high, and panels fill the rows in order.
+`perses_set_dashboard_layout` defines a group from an ordered list of panel keys, moving them out of other Grid
+groups. `perses_set_dashboard_panels` keeps the position of a replaced panel and appends new panels to `group`
+(the last group by default, created with 2 panels per line and height 8 if missing), laying out that group again
+with the size of its first panel, so custom positions in that group are reset. Tabs layouts are left untouched.
+Custom positions need `perses_update_dashboard`.
 
 `perses_update_dashboard` reads the dashboard first only for `expected_version` or `dry_run`, so a plain
 update needs only the update permission.

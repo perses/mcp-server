@@ -16,7 +16,6 @@ package dashboard
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -519,7 +518,7 @@ func TestSetPanels(t *testing.T) {
 	session := newSession(t, fake)
 	mustCall(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": object(t, validDashboard)})
 
-	t.Run("add panels with automatic placement", func(t *testing.T) {
+	t.Run("add panels to the last group", func(t *testing.T) {
 		panels := map[string]any{
 			"p2": object(t, strings.ReplaceAll(statPanel, "%s", "P2")),
 			"p3": object(t, strings.ReplaceAll(statPanel, "%s", "P3")),
@@ -527,9 +526,7 @@ func TestSetPanels(t *testing.T) {
 		result := mustCall(t, session, "perses_set_dashboard_panels", map[string]any{"project": "myproject", "name": "cpu", "panels": panels})
 		equal(t, "updated", result["action"])
 		equal(t, float64(3), result["panels"])
-		changes := result["changes"].([]any)
-		equal(t, "added panel p2, placed in layout 0 at x=12 y=0 w=12 h=6", changes[0])
-		equal(t, "added panel p3, placed in layout 0 at x=0 y=6 w=12 h=6", changes[1])
+		equal(t, []any{"added panel p2", "added panel p3", `group 0 "Row": p1 x=0 y=0, p2 x=12 y=0, p3 x=0 y=6 (w=12 h=6)`}, result["changes"])
 		contains(t, fake.stored(t), `"$ref":"#/spec/panels/p3"`)
 	})
 	t.Run("replace keeps the position", func(t *testing.T) {
@@ -539,18 +536,13 @@ func TestSetPanels(t *testing.T) {
 		equal(t, float64(3), result["panels"])
 		contains(t, fake.stored(t), "P2 bis")
 	})
-	t.Run("new layout group and explicit placement", func(t *testing.T) {
+	t.Run("new group with the SDK defaults", func(t *testing.T) {
 		panels := map[string]any{
 			"p4": object(t, strings.ReplaceAll(statPanel, "%s", "P4")),
 			"p5": object(t, strings.ReplaceAll(statPanel, "%s", "P5")),
 		}
-		result := mustCall(t, session, "perses_set_dashboard_panels", map[string]any{
-			"project": "myproject", "name": "cpu", "panels": panels, "layout": "Details", "width": 24, "height": 8,
-			"placements": map[string]any{"p5": map[string]any{"x": 6, "y": 20, "width": 6}},
-		})
-		changes := result["changes"].([]any)
-		equal(t, "added panel p4, placed in layout 1 at x=0 y=26 w=24 h=8", changes[0])
-		equal(t, "added panel p5, placed in layout 1 at x=6 y=20 w=6 h=6", changes[1])
+		result := mustCall(t, session, "perses_set_dashboard_panels", map[string]any{"project": "myproject", "name": "cpu", "panels": panels, "group": "Details"})
+		equal(t, []any{"added panel p4", "added panel p5", `group 1 "Details": p4 x=0 y=0, p5 x=12 y=0 (w=12 h=8)`}, result["changes"])
 		equal(t, float64(2), result["layouts"])
 	})
 	t.Run("panel rejected by the schemas", func(t *testing.T) {
@@ -567,417 +559,32 @@ func TestSetPanels(t *testing.T) {
 	})
 }
 
-func TestSetPanelsMovesAndOrder(t *testing.T) {
-	tests := []struct {
-		name        string
-		input       map[string]any
-		wantChanges []string
-		wantError   string
-	}{
-		{
-			name: "placements without panels",
-			input: map[string]any{
-				"placements":       map[string]any{"p1": map[string]any{"x": 4, "y": 8, "width": 8, "height": 9}},
-				"expected_version": 0,
-			},
-			wantChanges: []string{"moved panel p1, placed in layout 0 at x=4 y=8 w=8 h=9"},
-		},
-		{
-			name: "placements with empty panels",
-			input: map[string]any{
-				"panels":     map[string]any{},
-				"placements": map[string]any{"p1": map[string]any{"x": 0, "y": 6}},
-			},
-			wantChanges: []string{"moved panel p1, placed in layout 0 at x=0 y=6 w=12 h=6"},
-		},
-		{
-			name: "move reserves space before automatic placement",
-			input: map[string]any{
-				"panels":     map[string]any{"a": json.RawMessage(fmt.Sprintf(statPanel, "A", "mean"))},
-				"placements": map[string]any{"p1": map[string]any{"x": 0, "y": 0}},
-			},
-			wantChanges: []string{
-				"added panel a, placed in layout 0 at x=12 y=0 w=12 h=6",
-				"moved panel p1, placed in layout 0 at x=0 y=0 w=12 h=6",
-			},
-		},
-		{
-			name: "move frees original position for automatic placement",
-			input: map[string]any{
-				"panels":     map[string]any{"a": json.RawMessage(fmt.Sprintf(statPanel, "A", "mean"))},
-				"placements": map[string]any{"p1": map[string]any{"x": 12, "y": 0}},
-			},
-			wantChanges: []string{
-				"added panel a, placed in layout 0 at x=0 y=0 w=12 h=6",
-				"moved panel p1, placed in layout 0 at x=12 y=0 w=12 h=6",
-			},
-		},
-		{
-			name: "unknown placement does not persist mixed edit",
-			input: map[string]any{
-				"panels":     map[string]any{"a": json.RawMessage(fmt.Sprintf(statPanel, "A", "mean"))},
-				"placements": map[string]any{"unknown": map[string]any{"x": 0, "y": 0}},
-			},
-			wantError: "placements.unknown: panel not found",
-		},
-		{
-			name: "unknown placement without panels",
-			input: map[string]any{
-				"placements": map[string]any{"unknown": map[string]any{"x": 0, "y": 0}},
-			},
-			wantError: "placements.unknown: panel not found",
-		},
-		{name: "both omitted", input: map[string]any{}, wantError: "give at least one panel, placement or key to remove"},
-		{
-			name:      "both empty",
-			input:     map[string]any{"panels": map[string]any{}, "placements": map[string]any{}},
-			wantError: "give at least one panel, placement or key to remove",
-		},
-		{
-			name: "stale version",
-			input: map[string]any{
-				"placements":       map[string]any{"p1": map[string]any{"x": 0, "y": 6}},
-				"expected_version": 7,
-			},
-			wantError: "at version 0, not 7",
-		},
-		{
-			name: "invalid mixed panel does not persist move",
-			input: map[string]any{
-				"panels":     map[string]any{"p2": json.RawMessage(fmt.Sprintf(statPanel, "P2", "average"))},
-				"placements": map[string]any{"p1": map[string]any{"x": 0, "y": 6}},
-			},
-			wantError: `invalid panel p2: spec.calculation: conflicting values "mean" and "average"`,
-		},
-		{
-			name: "unknown order key",
-			input: map[string]any{
-				"placements": map[string]any{"p1": map[string]any{"x": 0, "y": 6}},
-				"order":      []string{"unknown"},
-			},
-			wantError: "must appear once and refer to panels or placements",
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			fake := newFakePerses()
-			session := newSession(t, fake)
-			mustCall(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": object(t, validDashboard)})
-			before := fake.stored(t)
-			test.input["project"], test.input["name"] = "myproject", "cpu"
-			if test.wantError != "" {
-				text := mustFail(t, session, "perses_set_dashboard_panels", test.input)
-				contains(t, text, test.wantError)
-				// Perses rejects an invalid dashboard on the PUT itself, so the stored dashboard stays unchanged.
-				equal(t, before, fake.stored(t))
-				return
-			}
-			test.input["dry_run"] = true
-			preview := mustCall(t, session, "perses_set_dashboard_panels", test.input)
-			equal(t, "would_update", preview["action"])
-			equal(t, before, fake.stored(t))
-			fake.mu.Lock()
-			equal(t, 0, fake.requests["PUT /api/v1/projects/myproject/dashboards/cpu"])
-			fake.mu.Unlock()
-			delete(test.input, "dry_run")
-			result := mustCall(t, session, "perses_set_dashboard_panels", test.input)
-			equal(t, preview["changes"], result["changes"])
-			var changes []string
-			for _, change := range result["changes"].([]any) {
-				changes = append(changes, change.(string))
-			}
-			equal(t, test.wantChanges, changes)
-			stored := object(t, fake.stored(t))["spec"].(map[string]any)
-			original := object(t, before)["spec"].(map[string]any)
-			equal(t, original["panels"].(map[string]any)["p1"], stored["panels"].(map[string]any)["p1"])
-			items := stored["layouts"].([]any)[0].(map[string]any)["spec"].(map[string]any)["items"].([]any)
-			hasLen(t, items, len(stored["panels"].(map[string]any)))
-			for key, raw := range test.input["placements"].(map[string]any) {
-				placement := raw.(map[string]any)
-				found := false
-				for _, rawItem := range items {
-					item := rawItem.(map[string]any)
-					if item["content"].(map[string]any)["$ref"] != "#/spec/panels/"+key {
-						continue
-					}
-					found = true
-					equal(t, fmt.Sprint(placement["x"]), fmt.Sprint(item["x"]))
-					equal(t, fmt.Sprint(placement["y"]), fmt.Sprint(item["y"]))
-					width, height := 12, 6
-					if value, ok := placement["width"]; ok {
-						width = value.(int)
-					}
-					if value, ok := placement["height"]; ok {
-						height = value.(int)
-					}
-					equal(t, fmt.Sprint(width), fmt.Sprint(item["width"]))
-					equal(t, fmt.Sprint(height), fmt.Sprint(item["height"]))
-				}
-				if !found {
-					t.Errorf("missing layout item for %s", key)
-				}
-			}
-		})
-	}
-
-	t.Run("explicit order", func(t *testing.T) {
-		fake := newFakePerses()
-		session := newSession(t, fake)
-		mustCall(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": object(t, validDashboard)})
-		raw := `{"b":` + fmt.Sprintf(statPanel, "B", "mean") + `,"a":` + fmt.Sprintf(statPanel, "A", "mean") + `,"c":` + fmt.Sprintf(statPanel, "C", "mean") + `}`
-		panels := json.RawMessage(raw)
-		result := mustCall(t, session, "perses_set_dashboard_panels", map[string]any{
-			"project": "myproject", "name": "cpu", "panels": panels, "layout": "Ordered", "order": []string{"b", "a", "c"},
-		})
-		equal(t, []any{
-			"added panel b, placed in layout 1 at x=0 y=0 w=12 h=6",
-			"added panel a, placed in layout 1 at x=12 y=0 w=12 h=6",
-			"added panel c, placed in layout 1 at x=0 y=6 w=12 h=6",
-		}, result["changes"])
-	})
-
-	t.Run("placement dry run", func(t *testing.T) {
-		fake := newFakePerses()
-		session := newSession(t, fake)
-		mustCall(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": object(t, validDashboard)})
-		before := fake.stored(t)
-		result := mustCall(t, session, "perses_set_dashboard_panels", map[string]any{
-			"project": "myproject", "name": "cpu", "dry_run": true,
-			"placements": map[string]any{"p1": map[string]any{"x": 0, "y": 6}},
-		})
-		equal(t, "would_update", result["action"])
-		equal(t, []any{"moved panel p1, placed in layout 0 at x=0 y=6 w=12 h=6"}, result["changes"])
-		equal(t, before, fake.stored(t))
-	})
-}
-
-func TestSetPanelsPlacementKeepsGroupAndSize(t *testing.T) {
-	const twoGroups = `{
-	"kind": "Dashboard",
-	"metadata": {"name": "cpu"},
-	"spec": {
-		"duration": "1h",
-		"panels": {
-			"p1": {"kind": "Panel", "spec": {"display": {"name": "CPU"}, "plugin": {"kind": "StatChart", "spec": {"calculation": "mean"}}}},
-			"p2": {"kind": "Panel", "spec": {"display": {"name": "Mem"}, "plugin": {"kind": "StatChart", "spec": {"calculation": "mean"}}}}
-		},
-		"layouts": [
-			{"kind": "Grid", "spec": {"display": {"title": "First"}, "items": [{"x": 0, "y": 0, "width": 24, "height": 8, "content": {"$ref": "#/spec/panels/p1"}}]}},
-			{"kind": "Grid", "spec": {"display": {"title": "Second"}, "items": [{"x": 0, "y": 0, "width": 12, "height": 6, "content": {"$ref": "#/spec/panels/p2"}}]}}
-		]
-	}
-}`
-	tests := []struct {
-		name       string
-		input      map[string]any
-		wantChange string
-		wantLayout int
-		wantItem   map[string]any
-	}{
-		{
-			name:       "x and y only keep the group and size",
-			input:      map[string]any{"placements": map[string]any{"p1": map[string]any{"x": 0, "y": 4}}},
-			wantChange: "moved panel p1, placed in layout 0 at x=0 y=4 w=24 h=8",
-			wantLayout: 0,
-			wantItem:   map[string]any{"x": 0, "y": 4, "width": 24, "height": 8},
-		},
-		{
-			name:       "explicit width keeps the height",
-			input:      map[string]any{"placements": map[string]any{"p1": map[string]any{"x": 0, "y": 0, "width": 6}}},
-			wantChange: "moved panel p1, placed in layout 0 at x=0 y=0 w=6 h=8",
-			wantLayout: 0,
-			wantItem:   map[string]any{"x": 0, "y": 0, "width": 6, "height": 8},
-		},
-		{
-			name:       "replacing the panel keeps the group and size",
-			input:      map[string]any{"panels": map[string]any{"p1": json.RawMessage(fmt.Sprintf(statPanel, "CPU bis", "mean"))}, "placements": map[string]any{"p1": map[string]any{"x": 0, "y": 2}}},
-			wantChange: "replaced panel p1, placed in layout 0 at x=0 y=2 w=24 h=8",
-			wantLayout: 0,
-			wantItem:   map[string]any{"x": 0, "y": 2, "width": 24, "height": 8},
-		},
-		{
-			name:       "explicit layout moves to that group",
-			input:      map[string]any{"layout": "Second", "placements": map[string]any{"p1": map[string]any{"x": 0, "y": 6}}},
-			wantChange: "moved panel p1, placed in layout 1 at x=0 y=6 w=24 h=8",
-			wantLayout: 1,
-			wantItem:   map[string]any{"x": 0, "y": 6, "width": 24, "height": 8},
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			fake := newFakePerses()
-			session := newSession(t, fake)
-			mustCall(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": object(t, twoGroups)})
-			test.input["project"], test.input["name"] = "myproject", "cpu"
-			result := mustCall(t, session, "perses_set_dashboard_panels", test.input)
-			equal(t, []any{test.wantChange}, result["changes"])
-			first := object(t, fake.stored(t))["spec"]
-			result = mustCall(t, session, "perses_set_dashboard_panels", test.input)
-			equal(t, []any{test.wantChange}, result["changes"], "a repeated call must be a no-op")
-			equal(t, first, object(t, fake.stored(t))["spec"])
-			layouts := object(t, fake.stored(t))["spec"].(map[string]any)["layouts"].([]any)
-			if !hasLen(t, layouts, 2) {
-				t.FailNow()
-			}
-			for i, rawLayout := range layouts {
-				for _, rawItem := range rawLayout.(map[string]any)["spec"].(map[string]any)["items"].([]any) {
-					item := rawItem.(map[string]any)
-					if item["content"].(map[string]any)["$ref"] != "#/spec/panels/p1" {
-						continue
-					}
-					equal(t, test.wantLayout, i)
-					for field, want := range test.wantItem {
-						equal(t, fmt.Sprint(want), fmt.Sprint(item[field]), field)
-					}
-				}
-			}
-		})
-	}
-}
-
-func TestSetPanelsPlacementKeepsTab(t *testing.T) {
-	const withTabs = `{
-	"kind": "Dashboard",
-	"metadata": {"name": "cpu"},
-	"spec": {
-		"duration": "1h",
-		"panels": {
-			"p1": {"kind": "Panel", "spec": {"display": {"name": "CPU"}, "plugin": {"kind": "StatChart", "spec": {"calculation": "mean"}}}},
-			"p2": {"kind": "Panel", "spec": {"display": {"name": "Mem"}, "plugin": {"kind": "StatChart", "spec": {"calculation": "mean"}}}},
-			"p3": {"kind": "Panel", "spec": {"display": {"name": "Disk"}, "plugin": {"kind": "StatChart", "spec": {"calculation": "mean"}}}}
-		},
-		"layouts": [
-			{"kind": "Tabs", "spec": {"display": {"title": "Tabbed"}, "tabs": [
-				{"name": "A", "items": [{"x": 0, "y": 0, "width": 24, "height": 8, "content": {"$ref": "#/spec/panels/p1"}}]},
-				{"name": "B", "items": [{"x": 0, "y": 0, "width": 8, "height": 5, "content": {"$ref": "#/spec/panels/p2"}}]}
-			]}},
-			{"kind": "Grid", "spec": {"display": {"title": "Last"}, "items": [{"x": 0, "y": 0, "width": 12, "height": 6, "content": {"$ref": "#/spec/panels/p3"}}]}}
-		]
-	}
-}`
-	// location is "layout/tab" for a tab item, "layout" for a grid item.
-	tests := []struct {
-		name         string
-		input        map[string]any
-		wantChange   string
-		wantLocation string
-		wantItem     map[string]any
-	}{
-		{
-			name:         "x and y only keep the tab and size",
-			input:        map[string]any{"placements": map[string]any{"p2": map[string]any{"x": 4, "y": 3}}},
-			wantChange:   "moved panel p2, placed in layout 0 tab 1 at x=4 y=3 w=8 h=5",
-			wantLocation: "0/1",
-			wantItem:     map[string]any{"x": 4, "y": 3, "width": 8, "height": 5},
-		},
-		{
-			name:         "replacing the panel with a placement keeps the tab",
-			input:        map[string]any{"panels": map[string]any{"p2": json.RawMessage(fmt.Sprintf(statPanel, "Mem bis", "mean"))}, "placements": map[string]any{"p2": map[string]any{"x": 0, "y": 2, "height": 7}}},
-			wantChange:   "replaced panel p2, placed in layout 0 tab 1 at x=0 y=2 w=8 h=7",
-			wantLocation: "0/1",
-			wantItem:     map[string]any{"x": 0, "y": 2, "width": 8, "height": 7},
-		},
-		{
-			name:         "replacing the panel without placement keeps its position",
-			input:        map[string]any{"panels": map[string]any{"p2": json.RawMessage(fmt.Sprintf(statPanel, "Mem bis", "mean"))}},
-			wantChange:   "replaced panel p2, kept its position",
-			wantLocation: "0/1",
-			wantItem:     map[string]any{"x": 0, "y": 0, "width": 8, "height": 5},
-		},
-		{
-			name:         "explicit layout moves out of the tab",
-			input:        map[string]any{"layout": "Last", "placements": map[string]any{"p2": map[string]any{"x": 12, "y": 0}}},
-			wantChange:   "moved panel p2, placed in layout 1 at x=12 y=0 w=8 h=5",
-			wantLocation: "1",
-			wantItem:     map[string]any{"x": 12, "y": 0, "width": 8, "height": 5},
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			fake := newFakePerses()
-			session := newSession(t, fake)
-			mustCall(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": object(t, withTabs)})
-			test.input["project"], test.input["name"] = "myproject", "cpu"
-			result := mustCall(t, session, "perses_set_dashboard_panels", test.input)
-			equal(t, []any{test.wantChange}, result["changes"])
-
-			layouts := object(t, fake.stored(t))["spec"].(map[string]any)["layouts"].([]any)
-			if !hasLen(t, layouts, 2) {
-				t.FailNow()
-			}
-			found := map[string]map[string]any{}
-			collect := func(location string, items []any) {
-				for _, rawItem := range items {
-					item := rawItem.(map[string]any)
-					found[item["content"].(map[string]any)["$ref"].(string)+"@"+location] = item
-				}
-			}
-			for i, tab := range layouts[0].(map[string]any)["spec"].(map[string]any)["tabs"].([]any) {
-				collect(fmt.Sprintf("0/%d", i), tab.(map[string]any)["items"].([]any))
-			}
-			collect("1", layouts[1].(map[string]any)["spec"].(map[string]any)["items"].([]any))
-
-			if !hasLen(t, found, 3, "each panel must be placed exactly once: %v", found) {
-				t.FailNow()
-			}
-			contains(t, found, "#/spec/panels/p1@0/0")
-			contains(t, found, "#/spec/panels/p3@1")
-			item, ok := found["#/spec/panels/p2@"+test.wantLocation]
-			if !ok {
-				t.Fatalf("p2 not at %s: %v", test.wantLocation, found)
-			}
-			for field, want := range test.wantItem {
-				equal(t, fmt.Sprint(want), fmt.Sprint(item[field]), field)
-			}
-		})
-	}
-}
-
-func TestSetPanelsPanelPlacedTwice(t *testing.T) {
-	const placedTwice = `{
-	"kind": "Dashboard",
-	"metadata": {"name": "cpu"},
-	"spec": {
-		"duration": "1h",
-		"panels": {
-			"p1": {"kind": "Panel", "spec": {"display": {"name": "CPU"}, "plugin": {"kind": "StatChart", "spec": {"calculation": "mean"}}}}
-		},
-		"layouts": [
-			{"kind": "Grid", "spec": {"display": {"title": "Overview"}, "items": [{"x": 0, "y": 0, "width": 12, "height": 6, "content": {"$ref": "#/spec/panels/p1"}}]}},
-			{"kind": "Tabs", "spec": {"display": {"title": "Tabbed"}, "tabs": [
-				{"name": "A", "items": [{"x": 4, "y": 2, "width": 8, "height": 5, "content": {"$ref": "#/spec/panels/p1"}}]}
-			]}}
-		]
-	}
-}`
+func TestSetPanelsNormalizesTheGroup(t *testing.T) {
 	fake := newFakePerses()
 	session := newSession(t, fake)
-	mustCall(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": object(t, placedTwice)})
-	before := fake.stored(t)
+	custom := strings.Replace(validDashboard, `"x": 0, "y": 0, "width": 12, "height": 6`, `"x": 6, "y": 3, "width": 8, "height": 4`, 1)
+	mustCall(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": object(t, custom)})
 
-	for name, input := range map[string]map[string]any{
-		"move":                   {"placements": map[string]any{"p1": map[string]any{"x": 12, "y": 0}}},
-		"replace with placement": {"panels": map[string]any{"p1": json.RawMessage(fmt.Sprintf(statPanel, "CPU bis", "mean"))}, "placements": map[string]any{"p1": map[string]any{"x": 12, "y": 0}}},
-	} {
-		t.Run(name, func(t *testing.T) {
-			input["project"], input["name"] = "myproject", "cpu"
-			text := mustFail(t, session, "perses_set_dashboard_panels", input)
-			contains(t, text, `placements.p1: the panel appears in 2 places (layout 0 "Overview", layout 1 "Tabbed" tab 0 "A")`)
-			contains(t, text, "perses_set_dashboard_layout")
-			equal(t, before, fake.stored(t), "the dashboard must not change")
-		})
-	}
+	panels := map[string]any{"p2": object(t, strings.ReplaceAll(statPanel, "%s", "P2"))}
+	result := mustCall(t, session, "perses_set_dashboard_panels", map[string]any{"project": "myproject", "name": "cpu", "panels": panels})
+	// The size of the first panel gives 3 panels per line; its custom position is reset.
+	equal(t, []any{"added panel p2", `group 0 "Row": p1 x=0 y=0, p2 x=8 y=0 (w=8 h=4)`}, result["changes"])
+}
 
-	t.Run("replace without placement keeps both items", func(t *testing.T) {
-		result := mustCall(t, session, "perses_set_dashboard_panels", map[string]any{
-			"project": "myproject", "name": "cpu",
-			"panels": map[string]any{"p1": json.RawMessage(fmt.Sprintf(statPanel, "CPU bis", "mean"))},
-		})
-		equal(t, []any{"replaced panel p1, kept its position"}, result["changes"])
-		stored, wanted := object(t, fake.stored(t)), object(t, before)
-		equal(t, wanted["spec"].(map[string]any)["layouts"], stored["spec"].(map[string]any)["layouts"])
-		equal(t, "CPU bis", stored["spec"].(map[string]any)["panels"].(map[string]any)["p1"].(map[string]any)["spec"].(map[string]any)["display"].(map[string]any)["name"])
-	})
+func TestLayoutKeepsRepeatVariables(t *testing.T) {
+	fake := newFakePerses()
+	session := newSession(t, fake)
+	repeated := strings.Replace(validDashboard, `"content": {"$ref": "#/spec/panels/p1"}`,
+		`"content": {"$ref": "#/spec/panels/p1"}, "repeatVariable": {"value": "instance"}`, 1)
+	mustCall(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": object(t, repeated)})
+	const repeat = `"repeatVariable":{"value":"instance"}`
+
+	panels := map[string]any{"p2": object(t, strings.ReplaceAll(statPanel, "%s", "P2"))}
+	mustCall(t, session, "perses_set_dashboard_panels", map[string]any{"project": "myproject", "name": "cpu", "panels": panels})
+	equal(t, 1, strings.Count(fake.stored(t), repeat))
+
+	mustCall(t, session, "perses_set_dashboard_layout", map[string]any{"project": "myproject", "name": "cpu", "title": "Other", "panels": []string{"p2", "p1"}})
+	equal(t, 1, strings.Count(fake.stored(t), repeat), "moving the panel to another group keeps its repeat setting")
 }
 
 func TestEditToolHints(t *testing.T) {
@@ -988,7 +595,7 @@ func TestEditToolHints(t *testing.T) {
 	}{
 		{d.SetPanels(), true},
 		{d.SetVariables(), true},
-		{d.SetLayout(), false},
+		{d.SetLayout(), true},
 	} {
 		annotations := test.tool.MCPTool.Annotations
 		equal(t, test.idempotent, annotations.IdempotentHint, test.tool.MCPTool.Name)
@@ -1019,14 +626,14 @@ func TestSetPanelsRemoveAndAddInOneCall(t *testing.T) {
 
 	panels := map[string]any{"p2": object(t, strings.ReplaceAll(statPanel, "%s", "P2"))}
 	result := mustCall(t, session, "perses_set_dashboard_panels", map[string]any{"project": "myproject", "name": "cpu", "panels": panels, "remove": []string{"p1"}})
-	// The removal frees x=0 y=0 before the new panel is placed.
-	equal(t, []any{"removed panel p1 and 1 layout item(s)", "added panel p2, placed in layout 0 at x=0 y=0 w=12 h=6"}, result["changes"])
+	// The removal empties the group, which takes the SDK defaults.
+	equal(t, []any{"removed panel p1 and 1 layout item(s)", "added panel p2", `group 0 "Row": p2 x=0 y=0 (w=12 h=8)`}, result["changes"])
 	equal(t, float64(1), result["panels"])
 
 	text := mustFail(t, session, "perses_set_dashboard_panels", map[string]any{"project": "myproject", "name": "cpu", "panels": panels, "remove": []string{"p2"}})
 	contains(t, text, "either removed or set")
 	text = mustFail(t, session, "perses_set_dashboard_panels", map[string]any{"project": "myproject", "name": "cpu"})
-	contains(t, text, "give at least one panel, placement or key to remove")
+	contains(t, text, "give at least one panel to set or one key to remove")
 }
 
 func TestSetPanelsRemoveIsAtomic(t *testing.T) {
@@ -1042,14 +649,9 @@ func TestSetPanelsRemoveIsAtomic(t *testing.T) {
 		wantError string
 	}{
 		{
-			name:      "removed key also placed",
-			args:      map[string]any{"remove": []string{"p1"}, "placements": map[string]any{"p1": map[string]any{"x": 0, "y": 0}}},
+			name:      "removed key also set",
+			args:      map[string]any{"remove": []string{"p1"}, "panels": map[string]any{"p1": object(t, strings.ReplaceAll(statPanel, "%s", "P1"))}},
 			wantError: "either removed or set",
-		},
-		{
-			name:      "order without panels or placements",
-			args:      map[string]any{"remove": []string{"p1"}, "order": []string{"p1"}},
-			wantError: "order: only applies",
 		},
 		{
 			name:      "removal with a panel rejected by the schemas",
@@ -1131,26 +733,54 @@ func TestSetLayout(t *testing.T) {
 	fake := newFakePerses()
 	session := newSession(t, fake)
 	mustCall(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": object(t, validDashboard)})
+	panels := map[string]any{}
+	for _, key := range []string{"p2", "p3", "p4"} {
+		panels[key] = object(t, strings.ReplaceAll(statPanel, "%s", key))
+	}
+	mustCall(t, session, "perses_set_dashboard_panels", map[string]any{"project": "myproject", "name": "cpu", "panels": panels})
+	setLayout := func(args map[string]any) map[string]any {
+		args["project"], args["name"] = "myproject", "cpu"
+		return mustCall(t, session, "perses_set_dashboard_layout", args)
+	}
 
-	layout := `{"kind": "Grid", "spec": {"display": {"title": "Second"}, "items": []}}`
-	result := mustCall(t, session, "perses_set_dashboard_layout", map[string]any{"project": "myproject", "name": "cpu", "layout": json.RawMessage(layout)})
-	equal(t, []any{`added layout 1 "Second"`}, result["changes"])
+	result := setLayout(map[string]any{"title": "Details", "panels": []string{"p4", "p3"}, "panels_per_line": 3, "panel_height": 6})
+	equal(t, []any{"moved 2 layout item(s) out of other Grid groups", `group 1 "Details": p4 x=0 y=0, p3 x=8 y=0 (w=8 h=6)`}, result["changes"])
 
-	result = mustCall(t, session, "perses_set_dashboard_layout", map[string]any{"project": "myproject", "name": "cpu", "layout": json.RawMessage(strings.Replace(layout, "Second", "second", 1))})
-	equal(t, []any{`replaced layout 1 "second"`}, result["changes"])
-	equal(t, float64(2), result["layouts"])
+	result = setLayout(map[string]any{"title": "Row", "panels": []string{"p1", "p2", "p3", "p4"}, "panels_per_line": 3, "panel_height": 6})
+	equal(t, []any{"moved 2 layout item(s) out of other Grid groups",
+		`group 0 "Row": p1 x=0 y=0, p2 x=8 y=0, p3 x=16 y=0, p4 x=0 y=6 (w=8 h=6)`}, result["changes"])
 
-	result = mustCall(t, session, "perses_set_dashboard_layout", map[string]any{"project": "myproject", "name": "cpu", "index": 0, "layout": json.RawMessage(layout)})
-	equal(t, []any{`replaced layout 0 "Second"`}, result["changes"])
+	// The group keeps its panels per line and height; panels left out are no longer displayed.
+	result = setLayout(map[string]any{"title": "row", "panels": []string{"p2"}, "collapsed": true})
+	equal(t, []any{`group 0 "row": p2 x=0 y=0 (w=8 h=6)`, "panels no longer displayed: p1, p3, p4"}, result["changes"])
+	contains(t, fake.stored(t), `"collapse":{"open":false}`)
 
-	result = mustCall(t, session, "perses_set_dashboard_layout", map[string]any{"project": "myproject", "name": "cpu", "index": 1, "remove": true})
-	equal(t, []any{`removed layout 1 "second"`}, result["changes"])
+	result = setLayout(map[string]any{"title": "Details", "remove": true})
+	equal(t, []any{`removed group 1 "Details"`}, result["changes"])
 	equal(t, float64(1), result["layouts"])
 
-	text := mustFail(t, session, "perses_set_dashboard_layout", map[string]any{"project": "myproject", "name": "cpu", "index": 5, "layout": json.RawMessage(layout)})
-	contains(t, text, "out of range")
-	text = mustFail(t, session, "perses_set_dashboard_layout", map[string]any{"project": "myproject", "name": "cpu"})
-	contains(t, text, "layout is required")
+	for message, args := range map[string]map[string]any{
+		`panel "nope" not found`:        {"title": "Row", "panels": []string{"nope"}},
+		"panels is required":            {"title": "Row"},
+		`no Grid group is titled`:       {"title": "Details", "remove": true},
+		`missing properties: ["title"]`: {"panels": []string{"p1"}},
+	} {
+		args["project"], args["name"] = "myproject", "cpu"
+		contains(t, mustFail(t, session, "perses_set_dashboard_layout", args), message)
+	}
+}
+
+func TestSetLayoutLeavesTabsUntouched(t *testing.T) {
+	fake := newFakePerses()
+	session := newSession(t, fake)
+	tabs := strings.Replace(validDashboard, `{"kind": "Grid", "spec": {"display": {"title": "Row"}, "items"`,
+		`{"kind": "Tabs", "spec": {"tabs": [{"name": "A", "items"`, 1)
+	tabs = strings.Replace(tabs, `"#/spec/panels/p1"}}]}}]`, `"#/spec/panels/p1"}}]}]}}]`, 1)
+	mustCall(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": object(t, tabs)})
+
+	result := mustCall(t, session, "perses_set_dashboard_layout", map[string]any{"project": "myproject", "name": "cpu", "title": "Grid", "panels": []string{"p1"}})
+	equal(t, []any{`group 1 "Grid": p1 x=0 y=0 (w=12 h=8)`}, result["changes"])
+	contains(t, fake.stored(t), `"tabs":[{"items":[{"content":{"$ref":"#/spec/panels/p1"},"height":6,"width":12,"x":0,"y":0}],"name":"A"}]`)
 }
 
 func TestGetAndList(t *testing.T) {

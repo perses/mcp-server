@@ -17,13 +17,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"sort"
+	"maps"
+	"slices"
 	"strings"
 
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/perses/mcp-server/pkg/tools"
-	"github.com/perses/mcp-server/pkg/tools/internal/dashboardutil"
 	v1 "github.com/perses/perses/pkg/model/api/v1"
 	dashboardSpec "github.com/perses/spec/go/dashboard"
 )
@@ -72,92 +72,44 @@ func editAnnotations(title string) *mcp.ToolAnnotations {
 	}
 }
 
-// Placement is an explicit position of a panel in a layout.
-type Placement struct {
-	X      int `json:"x"`
-	Y      int `json:"y"`
-	Width  int `json:"width,omitempty"`
-	Height int `json:"height,omitempty"`
-}
-
 type SetPanelsInput struct {
 	editInput
-	Panels     json.RawMessage      `json:"panels,omitempty"`
-	Order      []string             `json:"order,omitempty"`
-	Layout     string               `json:"layout,omitempty"`
-	Width      int                  `json:"width,omitempty"`
-	Height     int                  `json:"height,omitempty"`
-	Placements map[string]Placement `json:"placements,omitempty"`
-	Remove     []string             `json:"remove,omitempty"`
+	Panels json.RawMessage `json:"panels,omitempty"`
+	Group  string          `json:"group,omitempty"`
+	Remove []string        `json:"remove,omitempty"`
 }
 
 func (d *dashboard) SetPanels() *tools.Tool {
 	tool := &mcp.Tool{
 		Name: "perses_set_dashboard_panels",
-		Description: "Add, replace, move, resize or remove panels without resending the dashboard. Give at least one of " +
-			"panels, placements or remove. Replaced panels keep their position. New panels take the first free spot of the " +
-			"24-column Grid group named by layout (created if missing; last group by default), sized width x height " +
-			"(default 12x6); placements set exact positions. Removals apply first. Validates before saving and returns " +
-			"a summary of changes, or the validation error of the Perses server.",
+		Description: "Add, replace or remove panels without resending the dashboard. A replaced panel keeps its " +
+			"position. New panels are appended, in key order, to the Grid group titled 'group' (created if missing; last " +
+			"group by default), and that group is laid out again like the Perses SDK: every panel takes the size of the " +
+			"group's first panel (default 2 per line, 8 high), so custom positions in that group are reset. " +
+			"Removed panels lose their layout items; removals apply first. Reorder or resize a group with " +
+			"perses_set_dashboard_layout; custom positions need perses_update_dashboard.",
 		InputSchema: &jsonschema.Schema{
 			Type: tools.SchemaTypeObject,
 			Properties: editProperties(map[string]*jsonschema.Schema{
 				"panels": {
 					Type: tools.SchemaTypeObject,
 					Description: "Map of panel key to panel: {\"<key>\": {\"kind\": \"Panel\", \"spec\": {\"display\": {\"name\": \"...\"}, " +
-						"\"plugin\": {...}, \"queries\": [...]}}}. Optional for placements-only edits.",
+						"\"plugin\": {...}, \"queries\": [...]}}}.",
 				},
-				"order": {
-					Type: tools.SchemaTypeArray,
-					Description: "Panel keys to process first, in this order; remaining panel/placement keys are alphabetical. " +
-						"Each key must appear in panels or placements. JSON object order is not preserved.",
-					Items:       &jsonschema.Schema{Type: tools.SchemaTypeString},
-					UniqueItems: true,
-				},
-				"layout": {
+				"group": {
 					Type:        tools.SchemaTypeString,
-					Description: "Title of the Grid layout group receiving the new panels; created when it does not exist. Defaults to the last group.",
-				},
-				"width": {
-					Type:        "integer",
-					Description: "Width of the new panels in grid columns (1-24, default 12).",
-					Minimum:     new(1.0),
-					Maximum:     new(float64(dashboardutil.GridColumns)),
-				},
-				"height": {
-					Type:        "integer",
-					Description: "Height of the new panels in grid rows of 30px (default 6).",
-					Minimum:     new(1.0),
-				},
-				"placements": {
-					Type: tools.SchemaTypeObject,
-					Description: "Optional exact position per panel key: {\"<key>\": {\"x\": 0, \"y\": 0, \"width\": 12, \"height\": 6}}. " +
-						"Moves the existing layout item of the panel, keeping its group (or tab) and size unless 'layout', width or height is given; " +
-						"unplaced panels go in the 'layout' group (default 12x6). " +
-						"May reference an existing dashboard panel without including its definition in panels. " +
-						"Rejected for a panel displayed in several groups or tabs; use perses_set_dashboard_layout for it.",
-					AdditionalProperties: &jsonschema.Schema{
-						Type: tools.SchemaTypeObject,
-						Properties: map[string]*jsonschema.Schema{
-							"x":      {Type: "integer", Minimum: new(0.0), Maximum: new(float64(dashboardutil.GridColumns - 1))},
-							"y":      {Type: "integer", Minimum: new(0.0)},
-							"width":  {Type: "integer", Minimum: new(1.0), Maximum: new(float64(dashboardutil.GridColumns))},
-							"height": {Type: "integer", Minimum: new(1.0)},
-						},
-						Required: []string{"x", "y"},
-					},
+					Description: "Title of the Grid group receiving the new panels. Defaults to the last group.",
 				},
 				"remove": {
-					Type: tools.SchemaTypeArray,
-					Description: "Keys of panels to delete, together with their layout items; must not overlap panels or " +
-						"placements. Unknown keys are reported and ignored.",
+					Type:        tools.SchemaTypeArray,
+					Description: "Keys of panels to delete; must not overlap panels. Unknown keys are reported and ignored.",
 					Items:       &jsonschema.Schema{Type: tools.SchemaTypeString, MinLength: new(1)},
 					UniqueItems: true,
 				},
 			}),
 			Required: []string{string(tools.ProjectResource), tools.ResourceName},
 		},
-		Annotations: editAnnotations("Adds or replaces panels of a dashboard in Perses"),
+		Annotations: editAnnotations("Adds, replaces or removes panels of a dashboard in Perses"),
 	}
 
 	handler := func(_ context.Context, _ *mcp.CallToolRequest, input SetPanelsInput) (*mcp.CallToolResult, any, error) { //nolint:unparam
@@ -167,29 +119,22 @@ func (d *dashboard) SetPanels() *tools.Tool {
 				return nil, nil, err
 			}
 		}
-		if len(panels) == 0 && len(input.Placements) == 0 && len(input.Remove) == 0 {
-			return nil, nil, fmt.Errorf("give at least one panel, placement or key to remove")
+		if len(panels) == 0 && len(input.Remove) == 0 {
+			return nil, nil, fmt.Errorf("give at least one panel to set or one key to remove")
 		}
-		if len(panels) == 0 && len(input.Placements) == 0 && len(input.Order) > 0 {
-			return nil, nil, fmt.Errorf("order: only applies to keys given in panels or placements")
+		for key, panel := range panels {
+			if panel == nil {
+				return nil, nil, fmt.Errorf("panels.%s is null: give a panel object, or list the key in remove to delete it", key)
+			}
 		}
 		for _, key := range input.Remove {
-			_, inPanels := panels[key]
-			_, inPlacements := input.Placements[key]
-			if inPanels || inPlacements {
-				return nil, nil, fmt.Errorf("remove: panel %q is also given in panels or placements; a key can be either removed or set", key)
+			if _, ok := panels[key]; ok {
+				return nil, nil, fmt.Errorf("remove: panel %q is also given in panels; a key can be either removed or set", key)
 			}
 		}
 		return d.edit(input.request(), func(dash *v1.Dashboard) ([]string, error) {
 			changes := removePanels(dash, input.Remove)
-			if len(panels) == 0 && len(input.Placements) == 0 {
-				return changes, nil
-			}
-			set, err := setPanels(dash, panels, input)
-			if err != nil {
-				return nil, err
-			}
-			return append(changes, set...), nil
+			return append(changes, setPanels(dash, panels, input.Group)...), nil
 		})
 	}
 
@@ -201,147 +146,62 @@ func (d *dashboard) SetPanels() *tools.Tool {
 	}
 }
 
-func setPanels(dash *v1.Dashboard, panels map[string]*dashboardSpec.Panel, input SetPanelsInput) ([]string, error) {
+// setPanels adds or replaces the panels. Replaced panels keep their layout items; the others are appended to the
+// group, which is laid out again.
+func setPanels(dash *v1.Dashboard, panels map[string]*dashboardSpec.Panel, group string) []string {
 	if dash.Spec.Panels == nil {
 		dash.Spec.Panels = map[string]*dashboardSpec.Panel{}
 	}
-	keys := make([]string, 0, len(panels)+len(input.Placements))
-	for key, panel := range panels {
-		if panel == nil {
-			return nil, fmt.Errorf("panels.%s is null: give a panel object, or list the key in remove to delete it", key)
-		}
-		keys = append(keys, key)
-	}
-	for key := range input.Placements {
-		if _, supplied := panels[key]; !supplied {
-			if dash.Spec.Panels[key] == nil {
-				return nil, fmt.Errorf("placements.%s: panel not found; supply its definition in panels or use an existing panel key", key)
-			}
-			keys = append(keys, key)
-		}
-	}
-	sort.Strings(keys)
-	remaining := make(map[string]bool, len(keys))
-	for _, key := range keys {
-		remaining[key] = true
-	}
-	ordered := make([]string, 0, len(keys))
-	for _, key := range input.Order {
-		if !remaining[key] {
-			return nil, fmt.Errorf("order: key %q must appear once and refer to panels or placements", key)
-		}
-		ordered = append(ordered, key)
-		delete(remaining, key)
-	}
-	for _, key := range keys {
-		if remaining[key] {
-			ordered = append(ordered, key)
-		}
-	}
-	keys = ordered
-
-	placedItems, err := placeExplicitly(dash, keys, input)
-	if err != nil {
-		return nil, err
-	}
-
-	var changes []string
-	for _, key := range keys {
+	var changes, appended []string
+	for _, key := range slices.Sorted(maps.Keys(panels)) {
 		_, existed := dash.Spec.Panels[key]
-		action := "moved"
-		if panel, supplied := panels[key]; supplied {
-			if panel.Kind == "" {
-				panel.Kind = "Panel"
-			}
-			dash.Spec.Panels[key] = panel
-			action = "added"
-			if existed {
-				action = "replaced"
-			}
+		if panels[key].Kind == "" {
+			panels[key].Kind = "Panel"
 		}
-
-		placement, placed := placedItems[key]
+		dash.Spec.Panels[key] = panels[key]
 		switch {
-		case placed:
-			changes = append(changes, fmt.Sprintf("%s panel %s, %s", action, key, placement))
-		case existed && dashboardutil.IsPlaced(dash.Spec.Layouts, key):
-			changes = append(changes, fmt.Sprintf("%s panel %s, kept its position", action, key))
+		case existed && isPlaced(dash.Spec.Layouts, key):
+			changes = append(changes, fmt.Sprintf("replaced panel %s, kept its position", key))
+		case existed:
+			changes = append(changes, fmt.Sprintf("replaced panel %s", key))
+			appended = append(appended, key)
 		default:
-			layout := dashboardutil.EnsureLayout(&dash.Spec.Layouts, input.Layout)
-			item, err := dashboardutil.PlacePanel(&dash.Spec.Layouts[layout], key, input.Width, input.Height)
-			if err != nil {
-				return nil, err
-			}
-			changes = append(changes, fmt.Sprintf("%s panel %s, placed in layout %d at x=%d y=%d w=%d h=%d", action, key, layout, item.X, item.Y, item.Width, item.Height))
+			changes = append(changes, fmt.Sprintf("added panel %s", key))
+			appended = append(appended, key)
 		}
 	}
-	return changes, nil
+	if len(appended) == 0 {
+		return changes
+	}
+	index := findGroup(dash.Spec.Layouts, group)
+	if index < 0 {
+		spec := &dashboardSpec.GridLayoutSpec{}
+		if group != "" {
+			spec.Display = &dashboardSpec.GridLayoutDisplay{Title: group}
+		}
+		dash.Spec.Layouts = append(dash.Spec.Layouts, dashboardSpec.Layout{Kind: dashboardSpec.KindGridLayout, Spec: spec})
+		index = len(dash.Spec.Layouts) - 1
+	}
+	grid := dash.Spec.Layouts[index].Spec.(*dashboardSpec.GridLayoutSpec)
+	keys, perLine, height := groupPanels(grid)
+	items := gridItems(append(keys, appended...), perLine, height)
+	keepRepeats(items, dash.Spec.Layouts[index:index+1])
+	grid.Items = items
+	return append(changes, describeGroup(index, dash.Spec.Layouts[index]))
 }
 
-// placeExplicitly reserves the explicit positions before auto-placement, freeing all old positions first. An
-// already placed panel keeps its grid group or tab and its size unless the input overrides them. It returns the
-// placement summary per panel key.
-func placeExplicitly(dash *v1.Dashboard, keys []string, input SetPanelsInput) (map[string]string, error) {
-	origins := make(map[string]dashboardutil.PanelLocation, len(input.Placements))
-	for _, key := range keys {
-		if _, ok := input.Placements[key]; !ok {
-			continue
-		}
-		locations := dashboardutil.FindPanelItems(dash.Spec.Layouts, key)
-		if len(locations) > 1 {
-			names := make([]string, 0, len(locations))
-			for _, location := range locations {
-				names = append(names, dashboardutil.DescribePanelLocation(dash.Spec.Layouts, location))
-			}
-			return nil, fmt.Errorf("placements.%s: the panel appears in %d places (%s); a placement cannot tell which one to move, use perses_set_dashboard_layout to edit its layout items instead", key, len(locations), strings.Join(names, ", "))
-		}
-		if len(locations) == 1 {
-			origins[key] = locations[0]
-		}
+// describeGroup reports the layout of a group, e.g. `group 1 "CPU": a x=0 y=0, b x=12 y=0 (w=12 h=8)`.
+func describeGroup(index int, layout dashboardSpec.Layout) string {
+	grid := layout.Spec.(*dashboardSpec.GridLayoutSpec)
+	positions := make([]string, 0, len(grid.Items))
+	for _, item := range grid.Items {
+		positions = append(positions, fmt.Sprintf("%s x=%d y=%d", panelKeyOf(item), item.X, item.Y))
 	}
-	for key := range origins {
-		dashboardutil.RemovePanelItems(dash.Spec.Layouts, key)
+	description := fmt.Sprintf("group %d %q: %s", index, layoutTitle(layout), strings.Join(positions, ", "))
+	if len(grid.Items) > 0 {
+		description += fmt.Sprintf(" (w=%d h=%d)", grid.Items[0].Width, grid.Items[0].Height)
 	}
-	placedItems := make(map[string]string, len(input.Placements))
-	for _, key := range keys {
-		placement, ok := input.Placements[key]
-		if !ok {
-			continue
-		}
-		width, height := placement.Width, placement.Height
-		previous, found := origins[key]
-		if found {
-			if width <= 0 {
-				width = previous.Item.Width
-			}
-			if height <= 0 {
-				height = previous.Item.Height
-			}
-		}
-		if found && input.Layout == "" && previous.Tab >= 0 {
-			item, err := dashboardutil.PlacePanelInTab(&dash.Spec.Layouts[previous.Layout], previous.Tab, key, placement.X, placement.Y, width, height)
-			if err != nil {
-				return nil, err
-			}
-			placedItems[key] = fmt.Sprintf("placed in layout %d tab %d at x=%d y=%d w=%d h=%d", previous.Layout, previous.Tab, item.X, item.Y, item.Width, item.Height)
-			continue
-		}
-		layout := -1
-		if found && input.Layout == "" {
-			if _, grid := dash.Spec.Layouts[previous.Layout].Spec.(*dashboardSpec.GridLayoutSpec); grid {
-				layout = previous.Layout
-			}
-		}
-		if layout < 0 {
-			layout = dashboardutil.EnsureLayout(&dash.Spec.Layouts, input.Layout)
-		}
-		item, err := dashboardutil.PlacePanelAt(&dash.Spec.Layouts[layout], key, placement.X, placement.Y, width, height)
-		if err != nil {
-			return nil, err
-		}
-		placedItems[key] = fmt.Sprintf("placed in layout %d at x=%d y=%d w=%d h=%d", layout, item.X, item.Y, item.Width, item.Height)
-	}
-	return placedItems, nil
+	return description
 }
 
 // removePanels deletes the panels and the layout items displaying them; unknown keys are reported.
@@ -353,7 +213,7 @@ func removePanels(dash *v1.Dashboard, keys []string) []string {
 			continue
 		}
 		delete(dash.Spec.Panels, key)
-		items := dashboardutil.RemovePanelItems(dash.Spec.Layouts, key)
+		items := removePanelItems(dash.Spec.Layouts, map[string]bool{key: true}, true)
 		changes = append(changes, fmt.Sprintf("removed panel %s and %d layout item(s)", key, items))
 	}
 	return changes
@@ -465,61 +325,68 @@ func removeVariables(dash *v1.Dashboard, names []string) []string {
 
 type SetLayoutInput struct {
 	editInput
-	Layout json.RawMessage `json:"layout,omitempty"`
-	Index  *int            `json:"index,omitempty"`
-	Title  string          `json:"title,omitempty"`
-	Remove bool            `json:"remove,omitempty"`
+	Title         string   `json:"title"`
+	Panels        []string `json:"panels,omitempty"`
+	PanelsPerLine int      `json:"panels_per_line,omitempty"`
+	PanelHeight   int      `json:"panel_height,omitempty"`
+	Collapsed     *bool    `json:"collapsed,omitempty"`
+	Remove        bool     `json:"remove,omitempty"`
 }
 
 func (d *dashboard) SetLayout() *tools.Tool {
 	tool := &mcp.Tool{
 		Name: "perses_set_dashboard_layout",
-		Description: "Add, replace or remove one layout group (section) selected by index or title; an unmatched " +
-			"layout is appended, and remove=true deletes the group but keeps its panels. To move panels between groups, " +
-			"prefer perses_set_dashboard_panels with layout and placements. A layout is {kind: Grid, spec: {display: " +
-			"{title, collapse: {open: true}}, items: [{x, y, width, height, content: {$ref: '#/spec/panels/<key>'}}]}}.",
+		Description: "Define, replace or remove one Grid panel group (section), matched by title, like the Perses SDK " +
+			"AddPanelGroup: the listed panels are laid out in order, panels_per_line per row of 24 columns, all " +
+			"panel_height high. Listed panels move out of other Grid groups; panels left out of the group are no longer " +
+			"displayed. remove=true deletes the group but keeps its panels. Tabs layouts are left untouched. Custom " +
+			"positions need perses_update_dashboard.",
 		InputSchema: &jsonschema.Schema{
 			Type: tools.SchemaTypeObject,
 			Properties: editProperties(map[string]*jsonschema.Schema{
-				"layout": {
-					Type:        tools.SchemaTypeObject,
-					Description: "The layout group to add or to replace the selected one with, as in spec.layouts. Required unless remove=true.",
-				},
-				"index": {
-					Type:        "integer",
-					Description: "Index in spec.layouts of the group to replace or remove.",
-					Minimum:     new(0.0),
-				},
 				"title": {
 					Type:        tools.SchemaTypeString,
-					Description: "Title of the group to replace or remove, when 'index' is not given. Defaults to the title of 'layout'.",
+					Description: "Title of the group; an existing Grid group with this title (ignoring case) is replaced, otherwise one is appended.",
+					MinLength:   new(1),
+				},
+				"panels": {
+					Type:        tools.SchemaTypeArray,
+					Description: "Keys of existing panels, in display order. Required unless remove=true.",
+					Items:       &jsonschema.Schema{Type: tools.SchemaTypeString, MinLength: new(1)},
+					UniqueItems: true,
+				},
+				"panels_per_line": {
+					Type:        "integer",
+					Description: "Panels per row; width is 24/panels_per_line rounded down. Defaults to the current group's, else 2.",
+					Minimum:     new(1.0),
+					Maximum:     new(float64(gridColumns)),
+				},
+				"panel_height": {
+					Type:        "integer",
+					Description: "Panel height in rows of 30px. Defaults to the current group's, else 8.",
+					Minimum:     new(1.0),
+				},
+				"collapsed": {
+					Type:        tools.SchemaTypeBoolean,
+					Description: "Make the group collapsible, collapsed when true. Defaults to the current group's setting.",
 				},
 				"remove": {
 					Type:        tools.SchemaTypeBoolean,
-					Description: "Remove the selected group instead of replacing it.",
+					Description: "Remove the group instead of setting it.",
 					Default:     json.RawMessage("false"),
 				},
 			}),
-			Required: []string{string(tools.ProjectResource), tools.ResourceName},
+			Required: []string{string(tools.ProjectResource), tools.ResourceName, "title"},
 		},
-		Annotations: editAnnotations("Adds, replaces or removes a layout group of a dashboard in Perses"),
+		Annotations: editAnnotations("Sets or removes a panel group of a dashboard in Perses"),
 	}
-	// Repeating a removal by index deletes the next group, and repeating an untitled append adds a duplicate.
-	tool.Annotations.IdempotentHint = false
 
 	handler := func(_ context.Context, _ *mcp.CallToolRequest, input SetLayoutInput) (*mcp.CallToolResult, any, error) { //nolint:unparam
-		var layout *dashboardSpec.Layout
-		if len(input.Layout) > 0 && string(input.Layout) != "null" {
-			layout = &dashboardSpec.Layout{}
-			if err := json.Unmarshal(input.Layout, layout); err != nil {
-				return nil, nil, err
-			}
-		}
-		if layout == nil && !input.Remove {
-			return nil, nil, fmt.Errorf("layout is required unless remove=true")
+		if len(input.Panels) == 0 && !input.Remove {
+			return nil, nil, fmt.Errorf("panels is required unless remove=true")
 		}
 		return d.edit(input.request(), func(dash *v1.Dashboard) ([]string, error) {
-			return setLayout(dash, layout, input)
+			return setLayout(dash, input)
 		})
 	}
 
@@ -531,34 +398,72 @@ func (d *dashboard) SetLayout() *tools.Tool {
 	}
 }
 
-func setLayout(dash *v1.Dashboard, layout *dashboardSpec.Layout, input SetLayoutInput) ([]string, error) {
-	index := -1
-	switch {
-	case input.Index != nil:
-		index = *input.Index
-		if index >= len(dash.Spec.Layouts) {
-			return nil, fmt.Errorf("layout index %d is out of range: the dashboard has %d layout(s)", index, len(dash.Spec.Layouts))
+func setLayout(dash *v1.Dashboard, input SetLayoutInput) ([]string, error) {
+	index := findGroup(dash.Spec.Layouts, input.Title)
+	if input.Remove {
+		if index < 0 {
+			return nil, fmt.Errorf("no Grid group is titled %q", input.Title)
 		}
-	case input.Title != "":
-		index = dashboardutil.FindLayoutByTitle(dash.Spec.Layouts, input.Title)
-	case layout != nil:
-		if title := dashboardutil.LayoutTitle(*layout); title != "" {
-			index = dashboardutil.FindLayoutByTitle(dash.Spec.Layouts, title)
+		dash.Spec.Layouts = slices.Delete(dash.Spec.Layouts, index, index+1)
+		return []string{fmt.Sprintf("removed group %d %q", index, input.Title)}, nil
+	}
+	for _, key := range input.Panels {
+		if dash.Spec.Panels[key] == nil {
+			return nil, fmt.Errorf("panel %q not found; available panels: %s", key, strings.Join(slices.Sorted(maps.Keys(dash.Spec.Panels)), ", "))
 		}
 	}
 
-	if input.Remove {
-		if index < 0 {
-			return nil, fmt.Errorf("no layout matches: give the index or the title of the layout to remove")
+	grid := &dashboardSpec.GridLayoutSpec{Display: &dashboardSpec.GridLayoutDisplay{Title: input.Title}}
+	perLine, height := defaultPanelsPerLine, defaultPanelHeight
+	var previous []string
+	if index >= 0 {
+		current := dash.Spec.Layouts[index].Spec.(*dashboardSpec.GridLayoutSpec)
+		previous, perLine, height = groupPanels(current)
+		grid.RepeatVariable = current.RepeatVariable
+		if current.Display != nil {
+			grid.Display.Collapse = current.Display.Collapse
 		}
-		title := dashboardutil.LayoutTitle(dash.Spec.Layouts[index])
-		dash.Spec.Layouts = append(dash.Spec.Layouts[:index], dash.Spec.Layouts[index+1:]...)
-		return []string{fmt.Sprintf("removed layout %d %q", index, title)}, nil
 	}
+	if input.PanelsPerLine > 0 {
+		perLine = min(input.PanelsPerLine, gridColumns)
+	}
+	if input.PanelHeight > 0 {
+		height = input.PanelHeight
+	}
+	if input.Collapsed != nil {
+		grid.Display.Collapse = &dashboardSpec.GridLayoutCollapse{Open: !*input.Collapsed}
+	}
+
+	grid.Items = gridItems(input.Panels, perLine, height)
+	keepRepeats(grid.Items, dash.Spec.Layouts)
+	listed := make(map[string]bool, len(input.Panels))
+	for _, key := range input.Panels {
+		listed[key] = true
+	}
+	var changes []string
+	others := dash.Spec.Layouts
+	if index >= 0 {
+		others = slices.Delete(slices.Clone(others), index, index+1)
+	}
+	if moved := removePanelItems(others, listed, false); moved > 0 {
+		changes = append(changes, fmt.Sprintf("moved %d layout item(s) out of other Grid groups", moved))
+	}
+	layout := dashboardSpec.Layout{Kind: dashboardSpec.KindGridLayout, Spec: grid}
 	if index < 0 {
-		dash.Spec.Layouts = append(dash.Spec.Layouts, *layout)
-		return []string{fmt.Sprintf("added layout %d %q", len(dash.Spec.Layouts)-1, dashboardutil.LayoutTitle(*layout))}, nil
+		dash.Spec.Layouts = append(dash.Spec.Layouts, layout)
+		index = len(dash.Spec.Layouts) - 1
+	} else {
+		dash.Spec.Layouts[index] = layout
 	}
-	dash.Spec.Layouts[index] = *layout
-	return []string{fmt.Sprintf("replaced layout %d %q", index, dashboardutil.LayoutTitle(*layout))}, nil
+	changes = append(changes, describeGroup(index, layout))
+	var hidden []string
+	for _, key := range previous {
+		if !listed[key] && !isPlaced(dash.Spec.Layouts, key) {
+			hidden = append(hidden, key)
+		}
+	}
+	if len(hidden) > 0 {
+		changes = append(changes, fmt.Sprintf("panels no longer displayed: %s", strings.Join(hidden, ", ")))
+	}
+	return changes, nil
 }
