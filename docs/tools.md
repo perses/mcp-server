@@ -37,7 +37,7 @@ Resource: `dashboard`
 
 The parameter `dashboard` is a dashboard in the [Perses format](https://perses.dev/docs/perses/latest/api/dashboard/).
 Create and update take the dashboard as a JSON object and have the Perses server validate it before saving; a
-validation failure is a tool error with the message of Perses, unchanged. Create fails if a
+validation failure is a tool error with the error of the Perses client, unchanged. Create fails if a
 dashboard with the same name exists; use `perses_update_dashboard` to change it. Writes return a compact summary; set
 `include_dashboard: true` to include the saved dashboard. Use `dry_run: true` to validate without saving.
 

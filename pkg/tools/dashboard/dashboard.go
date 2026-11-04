@@ -14,7 +14,7 @@
 // Package dashboard provides the MCP tools managing Perses dashboards.
 //
 // Besides the usual list/get/create/update/delete tools, it returns compact summaries instead of whole
-// dashboards. Validation is done by the Perses server, whose messages are returned unchanged.
+// dashboards. Validation is done by the Perses server, whose errors are returned unchanged.
 package dashboard
 
 import (
@@ -31,6 +31,7 @@ import (
 	"github.com/perses/mcp-server/pkg/tools/resource"
 	apiClient "github.com/perses/perses/pkg/client/api"
 	v1Client "github.com/perses/perses/pkg/client/api/v1"
+	"github.com/perses/perses/pkg/client/perseshttp"
 	v1 "github.com/perses/perses/pkg/model/api/v1"
 	dashboardSpec "github.com/perses/spec/go/dashboard"
 )
@@ -145,24 +146,11 @@ func textResult(value any) (*mcp.CallToolResult, any, error) {
 	}, nil, nil
 }
 
-// validate asks the Perses server to validate the dashboard. A validation failure is returned with the message of
-// Perses unchanged.
-func (d *dashboard) validate(dash *v1.Dashboard) error {
-	err := d.client.Validate().Dashboard(dash)
-	if err == nil {
-		return nil
-	}
-	if message, ok := dashboardutil.IsBadRequest(err); ok {
-		return errors.New(message)
-	}
-	return fmt.Errorf("error validating dashboard '%s' in project '%s': %w", dash.Metadata.Name, dash.Metadata.Project, err)
-}
-
 // get fetches a dashboard, translating a 404 into a readable error.
 func (d *dashboard) get(project, name string) (*v1.Dashboard, error) {
 	dash, err := d.api(project).Get(name)
 	if err != nil {
-		if dashboardutil.IsNotFound(err) {
+		if errors.Is(err, perseshttp.RequestNotFoundError) {
 			return nil, notFoundError(name, project)
 		}
 		return nil, fmt.Errorf("error retrieving dashboard '%s' in project '%s': %w", name, project, err)
