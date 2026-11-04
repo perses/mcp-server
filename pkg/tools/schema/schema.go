@@ -157,7 +157,11 @@ func (s *schema) Get() *tools.Tool {
 			if !defaultRegistry {
 				return nil, nil, fmt.Errorf("no plugin %q in registry %q", input.Kind, input.Registry)
 			}
-			return nil, nil, fmt.Errorf("%q is not a plugin kind; %s", input.Kind, notPluginKindHint)
+			return nil, nil, fmt.Errorf(
+				"no schema of plugin %q found in registry %q; set registry for plugins installed elsewhere "+
+					"(requires Perses v0.55 or later); %s Server error: %w",
+				input.Kind, plugin.DefaultRegistry, notPluginKindHint, err,
+			)
 		}
 		if err != nil {
 			return nil, nil, fmt.Errorf("error retrieving the schema of plugin '%s': %w", input.Kind, err)
