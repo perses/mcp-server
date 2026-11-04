@@ -36,7 +36,8 @@ Resource: `dashboard`
 | `perses_delete_dashboard`      | Delete a dashboard from a project          | `project`, `name`      |
 
 The parameter `dashboard` is a dashboard in the [Perses format](https://perses.dev/docs/perses/latest/api/dashboard/).
-Create and update accept a JSON object or a JSON string and validate before saving. Create fails if a
+Create and update take the dashboard as a JSON object and have the Perses server validate it before saving; a
+validation failure is a tool error with the message of Perses, unchanged. Create fails if a
 dashboard with the same name exists; use `perses_update_dashboard` to change it. Writes return a compact summary; set
 `include_dashboard: true` to include the saved dashboard. Use `dry_run: true` to validate without saving.
 

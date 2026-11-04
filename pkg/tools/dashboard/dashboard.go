@@ -14,12 +14,13 @@
 // Package dashboard provides the MCP tools managing Perses dashboards.
 //
 // Besides the usual list/get/create/update/delete tools, it returns compact summaries instead of whole
-// dashboards, and it reports validation problems as structured issues located by JSON path.
+// dashboards. Validation is done by the Perses server, whose messages are returned unchanged.
 package dashboard
 
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 
@@ -89,12 +90,11 @@ func nameSchema(description string) *jsonschema.Schema {
 	return projectSchema(description)
 }
 
-// dashboardSchema accepts a dashboard as a JSON object, or as JSON serialized in a string for backward
-// compatibility.
+// dashboardSchema accepts a dashboard as a JSON object.
 func dashboardSchema(description string) *jsonschema.Schema {
 	return &jsonschema.Schema{
-		Types:       []string{tools.SchemaTypeObject, tools.SchemaTypeString},
-		Description: description + " Pass a JSON object (preferred); a JSON document serialized in a string is also accepted.",
+		Type:        tools.SchemaTypeObject,
+		Description: description,
 	}
 }
 
@@ -130,8 +130,7 @@ type writeResult struct {
 	DryRun bool   `json:"dryRun,omitempty"`
 	dashboardutil.Summary
 	// Changes describes what the incremental tools did, e.g. the layout items added.
-	Changes  []string              `json:"changes,omitempty"`
-	Warnings []dashboardutil.Issue `json:"warnings,omitempty"`
+	Changes []string `json:"changes,omitempty"`
 	// Dashboard is the saved dashboard, when requested.
 	Dashboard *v1.Dashboard `json:"dashboard,omitempty"`
 }
@@ -146,42 +145,17 @@ func textResult(value any) (*mcp.CallToolResult, any, error) {
 	}, nil, nil
 }
 
-// invalidResult reports the validation errors as a tool error whose content is the structured validation, so
-// that the caller can fix the offending fields.
-func invalidResult(validation *dashboardutil.Validation) (*mcp.CallToolResult, any, error) {
-	text, err := dashboardutil.MarshalText(validation)
-	if err != nil {
-		return nil, nil, fmt.Errorf("error marshalling the validation: %w", err)
-	}
-	return &mcp.CallToolResult{
-		IsError: true,
-		Content: []mcp.Content{&mcp.TextContent{Text: text}},
-	}, nil, nil
-}
-
-// validate asks the Perses server to validate the dashboard and lints it locally. The returned validation is
-// nil when the dashboard is valid and has no warning. An error means that the validation could not be performed.
-func (d *dashboard) validate(dash *v1.Dashboard) (*dashboardutil.Validation, error) {
-	errs, warnings := dashboardutil.Lint(dash)
-	if err := d.client.Validate().Dashboard(dash); err != nil {
-		message, ok := dashboardutil.IsBadRequest(err)
-		if !ok {
-			return nil, fmt.Errorf("error validating dashboard '%s' in project '%s': %w", dash.Metadata.Name, dash.Metadata.Project, err)
-		}
-		errs = append(dashboardutil.IssuesFromServerMessage(message, dash), errs...)
-	}
-	if len(errs) == 0 && len(warnings) == 0 {
-		return nil, nil
-	}
-	return dashboardutil.NewValidation(errs, warnings), nil
-}
-
-// warningsOf returns the warnings of a validation that may be nil.
-func warningsOf(validation *dashboardutil.Validation) []dashboardutil.Issue {
-	if validation == nil {
+// validate asks the Perses server to validate the dashboard. A validation failure is returned with the message of
+// Perses unchanged.
+func (d *dashboard) validate(dash *v1.Dashboard) error {
+	err := d.client.Validate().Dashboard(dash)
+	if err == nil {
 		return nil
 	}
-	return validation.Warnings
+	if message, ok := dashboardutil.IsBadRequest(err); ok {
+		return errors.New(message)
+	}
+	return fmt.Errorf("error validating dashboard '%s' in project '%s': %w", dash.Metadata.Name, dash.Metadata.Project, err)
 }
 
 // get fetches a dashboard, translating a 404 into a readable error.

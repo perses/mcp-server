@@ -25,7 +25,6 @@ import (
 
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	"github.com/perses/mcp-server/pkg/tools/internal/dashboardutil"
 	apiClient "github.com/perses/perses/pkg/client/api"
 	"github.com/perses/perses/pkg/client/perseshttp"
 	v1 "github.com/perses/perses/pkg/model/api/v1"
@@ -44,8 +43,6 @@ const validDashboard = `{
 		"layouts": [{"kind": "Grid", "spec": {"display": {"title": "Row"}, "items": [{"x": 0, "y": 0, "width": 12, "height": 6, "content": {"$ref": "#/spec/panels/p1"}}]}}]
 	}
 }`
-
-const statPanel = `{"kind": "Panel", "spec": {"display": {"name": "%s"}, "plugin": {"kind": "StatChart", "spec": {"calculation": "%s"}}}}`
 
 // fakePerses is an in-memory Perses API storing dashboards as raw JSON documents, with a validation endpoint
 // rejecting the calculation "average" like the real schemas do.
@@ -214,13 +211,6 @@ func mustFail(t *testing.T, session *mcp.ClientSession, name string, args map[st
 	return text
 }
 
-func validationOf(t *testing.T, text string) dashboardutil.Validation {
-	t.Helper()
-	var validation dashboardutil.Validation
-	require.NoError(t, json.Unmarshal([]byte(text), &validation), "not a validation: %s", text)
-	return validation
-}
-
 func TestGetTools(t *testing.T) {
 	names := []string{}
 	for _, tool := range New(nil).GetTools() {
@@ -249,10 +239,14 @@ func TestCreate(t *testing.T) {
 		assert.Nil(t, result["dashboard"])
 		assert.Equal(t, 1, fake.requests["POST /api/validate/dashboards"])
 	})
-	t.Run("string input is still accepted", func(t *testing.T) {
-		session := newSession(t, newFakePerses())
-		result := mustCall(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": validDashboard})
-		assert.Equal(t, "created", result["action"])
+	t.Run("string input is rejected", func(t *testing.T) {
+		fake := newFakePerses()
+		session := newSession(t, fake)
+		result, err := session.CallTool(context.Background(), &mcp.CallToolParams{
+			Name: "perses_create_dashboard", Arguments: map[string]any{"project": "myproject", "dashboard": validDashboard},
+		})
+		require.True(t, err != nil || result.IsError, "a dashboard given as a string must be rejected")
+		assert.Empty(t, fake.dashboards)
 	})
 	t.Run("include_dashboard", func(t *testing.T) {
 		session := newSession(t, newFakePerses())
@@ -289,66 +283,34 @@ func TestCreate(t *testing.T) {
 		assert.Contains(t, text, "perses_update_dashboard")
 		assert.Equal(t, 2, fake.requests["POST /api/v1/projects/myproject/dashboards"], "the dry run must not save")
 	})
-	t.Run("validation error is structured", func(t *testing.T) {
+	t.Run("validation error is the message of Perses", func(t *testing.T) {
 		fake := newFakePerses()
 		session := newSession(t, fake)
 		invalid := strings.ReplaceAll(validDashboard, `p1`, `p2`)
 		invalid = strings.Replace(invalid, `"mean"`, `"average"`, 1)
-		text := mustFail(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": invalid})
-		validation := validationOf(t, text)
-		require.Len(t, validation.Errors, 1)
-		assert.Equal(t, "spec.panels.p2.spec.plugin.spec.calculation", validation.Errors[0].Path)
-		assert.Equal(t, `conflicting values "mean" and "average"`, validation.Errors[0].Message)
+		text := mustFail(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": object(t, invalid)})
+		assert.Equal(t, "bad request: bad request: invalid panel p2: spec.calculation: conflicting values \"mean\" and \"average\":\n    1:1\n", text)
 		assert.Empty(t, fake.dashboards)
 	})
-	t.Run("decode error is structured", func(t *testing.T) {
-		session := newSession(t, newFakePerses())
-		text := mustFail(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": `{"kind": "Dashboard"`})
-		validation := validationOf(t, text)
-		require.Len(t, validation.Errors, 1)
-		assert.Contains(t, validation.Errors[0].Message, "malformed JSON")
-	})
-	t.Run("query without wrapper is located", func(t *testing.T) {
+	t.Run("decode error is the message of the Perses model", func(t *testing.T) {
 		fake := newFakePerses()
 		session := newSession(t, fake)
-		shortQuery := strings.Replace(validDashboard, `"spec": {"calculation": "mean"}}`,
-			`"spec": {"calculation": "mean"}}, "queries": [{"kind": "PrometheusTimeSeriesQuery", "spec": {"query": "up"}}]`, 1)
-		text := mustFail(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": shortQuery, "dry_run": true})
-		validation := validationOf(t, text)
-		require.Len(t, validation.Errors, 1)
-		assert.Equal(t, "spec.panels.p1.spec.queries[0]", validation.Errors[0].Path)
-		assert.Contains(t, validation.Errors[0].Hint, `{kind: "TimeSeriesQuery", spec: {plugin: {kind: "PrometheusTimeSeriesQuery", spec: {query: ...}}}}`)
+		wrongKind := strings.Replace(validDashboard, `"kind": "Dashboard"`, `"kind": "Datasource"`, 1)
+		text := mustFail(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": object(t, wrongKind)})
+		assert.Equal(t, `invalid kind: "Datasource" for a Dashboard type`, text)
 		assert.Zero(t, fake.requests["POST /api/validate/dashboards"])
-	})
-	t.Run("rejects trailing JSON values", func(t *testing.T) {
-		fake := newFakePerses()
-		session := newSession(t, fake)
-		text := mustFail(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": validDashboard + " {}"})
-		validation := validationOf(t, text)
-		require.Len(t, validation.Errors, 1)
-		assert.Contains(t, validation.Errors[0].Message, "unexpected JSON value after dashboard")
-		assert.Empty(t, fake.dashboards)
-		assert.Zero(t, fake.requests["POST /api/validate/dashboards"])
-	})
-	t.Run("warnings are returned with the summary", func(t *testing.T) {
-		session := newSession(t, newFakePerses())
-		withOrphan := strings.Replace(validDashboard, `"panels": {`, `"panels": {"orphan": `+strings.ReplaceAll(statPanel, "%s", "x")+`, `, 1)
-		result := mustCall(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": withOrphan})
-		warnings := result["warnings"].([]any)
-		require.Len(t, warnings, 1)
-		assert.Equal(t, "spec.panels.orphan", warnings[0].(map[string]any)["path"])
 	})
 }
 
 func TestUpdate(t *testing.T) {
 	fake := newFakePerses()
 	session := newSession(t, fake)
-	mustCall(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": validDashboard})
+	mustCall(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": object(t, validDashboard)})
 
 	t.Run("missing dashboard", func(t *testing.T) {
 		missing := strings.Replace(validDashboard, `"cpu"`, `"other"`, 1)
 		for _, extra := range []map[string]any{{}, {"expected_version": 0}, {"dry_run": true}} {
-			args := map[string]any{"project": "myproject", "dashboard": missing}
+			args := map[string]any{"project": "myproject", "dashboard": object(t, missing)}
 			for key, value := range extra {
 				args[key] = value
 			}
@@ -360,28 +322,28 @@ func TestUpdate(t *testing.T) {
 	})
 	t.Run("update without expected version does not read", func(t *testing.T) {
 		before := fake.requests["GET /api/v1/projects/myproject/dashboards/cpu"]
-		result := mustCall(t, session, "perses_update_dashboard", map[string]any{"project": "myproject", "dashboard": validDashboard})
+		result := mustCall(t, session, "perses_update_dashboard", map[string]any{"project": "myproject", "dashboard": object(t, validDashboard)})
 		assert.Equal(t, "updated", result["action"])
 		assert.Equal(t, before, fake.requests["GET /api/v1/projects/myproject/dashboards/cpu"], "an update-only role must be able to update")
 	})
 	t.Run("version mismatch", func(t *testing.T) {
-		text := mustFail(t, session, "perses_update_dashboard", map[string]any{"project": "myproject", "dashboard": validDashboard, "expected_version": 7})
+		text := mustFail(t, session, "perses_update_dashboard", map[string]any{"project": "myproject", "dashboard": object(t, validDashboard), "expected_version": 7})
 		assert.Contains(t, text, "is at version 1, not 7")
 	})
 	t.Run("update", func(t *testing.T) {
-		result := mustCall(t, session, "perses_update_dashboard", map[string]any{"project": "myproject", "dashboard": validDashboard, "expected_version": 1})
+		result := mustCall(t, session, "perses_update_dashboard", map[string]any{"project": "myproject", "dashboard": object(t, validDashboard), "expected_version": 1})
 		assert.Equal(t, "updated", result["action"])
 		assert.Equal(t, float64(2), result["version"])
 	})
 	t.Run("dry run saves nothing", func(t *testing.T) {
 		fake := newFakePerses()
 		session := newSession(t, fake)
-		mustCall(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": validDashboard})
+		mustCall(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": object(t, validDashboard)})
 		before, err := json.Marshal(fake.dashboards["cpu"])
 		require.NoError(t, err)
 
 		renamed := strings.Replace(validDashboard, `"name": "CPU"`, `"name": "Renamed"`, 1)
-		result := mustCall(t, session, "perses_update_dashboard", map[string]any{"project": "myproject", "dashboard": renamed, "dry_run": true, "expected_version": 0})
+		result := mustCall(t, session, "perses_update_dashboard", map[string]any{"project": "myproject", "dashboard": object(t, renamed), "dry_run": true, "expected_version": 0})
 		assert.Equal(t, "would_update", result["action"])
 		assert.Equal(t, true, result["dryRun"])
 		assert.Zero(t, fake.requests["PUT /api/v1/projects/myproject/dashboards/cpu"])
@@ -395,7 +357,7 @@ func TestUpdate(t *testing.T) {
 func TestGetAndList(t *testing.T) {
 	fake := newFakePerses()
 	session := newSession(t, fake)
-	mustCall(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": validDashboard})
+	mustCall(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": object(t, validDashboard)})
 
 	full := mustCall(t, session, "perses_get_dashboard_by_name", map[string]any{"project": "myproject", "name": "cpu", "summary": false})
 	assert.Equal(t, "Dashboard", full["kind"])
@@ -454,7 +416,7 @@ func TestDashboardLinksOmitCredentials(t *testing.T) {
 	client := apiClient.NewWithClient(&perseshttp.RESTClient{BaseURL: base, Client: srv.Client()})
 	session := connect(t, client)
 
-	created := mustCall(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": validDashboard})
+	created := mustCall(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": object(t, validDashboard)})
 	outline := mustCall(t, session, "perses_get_dashboard_by_name", map[string]any{"project": "myproject", "name": "cpu"})
 	for _, link := range []any{created["url"], outline["url"]} {
 		assert.Equal(t, srv.URL+"/projects/myproject/dashboards/cpu", link)
