@@ -15,7 +15,6 @@ package project
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/google/jsonschema-go/jsonschema"
@@ -96,17 +95,11 @@ func (p *project) Create() *tools.Tool {
 		if err != nil {
 			return nil, nil, fmt.Errorf("error creating project '%s': %w", input.Project, err)
 		}
-		text, err := json.Marshal(response)
+		toolResult, err := tools.JSONResult(response)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error marshalling created project '%s': %w", input.Project, err)
 		}
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{
-					Text: string(text),
-				},
-			},
-		}, nil, nil
+		return toolResult, nil, nil
 	}
 	return &tools.Tool{
 		MCPTool:      tool,
@@ -137,17 +130,11 @@ func (p *project) List() *tools.Tool {
 		if err != nil {
 			return nil, nil, fmt.Errorf("error retrieving projects: %w", err)
 		}
-		text, err := json.Marshal(projects)
+		toolResult, err := tools.JSONResult(projects)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error marshalling projects: %w", err)
 		}
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{
-					Text: string(text),
-				},
-			},
-		}, nil, nil
+		return toolResult, nil, nil
 	}
 	return &tools.Tool{
 		MCPTool:      tool,
@@ -218,17 +205,11 @@ func (p *project) Update() *tools.Tool {
 		if err != nil {
 			return nil, nil, fmt.Errorf("error updating project '%s': %w", input.Name, err)
 		}
-		text, err := json.Marshal(response)
+		toolResult, err := tools.JSONResult(response)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error marshalling updated project '%s': %w", input.Name, err)
 		}
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{
-					Text: string(text),
-				},
-			},
-		}, nil, nil
+		return toolResult, nil, nil
 	}
 	return &tools.Tool{
 		MCPTool:      tool,
@@ -274,13 +255,7 @@ func (p *project) Delete() *tools.Tool {
 		if err != nil {
 			return nil, nil, fmt.Errorf("error deleting project '%s': %w", input.Name, err)
 		}
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{
-					Text: fmt.Sprintf("Project '%s' deleted successfully", input.Name),
-				},
-			},
-		}, nil, nil
+		return tools.TextResult(fmt.Sprintf("Project '%s' deleted successfully", input.Name)), nil, nil
 	}
 	return &tools.Tool{
 		MCPTool:      tool,
@@ -326,17 +301,11 @@ func (p *project) Get() *tools.Tool {
 		if err != nil {
 			return nil, nil, fmt.Errorf("error retrieving project '%s': %w", input.Name, err)
 		}
-		text, err := json.Marshal(response)
+		toolResult, err := tools.JSONResult(response)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error marshalling project '%s': %w", input.Name, err)
 		}
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{
-					Text: string(text),
-				},
-			},
-		}, nil, nil
+		return toolResult, nil, nil
 	}
 	return &tools.Tool{
 		MCPTool:      tool,

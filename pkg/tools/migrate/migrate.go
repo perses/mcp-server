@@ -123,20 +123,14 @@ func (m *migrate) Migrate() *tools.Tool {
 			return nil, nil, fmt.Errorf("error migrating grafana dashboard: %w", err)
 		}
 
-		text, err := json.Marshal(persesDashboard)
+		toolResult, err := tools.JSONResult(persesDashboard)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error marshalling migrated dashboard: %w", err)
 		}
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{
-					Text: datasourceStrategyNote(useDefaultDatasource, chosenByUser),
-				},
-				&mcp.TextContent{
-					Text: string(text),
-				},
-			},
-		}, nil, nil
+		toolResult.Content = append([]mcp.Content{
+			&mcp.TextContent{Text: datasourceStrategyNote(useDefaultDatasource, chosenByUser)},
+		}, toolResult.Content...)
+		return toolResult, nil, nil
 	}
 
 	return &tools.Tool{

@@ -15,7 +15,6 @@ package globaldatasource
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/google/jsonschema-go/jsonschema"
@@ -135,11 +134,7 @@ func (g *globalDatasource) Query() *tools.Tool {
 			return nil, nil, fmt.Errorf("error querying global datasource '%s': %w", input.DatasourceName, err)
 		}
 
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{Text: text},
-			},
-		}, nil, nil
+		return tools.TextResult(text), nil, nil
 	}
 
 	return &tools.Tool{
@@ -169,17 +164,11 @@ func (g *globalDatasource) List() *tools.Tool {
 			return nil, nil, fmt.Errorf("error retrieving global datasources: %w", err)
 		}
 
-		globalDatasourcesJSON, err := json.Marshal(globalDatasources)
+		toolResult, err := tools.JSONResult(globalDatasources)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error marshalling global datasources: %w", err)
 		}
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{
-					Text: string(globalDatasourcesJSON),
-				},
-			},
-		}, nil, nil
+		return toolResult, nil, nil
 	}
 
 	return &tools.Tool{
@@ -226,17 +215,11 @@ func (g *globalDatasource) Get() *tools.Tool {
 			return nil, nil, fmt.Errorf("error retrieving global datasource '%s': %w", input.Name, err)
 		}
 
-		globalDatasourceJSON, err := json.Marshal(globalDatasource)
+		toolResult, err := tools.JSONResult(globalDatasource)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error marshalling global datasource '%s': %w", input.Name, err)
 		}
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{
-					Text: string(globalDatasourceJSON),
-				},
-			},
-		}, nil, nil
+		return toolResult, nil, nil
 	}
 
 	return &tools.Tool{
@@ -311,17 +294,11 @@ func (g *globalDatasource) Create() *tools.Tool {
 			return nil, nil, fmt.Errorf("error creating global datasource '%s': %w", input.Name, err)
 		}
 
-		globalDatasourceJSON, err := json.Marshal(response)
+		toolResult, err := tools.JSONResult(response)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error marshalling global datasource '%s': %w", input.Name, err)
 		}
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{
-					Text: string(globalDatasourceJSON),
-				},
-			},
-		}, nil, nil
+		return toolResult, nil, nil
 	}
 
 	return &tools.Tool{
@@ -396,17 +373,11 @@ func (g *globalDatasource) Update() *tools.Tool {
 			return nil, nil, fmt.Errorf("error updating global datasource '%s': %w", input.Name, err)
 		}
 
-		globalDatasourceJSON, err := json.Marshal(response)
+		toolResult, err := tools.JSONResult(response)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error marshalling global datasource '%s': %w", input.Name, err)
 		}
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{
-					Text: string(globalDatasourceJSON),
-				},
-			},
-		}, nil, nil
+		return toolResult, nil, nil
 	}
 
 	return &tools.Tool{
@@ -453,13 +424,7 @@ func (g *globalDatasource) Delete() *tools.Tool {
 			return nil, nil, fmt.Errorf("error deleting global datasource '%s': %w", input.Name, err)
 		}
 
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{
-					Text: fmt.Sprintf("Global datasource '%s' deleted successfully", input.Name),
-				},
-			},
-		}, nil, nil
+		return tools.TextResult(fmt.Sprintf("Global datasource '%s' deleted successfully", input.Name)), nil, nil
 	}
 
 	return &tools.Tool{

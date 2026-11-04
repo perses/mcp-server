@@ -15,7 +15,6 @@ package rolebinding
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/google/jsonschema-go/jsonschema"
@@ -82,17 +81,11 @@ func (r *roleBinding) List() *tools.Tool {
 			return nil, nil, fmt.Errorf("error retrieving role bindings in project '%s': %w", input.Project, err)
 		}
 
-		roleBindingsJSON, err := json.Marshal(roleBindings)
+		toolResult, err := tools.JSONResult(roleBindings)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error marshalling role bindings: %w", err)
 		}
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{
-					Text: string(roleBindingsJSON),
-				},
-			},
-		}, nil, nil
+		return toolResult, nil, nil
 	}
 
 	return &tools.Tool{
@@ -147,17 +140,11 @@ func (r *roleBinding) Get() *tools.Tool {
 			return nil, nil, fmt.Errorf("error retrieving role binding '%s' in project '%s': %w", input.Name, input.Project, err)
 		}
 
-		roleBindingJSON, err := json.Marshal(roleBinding)
+		toolResult, err := tools.JSONResult(roleBinding)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error marshalling role binding: %w", err)
 		}
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{
-					Text: string(roleBindingJSON),
-				},
-			},
-		}, nil, nil
+		return toolResult, nil, nil
 	}
 
 	return &tools.Tool{
@@ -250,17 +237,11 @@ func (r *roleBinding) Create() *tools.Tool {
 			return nil, nil, fmt.Errorf("error creating role binding '%s' in project '%s': %w", input.Name, input.Project, err)
 		}
 
-		resultJSON, err := json.Marshal(result)
+		toolResult, err := tools.JSONResult(result)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error marshalling created role binding: %w", err)
 		}
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{
-					Text: string(resultJSON),
-				},
-			},
-		}, nil, nil
+		return toolResult, nil, nil
 	}
 
 	return &tools.Tool{
@@ -353,17 +334,11 @@ func (r *roleBinding) Update() *tools.Tool {
 			return nil, nil, fmt.Errorf("error updating role binding '%s' in project '%s': %w", input.Name, input.Project, err)
 		}
 
-		resultJSON, err := json.Marshal(result)
+		toolResult, err := tools.JSONResult(result)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error marshalling updated role binding: %w", err)
 		}
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{
-					Text: string(resultJSON),
-				},
-			},
-		}, nil, nil
+		return toolResult, nil, nil
 	}
 
 	return &tools.Tool{
@@ -418,13 +393,7 @@ func (r *roleBinding) Delete() *tools.Tool {
 			return nil, nil, fmt.Errorf("error deleting role binding '%s' in project '%s': %w", input.Name, input.Project, err)
 		}
 
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{
-					Text: fmt.Sprintf("Role binding '%s' deleted successfully from project '%s'", input.Name, input.Project),
-				},
-			},
-		}, nil, nil
+		return tools.TextResult(fmt.Sprintf("Role binding '%s' deleted successfully from project '%s'", input.Name, input.Project)), nil, nil
 	}
 
 	return &tools.Tool{

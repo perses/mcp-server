@@ -15,7 +15,6 @@ package variable
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/google/jsonschema-go/jsonschema"
@@ -83,17 +82,11 @@ func (v *projectVariable) List() *tools.Tool {
 			return nil, nil, fmt.Errorf("error retrieving variables in project '%s': %w", input.Project, err)
 		}
 
-		variablesJSON, err := json.Marshal(variables)
+		toolResult, err := tools.JSONResult(variables)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error marshalling variables: %w", err)
 		}
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{
-					Text: string(variablesJSON),
-				},
-			},
-		}, nil, nil
+		return toolResult, nil, nil
 	}
 
 	return &tools.Tool{
@@ -148,17 +141,11 @@ func (v *projectVariable) Get() *tools.Tool {
 			return nil, nil, fmt.Errorf("error retrieving variable '%s' in project '%s': %w", input.Name, input.Project, err)
 		}
 
-		variableJSON, err := json.Marshal(projectVar)
+		toolResult, err := tools.JSONResult(projectVar)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error marshalling variable: %w", err)
 		}
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{
-					Text: string(variableJSON),
-				},
-			},
-		}, nil, nil
+		return toolResult, nil, nil
 	}
 
 	return &tools.Tool{
@@ -236,18 +223,11 @@ func (v *projectVariable) Create() *tools.Tool {
 			return nil, nil, fmt.Errorf("error creating variable '%s' in project '%s': %w", input.Name, input.Project, err)
 		}
 
-		resultJSON, err := json.Marshal(result)
+		toolResult, err := tools.JSONResult(result)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error marshalling variable result: %w", err)
 		}
-
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{
-					Text: string(resultJSON),
-				},
-			},
-		}, nil, nil
+		return toolResult, nil, nil
 	}
 
 	return &tools.Tool{
@@ -325,18 +305,11 @@ func (v *projectVariable) Update() *tools.Tool {
 			return nil, nil, fmt.Errorf("error updating variable '%s' in project '%s': %w", input.Name, input.Project, err)
 		}
 
-		resultJSON, err := json.Marshal(result)
+		toolResult, err := tools.JSONResult(result)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error marshalling updated variable: %w", err)
 		}
-
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{
-					Text: string(resultJSON),
-				},
-			},
-		}, nil, nil
+		return toolResult, nil, nil
 	}
 
 	return &tools.Tool{
@@ -391,13 +364,7 @@ func (v *projectVariable) Delete() *tools.Tool {
 			return nil, nil, fmt.Errorf("error deleting variable '%s' in project '%s': %w", input.Name, input.Project, err)
 		}
 
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{
-					Text: fmt.Sprintf("Variable '%s' deleted successfully from project '%s'", input.Name, input.Project),
-				},
-			},
-		}, nil, nil
+		return tools.TextResult(fmt.Sprintf("Variable '%s' deleted successfully from project '%s'", input.Name, input.Project)), nil, nil
 	}
 
 	return &tools.Tool{

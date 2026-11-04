@@ -82,18 +82,11 @@ func (d *dashboard) List() *tools.Tool {
 			return nil, nil, fmt.Errorf("error retrieving dashboards: %w", err)
 		}
 
-		text, err := json.Marshal(response)
+		toolResult, err := tools.JSONResult(response)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error marshalling dashboards: %w", err)
 		}
-
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{
-					Text: string(text),
-				},
-			},
-		}, nil, nil
+		return toolResult, nil, nil
 	}
 
 	return &tools.Tool{
@@ -204,17 +197,11 @@ func (d *dashboard) Create() *tools.Tool {
 			return nil, nil, fmt.Errorf("error creating dashboard in project '%s': %w", input.Project, err)
 		}
 
-		dashboardJSON, err := json.Marshal(createdDashboard)
+		toolResult, err := tools.JSONResult(createdDashboard)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error marshalling created dashboard: %w", err)
 		}
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{
-					Text: string(dashboardJSON),
-				},
-			},
-		}, nil, nil
+		return toolResult, nil, nil
 	}
 
 	return &tools.Tool{
@@ -271,17 +258,11 @@ func (d *dashboard) Update() *tools.Tool {
 			return nil, nil, fmt.Errorf("error updating dashboard in project '%s': %w", input.Project, err)
 		}
 
-		dashboardJSON, err := json.Marshal(updatedDashboard)
+		toolResult, err := tools.JSONResult(updatedDashboard)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error marshalling updated dashboard: %w", err)
 		}
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{
-					Text: string(dashboardJSON),
-				},
-			},
-		}, nil, nil
+		return toolResult, nil, nil
 	}
 
 	return &tools.Tool{
@@ -336,13 +317,7 @@ func (d *dashboard) Delete() *tools.Tool {
 			return nil, nil, fmt.Errorf("error deleting dashboard '%s' in project '%s': %w", input.Name, input.Project, err)
 		}
 
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{
-					Text: fmt.Sprintf("Dashboard '%s' deleted successfully from project '%s'", input.Name, input.Project),
-				},
-			},
-		}, nil, nil
+		return tools.TextResult(fmt.Sprintf("Dashboard '%s' deleted successfully from project '%s'", input.Name, input.Project)), nil, nil
 	}
 
 	return &tools.Tool{
