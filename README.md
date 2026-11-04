@@ -350,16 +350,14 @@ perses-mcp-server --config /path/to/config.yaml
 | `perses_create_dashboard`           | Create a dashboard (JSON object); fails if it exists; options `dry_run`, `include_dashboard`                      | `project`, `dashboard`       |
 | `perses_update_dashboard`           | Replace an existing dashboard; options `expected_version`, `dry_run`, `include_dashboard`                       | `project`, `dashboard`       |
 | `perses_delete_dashboard`           | Delete a dashboard from a project                                                                               | `project`, `name`            |
-| `perses_set_dashboard_panels`       | Add, replace, move or resize panels in the 24-column grid (`layout`, `width`, `height`, `placements`, `order`) | `project`, `name`; at least one entry in `panels` or `placements` |
-| `perses_remove_dashboard_panels`    | Remove panels and their layout items                                                                            | `project`, `name`, `panels`  |
-| `perses_set_dashboard_variables`    | Add or replace dashboard variables, matched by `spec.name`                                                      | `project`, `name`, `variables` |
-| `perses_remove_dashboard_variables` | Remove dashboard variables by name                                                                              | `project`, `name`, `variables` |
+| `perses_set_dashboard_panels`       | Add, replace, move, resize or `remove` panels in the 24-column grid (`layout`, `width`, `height`, `placements`, `order`, `remove`) | `project`, `name`; at least one entry in `panels`, `placements` or `remove` |
+| `perses_set_dashboard_variables`    | Add, replace (matched by `spec.name`) or `remove` dashboard variables                                         | `project`, `name`; at least one entry in `variables` or `remove` |
 | `perses_set_dashboard_layout`       | Add, replace (`index` or `title`) or `remove` a layout group                                                    | `project`, `name`            |
 
 The write tools validate the dashboard against the Perses schemas before saving it and return a short summary
 (`project`, `name`, `version`, `url`, counts, `changes`) instead of echoing the whole dashboard.
 Validation failures are returned as a tool error with the error of the Perses client, unchanged.
-The incremental `set_*`/`remove_*` tools read the dashboard, modify it in memory and write it back; pass
+The incremental `set_*` tools read the dashboard, modify it in memory and write it back; pass
 `expected_version` to reject a dashboard whose version has changed before editing. This is a client-side
 preflight check, not an atomic server-side lock; a concurrent write after the check can still race.
 
