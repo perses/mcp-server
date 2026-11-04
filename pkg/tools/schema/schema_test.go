@@ -28,7 +28,6 @@ import (
 	apiClient "github.com/perses/perses/pkg/client/api"
 	"github.com/perses/perses/pkg/client/perseshttp"
 	"github.com/perses/spec/go/common"
-	"github.com/perses/spec/go/plugin"
 )
 
 const (
@@ -155,13 +154,6 @@ func TestSchemaTools(t *testing.T) {
 			isError:   true,
 			expected:  noSchemaFound("LineChart"),
 		},
-		{
-			title:     "unknown plugin kind in another registry names the registry",
-			tool:      "perses_get_plugin_schema",
-			arguments: map[string]any{"kind": "LineChart", "registry": "example.com"},
-			isError:   true,
-			expected:  `no plugin "LineChart" in registry "example.com"`,
-		},
 	}
 
 	session := connect(t, &fakePerses{})
@@ -203,23 +195,6 @@ func TestGetPluginSchemaRequest(t *testing.T) {
 	}
 }
 
-func TestGetPluginSchemaRequestWithRegistry(t *testing.T) {
-	perses := &fakePerses{}
-	session := connect(t, perses)
-
-	result, text := callTool(t, session, "perses_get_plugin_schema", map[string]any{"kind": "TimeSeriesChart", "registry": "example.com"})
-	if result.IsError {
-		t.Fatalf("unexpected error: %s", text)
-	}
-	requests := perses.received()
-	if len(requests) != 1 {
-		t.Fatalf("expected 1 request, got %d", len(requests))
-	}
-	if request := requests[0]; request.URL.Path != "/api/v1/schemas/plugins/TimeSeriesChart" || request.URL.RawQuery != "registry=example.com" {
-		t.Errorf("unexpected request %s", request.URL)
-	}
-}
-
 func TestGetPluginSchemaRejectsInvalidKinds(t *testing.T) {
 	perses := &fakePerses{}
 	session := connect(t, perses)
@@ -255,9 +230,9 @@ func TestSchemaToolsAreReadOnly(t *testing.T) {
 	}
 }
 
-// noSchemaFound is the error returned when the default registry has no schema for the kind.
+// noSchemaFound is the error returned when Perses has no schema for the kind.
 func noSchemaFound(kind string) string {
-	return fmt.Sprintf("no schema of plugin %q found in registry %q; set registry for plugins installed elsewhere "+
-		"(requires Perses v0.55 or later). Use perses_list_plugin_schemas to find plugin kinds. Server error: "+
-		"something wrong happened with the request to the API.  Message: document not found StatusCode: 404", kind, plugin.DefaultRegistry)
+	return fmt.Sprintf("no schema of plugin %q found (requires Perses v0.55 or later). Use perses_list_plugin_schemas to "+
+		"find plugin kinds. Server error: something wrong happened with the request to the API.  "+
+		"Message: document not found StatusCode: 404", kind)
 }

@@ -467,7 +467,7 @@ The schema tools return the [CUE](https://cuelang.org/) schemas of the plugins i
 | Tool                         | Description                                                                        | Required Parameters |
 | ---------------------------- | ---------------------------------------------------------------------------------- | ------------------- |
 | `perses_list_plugin_schemas` | List the schemas of all installed plugins                                          | -                   |
-| `perses_get_plugin_schema`   | Get the latest installed schema of a plugin kind (e.g. `StatChart`), optionally from another `registry` | `kind`              |
+| `perses_get_plugin_schema`   | Get the latest installed schema of a plugin kind (e.g. `StatChart`)                | `kind`              |
 
 ### Variables
 

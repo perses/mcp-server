@@ -26,7 +26,6 @@ import (
 	"github.com/perses/mcp-server/pkg/tools/resource"
 	apiClient "github.com/perses/perses/pkg/client/api/v1"
 	"github.com/perses/perses/pkg/client/perseshttp"
-	"github.com/perses/spec/go/plugin"
 )
 
 // kindPattern matches the valid plugin kinds, e.g. TimeSeriesChart or my-plugin.v2. The kind is a single segment of
@@ -79,8 +78,7 @@ func (s *schema) List() *tools.Tool {
 }
 
 type GetPluginSchemaInput struct {
-	Kind     string `json:"kind"`
-	Registry string `json:"registry,omitempty"`
+	Kind string `json:"kind"`
 }
 
 func (s *schema) Get() *tools.Tool {
@@ -106,11 +104,6 @@ func (s *schema) Get() *tools.Tool {
 					MaxLength:   new(128),
 					Pattern:     kindPattern.String(),
 				},
-				"registry": {
-					Type:        tools.SchemaTypeString,
-					Description: "Plugin registry. Defaults to perses.dev. Set it only for plugins installed from another registry.",
-					MaxLength:   new(253),
-				},
 			},
 			Required: []string{"kind"},
 		},
@@ -120,15 +113,12 @@ func (s *schema) Get() *tools.Tool {
 		if !kindPattern.MatchString(input.Kind) {
 			return nil, nil, fmt.Errorf("invalid plugin kind %q", input.Kind)
 		}
-		definition, err := s.client.Schema().Plugin(url.PathEscape(input.Kind), &apiClient.PluginSchemaQuery{Registry: input.Registry})
+		definition, err := s.client.Schema().Plugin(url.PathEscape(input.Kind), nil)
 		if errors.Is(err, perseshttp.RequestNotFoundError) {
-			if input.Registry != "" && input.Registry != plugin.DefaultRegistry {
-				return nil, nil, fmt.Errorf("no plugin %q in registry %q", input.Kind, input.Registry)
-			}
 			return nil, nil, fmt.Errorf(
-				"no schema of plugin %q found in registry %q; set registry for plugins installed elsewhere "+
-					"(requires Perses v0.55 or later). Use perses_list_plugin_schemas to find plugin kinds. Server error: %w",
-				input.Kind, plugin.DefaultRegistry, err,
+				"no schema of plugin %q found (requires Perses v0.55 or later). Use perses_list_plugin_schemas to "+
+					"find plugin kinds. Server error: %w",
+				input.Kind, err,
 			)
 		}
 		if err != nil {
