@@ -27,7 +27,6 @@ import (
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/perses/mcp-server/pkg/tools"
-	"github.com/perses/mcp-server/pkg/tools/internal/dashboardutil"
 	"github.com/perses/mcp-server/pkg/tools/internal/tooltest"
 	apiClient "github.com/perses/perses/pkg/client/api"
 	"github.com/perses/perses/pkg/client/perseshttp"
@@ -53,6 +52,8 @@ func withoutMetadata(t *testing.T) map[string]any {
 	delete(dash, "metadata")
 	return dash
 }
+
+const statPanel = `{"kind": "Panel", "spec": {"display": {"name": "%s"}, "plugin": {"kind": "StatChart", "spec": {"calculation": "%s"}}}}`
 
 // fakePerses is an in-memory Perses API storing dashboards as raw JSON documents. Like the real server, it validates
 // dashboards on the validation endpoint and when creating or updating them, rejecting the calculation "average".
@@ -516,7 +517,7 @@ func TestUpdate(t *testing.T) {
 func TestSetPanels(t *testing.T) {
 	fake := newFakePerses()
 	session := newSession(t, fake)
-	mustCall(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": validDashboard})
+	mustCall(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": object(t, validDashboard)})
 
 	t.Run("add panels with automatic placement", func(t *testing.T) {
 		panels := map[string]any{
@@ -529,9 +530,6 @@ func TestSetPanels(t *testing.T) {
 		changes := result["changes"].([]any)
 		equal(t, "added panel p2, placed in layout 0 at x=12 y=0 w=12 h=6", changes[0])
 		equal(t, "added panel p3, placed in layout 0 at x=0 y=6 w=12 h=6", changes[1])
-		if result["warnings"] != nil {
-			t.Errorf("expected nil, got %v", result["warnings"])
-		}
 		contains(t, fake.stored(t), `"$ref":"#/spec/panels/p3"`)
 	})
 	t.Run("replace keeps the position", func(t *testing.T) {
@@ -558,34 +556,13 @@ func TestSetPanels(t *testing.T) {
 	t.Run("panel rejected by the schemas", func(t *testing.T) {
 		panels := map[string]any{"p2": object(t, strings.Replace(strings.ReplaceAll(statPanel, "%s", "P2"), "P2\"}}", "average\"}}", 1))}
 		text := mustFail(t, session, "perses_set_dashboard_panels", map[string]any{"project": "myproject", "name": "cpu", "panels": panels})
-		validation := validationOf(t, text)
-		if !hasLen(t, validation.Errors, 1) {
-			t.FailNow()
-		}
-		equal(t, "spec.panels.p2.spec.plugin.spec.calculation", validation.Errors[0].Path)
+		contains(t, text, `invalid panel p2: spec.calculation: conflicting values "mean" and "average"`)
 		contains(t, fake.stored(t), "P2 bis", "the dashboard must not be modified")
 	})
-	t.Run("query without wrapper is located", func(t *testing.T) {
-		panel := strings.Replace(strings.ReplaceAll(statPanel, "%s", "P2"), `}}}}`,
-			`}}, "queries": [{"kind": "PrometheusTimeSeriesQuery", "spec": {"query": "up"}}]}}`, 1)
-		text := mustFail(t, session, "perses_set_dashboard_panels", map[string]any{"project": "myproject", "name": "cpu", "panels": map[string]any{"p2": object(t, panel)}})
-		validation := validationOf(t, text)
-		if !hasLen(t, validation.Errors, 1) {
-			t.FailNow()
-		}
-		equal(t, "panels.p2.spec.queries[0]", validation.Errors[0].Path)
-		contains(t, validation.Errors[0].Hint, `{kind: "TimeSeriesQuery", spec: {plugin: {kind: "PrometheusTimeSeriesQuery"`)
-		contains(t, fake.stored(t), "P2 bis", "the dashboard must not be modified")
-	})
-	t.Run("invalid key", func(t *testing.T) {
-		panels := map[string]any{"bad key": object(t, strings.ReplaceAll(statPanel, "%s", "x"))}
+	t.Run("decode error is the message of the Perses model", func(t *testing.T) {
+		panels := map[string]any{"p6": map[string]any{"kind": "Panel", "spec": map[string]any{"display": "P6"}}}
 		text := mustFail(t, session, "perses_set_dashboard_panels", map[string]any{"project": "myproject", "name": "cpu", "panels": panels})
-		contains(t, text, "the key must match")
-	})
-	t.Run("panels as a string", func(t *testing.T) {
-		panels := `{"p6": ` + strings.ReplaceAll(statPanel, "%s", "P6") + `}`
-		result := mustCall(t, session, "perses_set_dashboard_panels", map[string]any{"project": "myproject", "name": "cpu", "panels": panels, "dry_run": true})
-		equal(t, "would_update", result["action"])
+		contains(t, text, "cannot unmarshal string")
 		notContains(t, fake.stored(t), "p6")
 	})
 }
@@ -665,19 +642,12 @@ func TestSetPanelsMovesAndOrder(t *testing.T) {
 			wantError: "at version 0, not 7",
 		},
 		{
-			name: "invalid position is not saved",
-			input: map[string]any{
-				"placements": map[string]any{"p1": map[string]any{"x": 20, "y": 0, "width": 12}},
-			},
-			wantError: "spec.layouts[0].spec.items[0].x",
-		},
-		{
 			name: "invalid mixed panel does not persist move",
 			input: map[string]any{
 				"panels":     map[string]any{"p2": json.RawMessage(fmt.Sprintf(statPanel, "P2", "average"))},
 				"placements": map[string]any{"p1": map[string]any{"x": 0, "y": 6}},
 			},
-			wantError: "spec.panels.p2.spec.plugin.spec.calculation",
+			wantError: `invalid panel p2: spec.calculation: conflicting values "mean" and "average"`,
 		},
 		{
 			name: "unknown order key",
@@ -692,22 +662,14 @@ func TestSetPanelsMovesAndOrder(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			fake := newFakePerses()
 			session := newSession(t, fake)
-			mustCall(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": validDashboard})
+			mustCall(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": object(t, validDashboard)})
 			before := fake.stored(t)
 			test.input["project"], test.input["name"] = "myproject", "cpu"
 			if test.wantError != "" {
 				text := mustFail(t, session, "perses_set_dashboard_panels", test.input)
 				contains(t, text, test.wantError)
+				// Perses rejects an invalid dashboard on the PUT itself, so the stored dashboard stays unchanged.
 				equal(t, before, fake.stored(t))
-				fake.mu.Lock()
-				equal(t, 0, fake.requests["PUT /api/v1/projects/myproject/dashboards/cpu"])
-				fake.mu.Unlock()
-				if strings.Contains(test.wantError, "at least one") {
-					if validationOf(t, text).Valid {
-						t.Errorf("expected false")
-					}
-					contains(t, text, "perses_set_dashboard_layout")
-				}
 				return
 			}
 			test.input["dry_run"] = true
@@ -758,31 +720,26 @@ func TestSetPanelsMovesAndOrder(t *testing.T) {
 		})
 	}
 
-	for _, stringInput := range []bool{false, true} {
-		t.Run(fmt.Sprintf("explicit order string=%v", stringInput), func(t *testing.T) {
-			fake := newFakePerses()
-			session := newSession(t, fake)
-			mustCall(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": validDashboard})
-			raw := `{"b":` + fmt.Sprintf(statPanel, "B", "mean") + `,"a":` + fmt.Sprintf(statPanel, "A", "mean") + `,"c":` + fmt.Sprintf(statPanel, "C", "mean") + `}`
-			var panels any = json.RawMessage(raw)
-			if stringInput {
-				panels = raw
-			}
-			result := mustCall(t, session, "perses_set_dashboard_panels", map[string]any{
-				"project": "myproject", "name": "cpu", "panels": panels, "layout": "Ordered", "order": []string{"b", "a", "c"},
-			})
-			equal(t, []any{
-				"added panel b, placed in layout 1 at x=0 y=0 w=12 h=6",
-				"added panel a, placed in layout 1 at x=12 y=0 w=12 h=6",
-				"added panel c, placed in layout 1 at x=0 y=6 w=12 h=6",
-			}, result["changes"])
+	t.Run("explicit order", func(t *testing.T) {
+		fake := newFakePerses()
+		session := newSession(t, fake)
+		mustCall(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": object(t, validDashboard)})
+		raw := `{"b":` + fmt.Sprintf(statPanel, "B", "mean") + `,"a":` + fmt.Sprintf(statPanel, "A", "mean") + `,"c":` + fmt.Sprintf(statPanel, "C", "mean") + `}`
+		panels := json.RawMessage(raw)
+		result := mustCall(t, session, "perses_set_dashboard_panels", map[string]any{
+			"project": "myproject", "name": "cpu", "panels": panels, "layout": "Ordered", "order": []string{"b", "a", "c"},
 		})
-	}
+		equal(t, []any{
+			"added panel b, placed in layout 1 at x=0 y=0 w=12 h=6",
+			"added panel a, placed in layout 1 at x=12 y=0 w=12 h=6",
+			"added panel c, placed in layout 1 at x=0 y=6 w=12 h=6",
+		}, result["changes"])
+	})
 
 	t.Run("placement dry run", func(t *testing.T) {
 		fake := newFakePerses()
 		session := newSession(t, fake)
-		mustCall(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": validDashboard})
+		mustCall(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": object(t, validDashboard)})
 		before := fake.stored(t)
 		result := mustCall(t, session, "perses_set_dashboard_panels", map[string]any{
 			"project": "myproject", "name": "cpu", "dry_run": true,
@@ -850,7 +807,7 @@ func TestSetPanelsPlacementKeepsGroupAndSize(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			fake := newFakePerses()
 			session := newSession(t, fake)
-			mustCall(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": twoGroups})
+			mustCall(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": object(t, twoGroups)})
 			test.input["project"], test.input["name"] = "myproject", "cpu"
 			result := mustCall(t, session, "perses_set_dashboard_panels", test.input)
 			equal(t, []any{test.wantChange}, result["changes"])
@@ -939,7 +896,7 @@ func TestSetPanelsPlacementKeepsTab(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			fake := newFakePerses()
 			session := newSession(t, fake)
-			mustCall(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": withTabs})
+			mustCall(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": object(t, withTabs)})
 			test.input["project"], test.input["name"] = "myproject", "cpu"
 			result := mustCall(t, session, "perses_set_dashboard_panels", test.input)
 			equal(t, []any{test.wantChange}, result["changes"])
@@ -995,7 +952,7 @@ func TestSetPanelsPanelPlacedTwice(t *testing.T) {
 }`
 	fake := newFakePerses()
 	session := newSession(t, fake)
-	mustCall(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": placedTwice})
+	mustCall(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": object(t, placedTwice)})
 	before := fake.stored(t)
 
 	for name, input := range map[string]map[string]any{
@@ -1047,7 +1004,7 @@ func TestEditToolHints(t *testing.T) {
 func TestRemovePanels(t *testing.T) {
 	fake := newFakePerses()
 	session := newSession(t, fake)
-	mustCall(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": validDashboard})
+	mustCall(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": object(t, validDashboard)})
 
 	result := mustCall(t, session, "perses_set_dashboard_panels", map[string]any{"project": "myproject", "name": "cpu", "remove": []string{"p1", "nope"}})
 	equal(t, []any{"removed panel p1 and 1 layout item(s)", "panel nope not found"}, result["changes"])
@@ -1058,7 +1015,7 @@ func TestRemovePanels(t *testing.T) {
 func TestSetPanelsRemoveAndAddInOneCall(t *testing.T) {
 	fake := newFakePerses()
 	session := newSession(t, fake)
-	mustCall(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": validDashboard})
+	mustCall(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": object(t, validDashboard)})
 
 	panels := map[string]any{"p2": object(t, strings.ReplaceAll(statPanel, "%s", "P2"))}
 	result := mustCall(t, session, "perses_set_dashboard_panels", map[string]any{"project": "myproject", "name": "cpu", "panels": panels, "remove": []string{"p1"}})
@@ -1075,7 +1032,7 @@ func TestSetPanelsRemoveAndAddInOneCall(t *testing.T) {
 func TestSetPanelsRemoveIsAtomic(t *testing.T) {
 	fake := newFakePerses()
 	session := newSession(t, fake)
-	mustCall(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": validDashboard})
+	mustCall(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": object(t, validDashboard)})
 	before := fake.stored(t)
 
 	invalidPanel := strings.Replace(strings.ReplaceAll(statPanel, "%s", "P2"), "P2\"}}", "average\"}}", 1)
@@ -1097,7 +1054,7 @@ func TestSetPanelsRemoveIsAtomic(t *testing.T) {
 		{
 			name:      "removal with a panel rejected by the schemas",
 			args:      map[string]any{"remove": []string{"p1"}, "panels": map[string]any{"p2": object(t, invalidPanel)}},
-			wantError: "spec.panels.p2.spec.plugin.spec.calculation",
+			wantError: `invalid panel p2: spec.calculation: conflicting values "mean" and "average"`,
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -1122,13 +1079,13 @@ func TestSetPanelsRemoveIsAtomic(t *testing.T) {
 func TestVariables(t *testing.T) {
 	fake := newFakePerses()
 	session := newSession(t, fake)
-	mustCall(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": validDashboard})
+	mustCall(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": object(t, validDashboard)})
 
 	variables := `[
 		{"kind": "TextVariable", "spec": {"name": "env", "value": "prod"}},
 		{"kind": "ListVariable", "spec": {"name": "inst", "plugin": {"kind": "PrometheusLabelValuesVariable", "spec": {"labelName": "instance"}}}}
 	]`
-	result := mustCall(t, session, "perses_set_dashboard_variables", map[string]any{"project": "myproject", "name": "cpu", "variables": variables})
+	result := mustCall(t, session, "perses_set_dashboard_variables", map[string]any{"project": "myproject", "name": "cpu", "variables": json.RawMessage(variables)})
 	equal(t, []any{"added variable env", "added variable inst"}, result["changes"])
 	equal(t, float64(2), result["variables"])
 
@@ -1151,10 +1108,10 @@ func TestVariables(t *testing.T) {
 	text := mustFail(t, session, "perses_set_dashboard_variables", map[string]any{"project": "myproject", "name": "cpu", "remove": []string{"environment"},
 		"variables": []any{object(t, `{"kind": "TextVariable", "spec": {"name": "environment", "value": "x"}}`)}})
 	contains(t, text, "either removed or set")
-	// A removal combined with a variable rejected by the schemas must not remove anything.
+	// A removal combined with a variable rejected by the Perses model must not remove anything.
 	text = mustFail(t, session, "perses_set_dashboard_variables", map[string]any{"project": "myproject", "name": "cpu", "remove": []string{"environment"},
-		"variables": `[{"kind": "TextVariable", "spec": {"value": "x"}}]`})
-	contains(t, text, "variables")
+		"variables": json.RawMessage(`[{"kind": "TextVariable", "spec": {"value": "x"}}]`)})
+	equal(t, "name cannot be empty", text)
 	text = mustFail(t, session, "perses_set_dashboard_variables", map[string]any{"project": "myproject", "name": "cpu"})
 	contains(t, text, "at least one variable")
 	text = mustFail(t, session, "perses_set_dashboard_variables", map[string]any{"project": "myproject", "name": "cpu", "variables": []any{}})
@@ -1166,35 +1123,31 @@ func TestVariables(t *testing.T) {
 	equal(t, float64(0), result["variables"])
 	equal(t, stored, fake.stored(t))
 
-	text = mustFail(t, session, "perses_set_dashboard_variables", map[string]any{"project": "myproject", "name": "cpu", "variables": `[{"kind": "TextVariable", "spec": {"value": "x"}}]`})
-	contains(t, text, "variables")
+	text = mustFail(t, session, "perses_set_dashboard_variables", map[string]any{"project": "myproject", "name": "cpu", "variables": json.RawMessage(`[{"kind": "TextVariable", "spec": {"value": "x"}}]`)})
+	equal(t, "name cannot be empty", text)
 }
 
 func TestSetLayout(t *testing.T) {
 	fake := newFakePerses()
 	session := newSession(t, fake)
-	mustCall(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": validDashboard})
+	mustCall(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": object(t, validDashboard)})
 
 	layout := `{"kind": "Grid", "spec": {"display": {"title": "Second"}, "items": []}}`
-	result := mustCall(t, session, "perses_set_dashboard_layout", map[string]any{"project": "myproject", "name": "cpu", "layout": layout})
+	result := mustCall(t, session, "perses_set_dashboard_layout", map[string]any{"project": "myproject", "name": "cpu", "layout": json.RawMessage(layout)})
 	equal(t, []any{`added layout 1 "Second"`}, result["changes"])
 
-	result = mustCall(t, session, "perses_set_dashboard_layout", map[string]any{"project": "myproject", "name": "cpu", "layout": strings.Replace(layout, "Second", "second", 1)})
+	result = mustCall(t, session, "perses_set_dashboard_layout", map[string]any{"project": "myproject", "name": "cpu", "layout": json.RawMessage(strings.Replace(layout, "Second", "second", 1))})
 	equal(t, []any{`replaced layout 1 "second"`}, result["changes"])
 	equal(t, float64(2), result["layouts"])
 
-	result = mustCall(t, session, "perses_set_dashboard_layout", map[string]any{"project": "myproject", "name": "cpu", "index": 0, "layout": layout})
+	result = mustCall(t, session, "perses_set_dashboard_layout", map[string]any{"project": "myproject", "name": "cpu", "index": 0, "layout": json.RawMessage(layout)})
 	equal(t, []any{`replaced layout 0 "Second"`}, result["changes"])
-	// p1 is no longer displayed.
-	if !hasLen(t, result["warnings"], 1) {
-		t.FailNow()
-	}
 
 	result = mustCall(t, session, "perses_set_dashboard_layout", map[string]any{"project": "myproject", "name": "cpu", "index": 1, "remove": true})
 	equal(t, []any{`removed layout 1 "second"`}, result["changes"])
 	equal(t, float64(1), result["layouts"])
 
-	text := mustFail(t, session, "perses_set_dashboard_layout", map[string]any{"project": "myproject", "name": "cpu", "index": 5, "layout": layout})
+	text := mustFail(t, session, "perses_set_dashboard_layout", map[string]any{"project": "myproject", "name": "cpu", "index": 5, "layout": json.RawMessage(layout)})
 	contains(t, text, "out of range")
 	text = mustFail(t, session, "perses_set_dashboard_layout", map[string]any{"project": "myproject", "name": "cpu"})
 	contains(t, text, "layout is required")

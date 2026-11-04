@@ -88,10 +88,10 @@ func empty(t testing.TB, value any) {
 	}
 }
 
-func hasLen(t testing.TB, value any, expected int) bool {
+func hasLen(t testing.TB, value any, expected int, context ...any) bool {
 	t.Helper()
 	if actual := length(value); actual != expected {
-		t.Errorf("expected %d items, got %d: %#v", expected, actual, value)
+		t.Errorf("%sexpected %d items, got %d: %#v", describe(context), expected, actual, value)
 		return false
 	}
 	return true

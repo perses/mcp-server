@@ -64,7 +64,7 @@ to new or unplaced panels. A placement of a panel displayed in several layout gr
 Use `order: ["b", "a", "c"]` to choose processing/auto-placement order: on an empty group with default 12x6
 sizes, these panels are placed at `(0,0)`, `(12,0)` and `(0,6)`. Keys not listed are processed alphabetically.
 Every order key must appear in `panels` or `placements`, without duplicates. Do not rely on JSON object
-key order, including for JSON-string input. Use `perses_set_dashboard_layout` to replace a full group.
+key order. Use `perses_set_dashboard_layout` to replace a full group.
 
 `perses_update_dashboard` reads the dashboard first only for `expected_version` or `dry_run`, so a plain
 update needs only the update permission.
