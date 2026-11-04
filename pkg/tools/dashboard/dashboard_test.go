@@ -243,8 +243,8 @@ func TestGetTools(t *testing.T) {
 	}
 	assert.Equal(t, []string{
 		"perses_list_dashboards", "perses_get_dashboard_by_name", "perses_create_dashboard", "perses_update_dashboard",
-		"perses_delete_dashboard", "perses_set_dashboard_panels", "perses_remove_dashboard_panels",
-		"perses_set_dashboard_variables", "perses_remove_dashboard_variables", "perses_set_dashboard_layout",
+		"perses_delete_dashboard", "perses_set_dashboard_panels", "perses_set_dashboard_variables",
+		"perses_set_dashboard_layout",
 	}, names)
 }
 
@@ -538,11 +538,11 @@ func TestSetPanelsMovesAndOrder(t *testing.T) {
 			},
 			wantError: "placements.unknown: panel not found",
 		},
-		{name: "both omitted", input: map[string]any{}, wantError: "give at least one panel or placement"},
+		{name: "both omitted", input: map[string]any{}, wantError: "give at least one panel, placement or key to remove"},
 		{
 			name:      "both empty",
 			input:     map[string]any{"panels": map[string]any{}, "placements": map[string]any{}},
-			wantError: "give at least one panel or placement",
+			wantError: "give at least one panel, placement or key to remove",
 		},
 		{
 			name: "stale version",
@@ -906,9 +906,7 @@ func TestEditToolHints(t *testing.T) {
 		idempotent bool
 	}{
 		{d.SetPanels(), true},
-		{d.RemovePanels(), true},
 		{d.SetVariables(), true},
-		{d.RemoveVariables(), true},
 		{d.SetLayout(), false},
 	} {
 		annotations := test.tool.MCPTool.Annotations
@@ -923,10 +921,74 @@ func TestRemovePanels(t *testing.T) {
 	session := newSession(t, fake)
 	mustCall(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": validDashboard})
 
-	result := mustCall(t, session, "perses_remove_dashboard_panels", map[string]any{"project": "myproject", "name": "cpu", "panels": []string{"p1", "nope"}})
+	result := mustCall(t, session, "perses_set_dashboard_panels", map[string]any{"project": "myproject", "name": "cpu", "remove": []string{"p1", "nope"}})
 	assert.Equal(t, []any{"removed panel p1 and 1 layout item(s)", "panel nope not found"}, result["changes"])
 	assert.Equal(t, float64(0), result["panels"])
 	assert.NotContains(t, fake.stored(t), "#/spec/panels/p1")
+}
+
+func TestSetPanelsRemoveAndAddInOneCall(t *testing.T) {
+	fake := newFakePerses()
+	session := newSession(t, fake)
+	mustCall(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": validDashboard})
+
+	panels := map[string]any{"p2": object(t, strings.ReplaceAll(statPanel, "%s", "P2"))}
+	result := mustCall(t, session, "perses_set_dashboard_panels", map[string]any{"project": "myproject", "name": "cpu", "panels": panels, "remove": []string{"p1"}})
+	// The removal frees x=0 y=0 before the new panel is placed.
+	assert.Equal(t, []any{"removed panel p1 and 1 layout item(s)", "added panel p2, placed in layout 0 at x=0 y=0 w=12 h=6"}, result["changes"])
+	assert.Equal(t, float64(1), result["panels"])
+
+	text := mustFail(t, session, "perses_set_dashboard_panels", map[string]any{"project": "myproject", "name": "cpu", "panels": panels, "remove": []string{"p2"}})
+	assert.Contains(t, text, "either removed or set")
+	text = mustFail(t, session, "perses_set_dashboard_panels", map[string]any{"project": "myproject", "name": "cpu"})
+	assert.Contains(t, text, "give at least one panel, placement or key to remove")
+}
+
+func TestSetPanelsRemoveIsAtomic(t *testing.T) {
+	fake := newFakePerses()
+	session := newSession(t, fake)
+	mustCall(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": validDashboard})
+	before := fake.stored(t)
+
+	invalidPanel := strings.Replace(strings.ReplaceAll(statPanel, "%s", "P2"), "P2\"}}", "average\"}}", 1)
+	for _, test := range []struct {
+		name      string
+		args      map[string]any
+		wantError string
+	}{
+		{
+			name:      "removed key also placed",
+			args:      map[string]any{"remove": []string{"p1"}, "placements": map[string]any{"p1": map[string]any{"x": 0, "y": 0}}},
+			wantError: "either removed or set",
+		},
+		{
+			name:      "order without panels or placements",
+			args:      map[string]any{"remove": []string{"p1"}, "order": []string{"p1"}},
+			wantError: "order: only applies",
+		},
+		{
+			name:      "removal with a panel rejected by the schemas",
+			args:      map[string]any{"remove": []string{"p1"}, "panels": map[string]any{"p2": object(t, invalidPanel)}},
+			wantError: "spec.panels.p2.spec.plugin.spec.calculation",
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			args := map[string]any{"project": "myproject", "name": "cpu"}
+			for key, value := range test.args {
+				args[key] = value
+			}
+			text := mustFail(t, session, "perses_set_dashboard_panels", args)
+			assert.Contains(t, text, test.wantError)
+			assert.Equal(t, before, fake.stored(t), "a failed edit must not remove anything")
+		})
+	}
+
+	t.Run("dry run removal", func(t *testing.T) {
+		result := mustCall(t, session, "perses_set_dashboard_panels", map[string]any{"project": "myproject", "name": "cpu", "remove": []string{"p1"}, "dry_run": true})
+		assert.Equal(t, "would_update", result["action"])
+		assert.Equal(t, float64(0), result["panels"])
+		assert.Equal(t, before, fake.stored(t))
+	})
 }
 
 func TestVariables(t *testing.T) {
@@ -948,11 +1010,35 @@ func TestVariables(t *testing.T) {
 	assert.Equal(t, float64(2), result["variables"])
 	assert.Contains(t, fake.stored(t), "staging")
 
-	result = mustCall(t, session, "perses_remove_dashboard_variables", map[string]any{"project": "myproject", "name": "cpu", "variables": []string{"env", "nope"}})
+	result = mustCall(t, session, "perses_set_dashboard_variables", map[string]any{"project": "myproject", "name": "cpu", "remove": []string{"env", "nope"}})
 	assert.Equal(t, []any{"removed variable env", "variable nope not found"}, result["changes"])
 	assert.Equal(t, float64(1), result["variables"])
 
-	text := mustFail(t, session, "perses_set_dashboard_variables", map[string]any{"project": "myproject", "name": "cpu", "variables": `[{"kind": "TextVariable", "spec": {"value": "x"}}]`})
+	result = mustCall(t, session, "perses_set_dashboard_variables", map[string]any{"project": "myproject", "name": "cpu", "remove": []string{"inst"},
+		"variables": []any{object(t, `{"kind": "TextVariable", "spec": {"name": "environment", "value": "production"}}`)}})
+	assert.Equal(t, []any{"removed variable inst", "added variable environment"}, result["changes"])
+	assert.Equal(t, float64(1), result["variables"])
+
+	stored := fake.stored(t)
+	text := mustFail(t, session, "perses_set_dashboard_variables", map[string]any{"project": "myproject", "name": "cpu", "remove": []string{"environment"},
+		"variables": []any{object(t, `{"kind": "TextVariable", "spec": {"name": "environment", "value": "x"}}`)}})
+	assert.Contains(t, text, "either removed or set")
+	// A removal combined with a variable rejected by the schemas must not remove anything.
+	text = mustFail(t, session, "perses_set_dashboard_variables", map[string]any{"project": "myproject", "name": "cpu", "remove": []string{"environment"},
+		"variables": `[{"kind": "TextVariable", "spec": {"value": "x"}}]`})
+	assert.Contains(t, text, "variables")
+	text = mustFail(t, session, "perses_set_dashboard_variables", map[string]any{"project": "myproject", "name": "cpu"})
+	assert.Contains(t, text, "at least one variable")
+	text = mustFail(t, session, "perses_set_dashboard_variables", map[string]any{"project": "myproject", "name": "cpu", "variables": []any{}})
+	assert.Contains(t, text, "at least one variable")
+	assert.Equal(t, stored, fake.stored(t), "a rejected variable edit must not change the dashboard")
+
+	result = mustCall(t, session, "perses_set_dashboard_variables", map[string]any{"project": "myproject", "name": "cpu", "variables": []any{}, "remove": []string{"environment"}, "dry_run": true})
+	assert.Equal(t, "would_update", result["action"])
+	assert.Equal(t, float64(0), result["variables"])
+	assert.Equal(t, stored, fake.stored(t))
+
+	text = mustFail(t, session, "perses_set_dashboard_variables", map[string]any{"project": "myproject", "name": "cpu", "variables": `[{"kind": "TextVariable", "spec": {"value": "x"}}]`})
 	assert.Contains(t, text, "variables")
 }
 

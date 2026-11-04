@@ -34,10 +34,8 @@ Resource: `dashboard`
 | `perses_create_dashboard`      | Create a dashboard in a project            | `project`, `dashboard` |
 | `perses_update_dashboard`      | Update an existing dashboard of a project  | `project`, `dashboard` |
 | `perses_delete_dashboard`      | Delete a dashboard from a project          | `project`, `name`      |
-| `perses_set_dashboard_panels` | Add, replace, move or resize panels, with automatic or explicit placement | `project`, `name`; at least one entry in `panels` or `placements` |
-| `perses_remove_dashboard_panels` | Remove panels and their layout items | `project`, `name`, `panels` |
-| `perses_set_dashboard_variables` | Add or replace variables by name | `project`, `name`, `variables` |
-| `perses_remove_dashboard_variables` | Remove variables by name | `project`, `name`, `variables` |
+| `perses_set_dashboard_panels` | Add, replace, move, resize or `remove` panels (with their layout items), with automatic or explicit placement | `project`, `name`; at least one entry in `panels`, `placements` or `remove` |
+| `perses_set_dashboard_variables` | Add, replace or `remove` variables by name | `project`, `name`; at least one entry in `variables` or `remove` |
 | `perses_set_dashboard_layout` | Add, replace or remove a layout group | `project`, `name` |
 
 The parameter `dashboard` is a dashboard in the [Perses format](https://perses.dev/docs/perses/latest/api/dashboard/).
@@ -46,6 +44,8 @@ dashboard with the same name exists; use `perses_update_dashboard` to change it.
 `include_dashboard: true` to include the saved dashboard. Use `dry_run: true` to validate without saving.
 
 The incremental tools fetch the current dashboard, apply the requested changes, validate, and save it.
+In `perses_set_dashboard_panels` and `perses_set_dashboard_variables`, `remove` is applied before additions in the
+same write and must not name a key that is also being set or placed.
 `expected_version` checks the version before editing to detect intervening changes; it is not an atomic
 server-side lock, so a concurrent write after the check can still race. Layout items use a 24-column grid;
 new panels default to width 12 and height 6.

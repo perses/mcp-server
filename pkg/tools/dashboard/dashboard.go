@@ -61,9 +61,7 @@ func (d *dashboard) GetTools() []*tools.Tool {
 		d.Update(),
 		d.Delete(),
 		d.SetPanels(),
-		d.RemovePanels(),
 		d.SetVariables(),
-		d.RemoveVariables(),
 		d.SetLayout(),
 	}
 }
