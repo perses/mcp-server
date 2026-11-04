@@ -16,16 +16,14 @@ package validate
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/perses/mcp-server/pkg/tools"
-	"github.com/perses/mcp-server/pkg/tools/internal/dashboardutil"
 	v1 "github.com/perses/perses/pkg/model/api/v1"
 )
 
-var variableKinds = resourceKinds{subject: "variable", project: string(v1.KindVariable), global: string(v1.KindGlobalVariable)}
+var variableKinds = resourceKinds{project: string(v1.KindVariable), global: string(v1.KindGlobalVariable)}
 
 type ValidateVariableInput struct {
 	Variable json.RawMessage `json:"variable"`
@@ -37,7 +35,7 @@ func (v *validation) Variable() *tools.Tool {
 	tool := &mcp.Tool{
 		Name: "perses_validate_variable",
 		Description: "Validate a project or global variable against the plugin schemas without saving it. Returns " +
-			"{valid, errors}: each error has the JSON path of the field, a message and often a hint.",
+			"{valid: true}, or {valid: false, error} with the message of the Perses server.",
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Validates a variable against Perses schemas",
 			ReadOnlyHint:    true,
@@ -49,8 +47,8 @@ func (v *validation) Variable() *tools.Tool {
 			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
 				"variable": {
-					Types:       []string{tools.SchemaTypeObject, tools.SchemaTypeString},
-					Description: "Variable to validate, as a JSON object (preferred) or a JSON string.",
+					Type:        tools.SchemaTypeObject,
+					Description: "Variable to validate, as a JSON object.",
 				},
 				"scope":                       scopeProperty(variableKinds),
 				string(tools.ProjectResource): projectProperty("Project of a project variable; fills metadata.project when omitted."),
@@ -79,35 +77,24 @@ func (v *validation) Variable() *tools.Tool {
 	}
 }
 
-func (v *validation) validateVariable(input ValidateVariableInput) (*dashboardutil.Validation, error) {
-	if input.Scope != "" && input.Scope != scopeProject && input.Scope != scopeGlobal {
-		return nil, fmt.Errorf("invalid scope %q: use %q or %q", input.Scope, scopeProject, scopeGlobal)
-	}
-	decoded, issues := decodeResource(input.Variable, "variable", variableKinds, input.Scope, input.Project)
-	if len(issues) > 0 {
-		return dashboardutil.NewValidation(issues, nil), nil
-	}
-	var err error
-	if decoded.scope == scopeProject {
-		entity := &v1.Variable{}
-		if issues := unmarshalResource(decoded.document, entity); len(issues) > 0 {
-			return dashboardutil.NewValidation(issues, nil), nil
-		}
-		err = v.client.Validate().Variable(entity)
-	} else {
-		entity := &v1.GlobalVariable{}
-		if issues := unmarshalResource(decoded.document, entity); len(issues) > 0 {
-			return dashboardutil.NewValidation(issues, nil), nil
-		}
-		err = v.client.Validate().GlobalVariable(entity)
-	}
+func (v *validation) validateVariable(input ValidateVariableInput) (*result, error) {
+	scope, err := resolveScope(input.Variable, variableKinds, input.Scope, input.Project)
 	if err != nil {
-		message, ok := dashboardutil.IsBadRequest(err)
-		if !ok {
-			return nil, fmt.Errorf("error validating the %s variable: %w", decoded.scope, err)
-		}
-		return dashboardutil.NewValidation(dashboardutil.ResourceIssuesFromServerMessage(message, "spec.spec.plugin",
-			"use perses_get_plugin_schema with the variable plugin kind to see the allowed fields"), nil), nil
+		return nil, err
 	}
-	return dashboardutil.NewValidation(nil, nil), nil
+	if scope == scopeProject {
+		entity := &v1.Variable{}
+		if err := decodeResource(input.Variable, variableKinds, scope, entity); err != nil {
+			return invalid(err), nil
+		}
+		if entity.Metadata.Project == "" {
+			entity.Metadata.Project = input.Project
+		}
+		return serverResult(v.client.Validate().Variable(entity), "error validating the project variable")
+	}
+	entity := &v1.GlobalVariable{}
+	if err := decodeResource(input.Variable, variableKinds, scope, entity); err != nil {
+		return invalid(err), nil
+	}
+	return serverResult(v.client.Validate().GlobalVariable(entity), "error validating the global variable")
 }

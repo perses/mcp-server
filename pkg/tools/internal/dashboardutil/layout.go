@@ -21,28 +21,27 @@ import (
 	"github.com/perses/spec/go/dashboard"
 )
 
+// GridColumns is the number of columns of a Perses grid layout.
+const GridColumns = 24
+
 // Default size of a panel placed automatically: two panels per row, 6 rows (180px) high.
 const (
 	DefaultPanelWidth  = 12
 	DefaultPanelHeight = 6
 )
 
-// itemGroup is a list of grid items of a layout with the JSON path of the list: a grid layout has one, a tabs
-// layout has one per tab.
-type itemGroup struct {
-	path  string
-	items []dashboard.GridItem
-}
+// panelRefPrefix is the prefix of the JSON references of layout items to panels.
+const panelRefPrefix = "#/spec/panels/"
 
-func itemGroups(index int, layout dashboard.Layout) []itemGroup {
-	prefix := fmt.Sprintf("spec.layouts[%d].spec", index)
+// itemGroups returns the lists of grid items of a layout: a grid layout has one, a tabs layout has one per tab.
+func itemGroups(layout dashboard.Layout) [][]dashboard.GridItem {
 	switch spec := layout.Spec.(type) {
 	case *dashboard.GridLayoutSpec:
-		return []itemGroup{{path: prefix + ".items", items: spec.Items}}
+		return [][]dashboard.GridItem{spec.Items}
 	case *dashboard.TabLayoutSpec:
-		groups := make([]itemGroup, 0, len(spec.Tabs))
-		for i, tab := range spec.Tabs {
-			groups = append(groups, itemGroup{path: fmt.Sprintf("%s.tabs[%d].items", prefix, i), items: tab.Items})
+		groups := make([][]dashboard.GridItem, 0, len(spec.Tabs))
+		for _, tab := range spec.Tabs {
+			groups = append(groups, tab.Items)
 		}
 		return groups
 	}
@@ -94,9 +93,9 @@ func FindLayoutByTitle(layouts []dashboard.Layout, title string) int {
 
 // IsPlaced reports whether a layout item references the panel key.
 func IsPlaced(layouts []dashboard.Layout, key string) bool {
-	for i, layout := range layouts {
-		for _, group := range itemGroups(i, layout) {
-			for _, item := range group.items {
+	for _, layout := range layouts {
+		for _, items := range itemGroups(layout) {
+			for _, item := range items {
 				if panelKeyOf(item) == key {
 					return true
 				}

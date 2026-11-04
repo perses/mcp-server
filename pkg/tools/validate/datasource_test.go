@@ -39,21 +39,15 @@ const (
 )
 
 type datasourceResult struct {
-	Valid    bool    `json:"valid"`
-	Errors   []issue `json:"errors"`
-	Warnings []issue `json:"warnings"`
+	Valid    bool     `json:"valid"`
+	Error    string   `json:"error"`
+	Warnings []string `json:"warnings"`
 	Conn     *struct {
 		Status    string `json:"status"`
 		LatencyMS int64  `json:"latency_ms"`
 		Message   string `json:"message"`
 		Hint      string `json:"hint"`
 	} `json:"connectivity"`
-}
-
-type issue struct {
-	Path    string `json:"path"`
-	Message string `json:"message"`
-	Hint    string `json:"hint"`
 }
 
 func call(t *testing.T, session *mcp.ClientSession, name string, args map[string]any) (*mcp.CallToolResult, string) {
@@ -110,7 +104,7 @@ func TestValidationRequests(t *testing.T) {
 		entity   any
 	}{
 		{
-			name: "dashboard", tool: "perses_validate_dashboard", args: map[string]any{"dashboard": dashboardJSON},
+			name: "dashboard", tool: "perses_validate_dashboard", args: map[string]any{"dashboard": rawJSON(dashboardJSON)},
 			path: "/api/validate/dashboards", expected: dashboardJSON, entity: &v1.Dashboard{},
 		},
 		{
@@ -118,8 +112,8 @@ func TestValidationRequests(t *testing.T) {
 			path: "/api/validate/datasources", expected: projectDtsJSON, entity: &v1.Datasource{},
 		},
 		{
-			name: "project datasource from project, as string", tool: "perses_validate_datasource",
-			args: map[string]any{"project": "test", "datasource": `{"metadata":{"name":"prom"},"spec":{"plugin":` + proxyPluginJSON + `}}`},
+			name: "project datasource from project", tool: "perses_validate_datasource",
+			args: map[string]any{"project": "test", "datasource": rawJSON(`{"metadata":{"name":"prom"},"spec":{"plugin":` + proxyPluginJSON + `}}`)},
 			path: "/api/validate/datasources", expected: projectDtsJSON, entity: &v1.Datasource{},
 		},
 		{
@@ -137,7 +131,7 @@ func TestValidationRequests(t *testing.T) {
 		},
 		{
 			name: "global variable from scope", tool: "perses_validate_variable",
-			args: map[string]any{"scope": "global", "variable": `{"metadata":{"name":"test"},"spec":{"kind":"TextVariable","spec":{"name":"test","value":"test"}}}`},
+			args: map[string]any{"scope": "global", "variable": rawJSON(`{"metadata":{"name":"test"},"spec":{"kind":"TextVariable","spec":{"name":"test","value":"test"}}}`)},
 			path: "/api/validate/globalvariables", expected: globalVarJSON, entity: &v1.GlobalVariable{},
 		},
 	}
@@ -179,26 +173,26 @@ func TestValidationServerErrors(t *testing.T) {
 		path    string
 		status  int
 		body    string
-		errPath string
+		message string
 		isError bool
 	}{
 		{
 			name: "datasource plugin field", tool: "perses_validate_datasource", args: map[string]any{"datasource": rawJSON(projectDtsJSON)},
 			path: "POST /api/validate/datasources", status: http.StatusBadRequest,
 			body:    `{"message":"invalid datasource prom: spec.foo: field not allowed:\n    /cue/prometheus.cue:12:3"}`,
-			errPath: "spec.plugin.spec.foo",
+			message: "invalid datasource prom: spec.foo: field not allowed:\n    /cue/prometheus.cue:12:3",
 		},
 		{
 			name: "datasource unknown plugin", tool: "perses_validate_datasource", args: map[string]any{"datasource": rawJSON(globalDtsJSON)},
 			path: "POST /api/validate/globaldatasources", status: http.StatusBadRequest,
 			body:    `{"message":"schema not found for plugin PromDatasource with version v0"}`,
-			errPath: "spec.plugin",
+			message: "schema not found for plugin PromDatasource with version v0",
 		},
 		{
 			name: "variable plugin field", tool: "perses_validate_variable", args: map[string]any{"variable": rawJSON(projectVarJSON)},
 			path: "POST /api/validate/variables", status: http.StatusBadRequest,
 			body:    `{"message":"invalid variable : spec.foo: field not allowed"}`,
-			errPath: "spec.spec.plugin.spec.foo",
+			message: "invalid variable : spec.foo: field not allowed",
 		},
 		{
 			name: "server failure", tool: "perses_validate_datasource", args: map[string]any{"datasource": rawJSON(projectDtsJSON)},
@@ -218,8 +212,8 @@ func TestValidationServerErrors(t *testing.T) {
 				return
 			}
 			decoded := decode(t, result, text)
-			if decoded.Valid || len(decoded.Errors) != 1 || decoded.Errors[0].Path != testCase.errPath || decoded.Errors[0].Hint == "" {
-				t.Errorf("unexpected validation result: %s", text)
+			if decoded.Valid || decoded.Error != testCase.message {
+				t.Errorf("expected the message of Perses unchanged, got %s", text)
 			}
 		})
 	}
@@ -230,21 +224,19 @@ func TestInputErrors(t *testing.T) {
 		name    string
 		args    map[string]any
 		isError bool
-		errPath string
+		// message is contained in the error of the invalid result.
+		message string
 	}{
 		{name: "neither datasource nor name", args: map[string]any{"project": "test"}, isError: true},
 		{name: "both datasource and name", args: map[string]any{"name": "prom", "datasource": rawJSON(projectDtsJSON)}, isError: true},
 		{name: "invalid scope", args: map[string]any{"scope": "dashboard", "datasource": rawJSON(projectDtsJSON)}, isError: true},
-		{name: "kind and scope mismatch", args: map[string]any{"scope": "global", "datasource": rawJSON(projectDtsJSON)}, errPath: "kind"},
-		{name: "invalid kind", args: map[string]any{"datasource": rawJSON(`{"kind":"Dashboard","metadata":{"name":"x"}}`)}, errPath: "kind"},
-		{name: "unknown scope", args: map[string]any{"datasource": rawJSON(`{"metadata":{"name":"x"},"spec":{}}`)}, errPath: ""},
-		{name: "missing name", args: map[string]any{"project": "test", "datasource": rawJSON(`{"spec":{}}`)}, errPath: "metadata.name"},
-		{name: "project mismatch", args: map[string]any{"project": "other", "datasource": rawJSON(projectDtsJSON)}, errPath: "metadata.project"},
-		{name: "malformed string", args: map[string]any{"datasource": `{"kind":`}, errPath: "datasource"},
+		{name: "kind and scope mismatch", args: map[string]any{"scope": "global", "datasource": rawJSON(projectDtsJSON)}, isError: true},
+		{name: "unknown scope", args: map[string]any{"datasource": rawJSON(`{"metadata":{"name":"x"},"spec":{}}`)}, isError: true},
+		{name: "invalid kind", args: map[string]any{"project": "test", "datasource": rawJSON(`{"kind":"Dashboard","metadata":{"name":"x"}}`)},
+			message: `invalid kind: "Dashboard" for a Datasource type`},
+		{name: "empty spec", args: map[string]any{"project": "test", "datasource": rawJSON(`{"spec":{}}`)}, message: "spec cannot be empty"},
 		{name: "non-string project", args: map[string]any{"project": "test",
-			"datasource": rawJSON(`{"kind":"Datasource","metadata":{"name":"prom","project":42},"spec":{}}`)}, errPath: "metadata.project"},
-		{name: "non-string kind", args: map[string]any{"project": "test",
-			"datasource": rawJSON(`{"kind":42,"metadata":{"name":"prom"},"spec":{}}`)}, errPath: "kind"},
+			"datasource": rawJSON(`{"kind":"Datasource","metadata":{"name":"prom","project":42},"spec":{}}`)}, message: "cannot unmarshal number"},
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -256,8 +248,8 @@ func TestInputErrors(t *testing.T) {
 				}
 			} else {
 				decoded := decode(t, result, text)
-				if decoded.Valid || len(decoded.Errors) == 0 || decoded.Errors[0].Path != testCase.errPath {
-					t.Errorf("unexpected validation result: %s", text)
+				if decoded.Valid || !strings.Contains(decoded.Error, testCase.message) {
+					t.Errorf("expected an error containing %q, got %s", testCase.message, text)
 				}
 			}
 			if requests := perses.received(); len(requests) != 0 {
@@ -275,43 +267,41 @@ func TestDatasourceWarnings(t *testing.T) {
 		name       string
 		datasource map[string]any
 		routes     map[string]fakeResponse
-		path       string
-		isError    bool
+		warning    string
 	}{
 		{
 			name:       "direct URL only",
 			datasource: withPlugin(`{"kind":"PrometheusDatasource","spec":{"directUrl":"http://cortex:9009"}}`),
-			path:       "spec.plugin.spec.directUrl",
+			warning:    "only browsers query this datasource",
 		},
 		{
 			name:       "localhost proxy",
 			datasource: withPlugin(`{"kind":"PrometheusDatasource","spec":{"proxy":{"kind":"HTTPProxy","spec":{"url":"http://127.0.0.1:9090"}}}}`),
-			path:       "spec.plugin.spec.proxy.spec.url",
+			warning:    "resolved by the Perses server",
 		},
 		{
 			name:       "api path in URL",
 			datasource: withPlugin(`{"kind":"PrometheusDatasource","spec":{"proxy":{"kind":"HTTPProxy","spec":{"url":"http://prometheus:9090/api/v1/"}}}}`),
-			path:       "spec.plugin.spec.proxy.spec.url",
+			warning:    "ends with /api/v1",
 		},
 		{
 			name: "blocked endpoints",
 			datasource: withPlugin(`{"kind":"PrometheusDatasource","spec":{"proxy":{"kind":"HTTPProxy","spec":{"url":"http://prometheus:9090",` +
 				`"allowedEndpoints":[{"endpointPattern":"/api/v1/query$","method":"POST"}]}}}}`),
-			path: "spec.plugin.spec.proxy.spec.allowedEndpoints",
+			warning: "allowedEndpoints blocks endpoints",
 		},
 		{
 			name:       "hides a global datasource",
 			datasource: rawJSON(projectDtsJSON),
 			routes:     map[string]fakeResponse{"GET /api/v1/globaldatasources/prom": {status: http.StatusOK, body: globalDtsJSON}},
-			path:       "metadata.name",
+			warning:    "hides the global datasource",
 		},
 		{
 			name:       "second default",
 			datasource: rawJSON(`{"kind":"Datasource","metadata":{"name":"prom","project":"test"},"spec":{"default":true,"plugin":` + proxyPluginJSON + `}}`),
 			routes: map[string]fakeResponse{"GET /api/v1/projects/test/datasources": {status: http.StatusOK,
 				body: `[{"kind":"Datasource","metadata":{"name":"other","project":"test"},"spec":{"default":true,"plugin":` + proxyPluginJSON + `}}]`}},
-			path:    "spec.default",
-			isError: true,
+			warning: "is already the default PrometheusDatasource",
 		},
 		{
 			name:       "second default with another case on a case-sensitive server",
@@ -321,8 +311,7 @@ func TestDatasourceWarnings(t *testing.T) {
 				"GET /api/v1/projects/test/datasources": {status: http.StatusOK,
 					body: `[{"kind":"Datasource","metadata":{"name":"prom","project":"test"},"spec":{"default":true,"plugin":` + proxyPluginJSON + `}}]`},
 			},
-			path:    "spec.default",
-			isError: true,
+			warning: "is already the default PrometheusDatasource",
 		},
 	}
 	for _, testCase := range testCases {
@@ -334,17 +323,11 @@ func TestDatasourceWarnings(t *testing.T) {
 			perses := &fakePerses{status: http.StatusOK, routes: routes}
 			result, text := call(t, connect(t, perses), "perses_validate_datasource", map[string]any{"datasource": testCase.datasource})
 			decoded := decode(t, result, text)
-			issues := decoded.Warnings
-			if testCase.isError {
-				issues = decoded.Errors
-				if decoded.Valid {
-					t.Errorf("expected invalid: %s", text)
-				}
-			} else if !decoded.Valid {
+			if !decoded.Valid {
 				t.Errorf("expected valid: %s", text)
 			}
-			if len(issues) != 1 || issues[0].Path != testCase.path || issues[0].Hint == "" {
-				t.Errorf("unexpected issues: %s", text)
+			if len(decoded.Warnings) != 1 || !strings.Contains(decoded.Warnings[0], testCase.warning) {
+				t.Errorf("expected one warning containing %q, got %s", testCase.warning, text)
 			}
 		})
 	}
@@ -442,9 +425,8 @@ func TestConnectivityOfSavedDatasource(t *testing.T) {
 	}
 
 	result, text = call(t, connect(t, perses), "perses_validate_datasource", map[string]any{"project": "test", "name": "missing"})
-	decoded = decode(t, result, text)
-	if decoded.Valid || len(decoded.Errors) != 1 || decoded.Errors[0].Path != "name" {
-		t.Errorf("unexpected result for a missing datasource: %s", text)
+	if !result.IsError || !strings.Contains(text, "not found") {
+		t.Errorf("expected a tool error for a missing datasource: %s", text)
 	}
 }
 

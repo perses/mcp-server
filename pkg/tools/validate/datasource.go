@@ -23,14 +23,11 @@ import (
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/perses/mcp-server/pkg/tools"
-	"github.com/perses/mcp-server/pkg/tools/internal/dashboardutil"
 	v1 "github.com/perses/perses/pkg/model/api/v1"
 	datasourceSpec "github.com/perses/spec/go/datasource"
 )
 
-var datasourceKinds = resourceKinds{subject: "datasource", project: string(v1.KindDatasource), global: string(v1.KindGlobalDatasource)}
-
-const datasourcePluginHint = "use perses_get_plugin_schema with the datasource plugin kind to see the allowed fields"
+var datasourceKinds = resourceKinds{project: string(v1.KindDatasource), global: string(v1.KindGlobalDatasource)}
 
 type ValidateDatasourceInput struct {
 	Datasource        json.RawMessage `json:"datasource,omitempty"`
@@ -40,9 +37,11 @@ type ValidateDatasourceInput struct {
 	CheckConnectivity bool            `json:"check_connectivity,omitempty"`
 }
 
-// datasourceValidation is the result of perses_validate_datasource.
+// datasourceValidation is the result of perses_validate_datasource. Warnings flag configurations that Perses
+// accepts but that likely do not work.
 type datasourceValidation struct {
-	dashboardutil.Validation
+	result
+	Warnings     []string      `json:"warnings,omitempty"`
 	Connectivity *connectivity `json:"connectivity,omitempty"`
 }
 
@@ -50,10 +49,10 @@ func (v *validation) Datasource() *tools.Tool {
 	tool := &mcp.Tool{
 		Name: "perses_validate_datasource",
 		Description: "Validate a project or global datasource without saving it, or check a saved one by name. " +
-			"Returns {valid, errors, warnings, connectivity}: errors and warnings have the JSON path of the field, a " +
-			"message and often a hint. Warnings flag configs that are valid but likely do not work (directUrl only, " +
-			"localhost proxy URL, blocked endpoints, name hiding a global datasource). check_connectivity:true queries " +
-			"the datasource through the Perses server proxy (nothing is saved).",
+			"Returns {valid, error, warnings, connectivity}: error is the message of the Perses server. Warnings flag " +
+			"configs that are valid but likely do not work (directUrl only, localhost proxy URL, blocked endpoints, " +
+			"another default datasource, name hiding a global datasource). check_connectivity:true queries the " +
+			"datasource through the Perses server proxy (nothing is saved).",
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Validates a datasource and checks its connectivity",
 			ReadOnlyHint:    true,
@@ -65,8 +64,8 @@ func (v *validation) Datasource() *tools.Tool {
 			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
 				"datasource": {
-					Types:       []string{tools.SchemaTypeObject, tools.SchemaTypeString},
-					Description: "Datasource to validate, as a JSON object (preferred) or a JSON string. Exclusive with name.",
+					Type:        tools.SchemaTypeObject,
+					Description: "Datasource to validate, as a JSON object. Exclusive with name.",
 				},
 				tools.ResourceName: {
 					Type:        tools.SchemaTypeString,
@@ -110,146 +109,115 @@ func (v *validation) validateDatasource(ctx context.Context, input ValidateDatas
 	if hasDatasource == (input.Name != "") {
 		return nil, errors.New("pass either datasource or name")
 	}
-	if input.Scope != "" && input.Scope != scopeProject && input.Scope != scopeGlobal {
-		return nil, fmt.Errorf("invalid scope %q: use %q or %q", input.Scope, scopeProject, scopeGlobal)
-	}
 
 	var ref datasourceRef
-	var errs []dashboardutil.Issue
+	var validation *result
 	var err error
 	if hasDatasource {
-		ref, errs, err = v.validateDatasourceDocument(input)
+		ref, validation, err = v.validateDatasourceDocument(input)
 	} else {
-		ref, errs, err = v.getSavedDatasource(input)
+		ref, err = v.getSavedDatasource(input)
+		validation = &result{Valid: true}
 	}
-	if err != nil || ref.name == "" {
-		return &datasourceValidation{Validation: *dashboardutil.NewValidation(errs, nil)}, err
+	if err != nil {
+		return nil, err
+	}
+	output := &datasourceValidation{result: *validation}
+	if ref.name == "" {
+		return output, nil
 	}
 
-	warnings := lintDatasource(ref.spec)
-	conflicts, shadowing := v.checkOtherDatasources(ref)
-	errs = append(errs, conflicts...)
-	warnings = append(warnings, shadowing...)
-
-	result := &datasourceValidation{Validation: *dashboardutil.NewValidation(errs, warnings)}
+	output.Warnings = append(lintDatasource(ref.spec), v.checkOtherDatasources(ref)...)
 	if input.CheckConnectivity {
-		if len(errs) > 0 && !ref.saved {
-			result.Connectivity = &connectivity{Status: statusSkipped, Message: "fix the errors first"}
+		if !output.Valid && !ref.saved {
+			output.Connectivity = &connectivity{Status: statusSkipped, Message: "fix the error first"}
 		} else {
-			result.Connectivity = v.checkConnectivity(ctx, ref)
+			output.Connectivity = v.checkConnectivity(ctx, ref)
 		}
 	}
-	return result, nil
+	return output, nil
 }
 
-// validateDatasourceDocument validates an unsaved datasource with the Perses API.
-func (v *validation) validateDatasourceDocument(input ValidateDatasourceInput) (datasourceRef, []dashboardutil.Issue, error) {
-	decoded, issues := decodeResource(input.Datasource, "datasource", datasourceKinds, input.Scope, input.Project)
-	if len(issues) > 0 {
-		return datasourceRef{}, issues, nil
+// validateDatasourceDocument validates an unsaved datasource with the Perses API. The returned reference is empty
+// when the datasource cannot be decoded.
+func (v *validation) validateDatasourceDocument(input ValidateDatasourceInput) (datasourceRef, *result, error) {
+	scope, err := resolveScope(input.Datasource, datasourceKinds, input.Scope, input.Project)
+	if err != nil {
+		return datasourceRef{}, nil, err
 	}
-	ref := datasourceRef{scope: decoded.scope, project: decoded.project, name: decoded.name}
-	var validateErr error
-	if decoded.scope == scopeProject {
+	if scope == scopeProject {
 		entity := &v1.Datasource{}
-		if issues := unmarshalResource(decoded.document, entity); len(issues) > 0 {
-			return datasourceRef{}, issues, nil
+		if err := decodeResource(input.Datasource, datasourceKinds, scope, entity); err != nil {
+			return datasourceRef{}, invalid(err), nil
 		}
-		ref.spec = entity.Spec
-		validateErr = v.client.Validate().Datasource(entity)
-	} else {
-		entity := &v1.GlobalDatasource{}
-		if issues := unmarshalResource(decoded.document, entity); len(issues) > 0 {
-			return datasourceRef{}, issues, nil
+		if entity.Metadata.Project == "" {
+			entity.Metadata.Project = input.Project
 		}
-		ref.spec = entity.Spec
-		validateErr = v.client.Validate().GlobalDatasource(entity)
+		ref := datasourceRef{scope: scope, project: entity.Metadata.Project, name: entity.Metadata.Name, spec: entity.Spec}
+		validation, err := serverResult(v.client.Validate().Datasource(entity), "error validating the project datasource")
+		return ref, validation, err
 	}
-	if validateErr != nil {
-		message, ok := dashboardutil.IsBadRequest(validateErr)
-		if !ok {
-			return datasourceRef{}, nil, fmt.Errorf("error validating the %s datasource: %w", decoded.scope, validateErr)
-		}
-		return ref, dashboardutil.ResourceIssuesFromServerMessage(message, "spec.plugin", datasourcePluginHint), nil
+	entity := &v1.GlobalDatasource{}
+	if err := decodeResource(input.Datasource, datasourceKinds, scope, entity); err != nil {
+		return datasourceRef{}, invalid(err), nil
 	}
-	return ref, nil, nil
+	ref := datasourceRef{scope: scope, name: entity.Metadata.Name, spec: entity.Spec}
+	validation, err := serverResult(v.client.Validate().GlobalDatasource(entity), "error validating the global datasource")
+	return ref, validation, err
 }
 
 // getSavedDatasource reads a saved datasource, to check its configuration and connectivity.
-func (v *validation) getSavedDatasource(input ValidateDatasourceInput) (datasourceRef, []dashboardutil.Issue, error) {
+func (v *validation) getSavedDatasource(input ValidateDatasourceInput) (datasourceRef, error) {
 	scope := input.Scope
-	if scope == "" {
+	switch {
+	case scope != "" && scope != scopeProject && scope != scopeGlobal:
+		return datasourceRef{}, fmt.Errorf("invalid scope %q: use %q or %q", scope, scopeProject, scopeGlobal)
+	case scope == "" && input.Project != "":
+		scope = scopeProject
+	case scope == "":
 		scope = scopeGlobal
-		if input.Project != "" {
-			scope = scopeProject
-		}
 	}
-	ref := datasourceRef{scope: scope, project: input.Project, saved: true}
-	var err error
+	ref := datasourceRef{scope: scope, project: input.Project, name: input.Name, saved: true}
 	if scope == scopeProject {
 		if input.Project == "" {
-			return datasourceRef{}, nil, errors.New("project is required for a project datasource")
+			return datasourceRef{}, errors.New("project is required for a project datasource")
 		}
-		var entity *v1.Datasource
-		if entity, err = v.client.V1().Datasource(input.Project).Get(input.Name); err == nil {
-			ref.spec = entity.Spec
-			ref.name = entity.Metadata.Name
+		entity, err := v.client.V1().Datasource(input.Project).Get(input.Name)
+		if err != nil {
+			return datasourceRef{}, fmt.Errorf("error getting the project datasource %q: %w", input.Name, err)
 		}
-	} else {
-		var entity *v1.GlobalDatasource
-		if entity, err = v.client.V1().GlobalDatasource().Get(input.Name); err == nil {
-			ref.spec = entity.Spec
-			ref.name = entity.Metadata.Name
-		}
+		ref.spec = entity.Spec
+		return ref, nil
 	}
+	entity, err := v.client.V1().GlobalDatasource().Get(input.Name)
 	if err != nil {
-		if dashboardutil.IsNotFound(err) {
-			hint := "list the datasources with perses_list_global_datasources"
-			if scope == scopeProject {
-				hint = "list the datasources with perses_list_project_datasources, or set scope to global"
-			}
-			return datasourceRef{}, []dashboardutil.Issue{{
-				Path:    tools.ResourceName,
-				Message: fmt.Sprintf("%s datasource %q not found", scope, input.Name),
-				Hint:    hint,
-			}}, nil
-		}
-		return datasourceRef{}, nil, fmt.Errorf("error getting the %s datasource %q: %w", scope, input.Name, err)
+		return datasourceRef{}, fmt.Errorf("error getting the global datasource %q: %w", input.Name, err)
 	}
-	if ref.name == "" {
-		ref.name = input.Name
-	}
-	return ref, nil, nil
+	ref.spec = entity.Spec
+	return ref, nil
 }
 
 // checkOtherDatasources compares the datasource with the saved ones. Two defaults of the same plugin kind in a scope
 // are rejected on save, which the validation API does not check. A project datasource hides the global datasource
 // of the same name in its project. The checks are best effort: they are skipped when the list cannot be read.
-func (v *validation) checkOtherDatasources(ref datasourceRef) ([]dashboardutil.Issue, []dashboardutil.Issue) {
-	var errs, warnings []dashboardutil.Issue
+func (v *validation) checkOtherDatasources(ref datasourceRef) []string {
+	var warnings []string
 	if ref.spec.Default {
 		sameName := v.nameComparator()
 		for _, other := range v.listDatasourceSpecs(ref) {
 			if !sameName(other.name, ref.name) && other.spec.Default && other.spec.Plugin.Kind == ref.spec.Plugin.Kind {
-				errs = append(errs, dashboardutil.Issue{
-					Path:    "spec.default",
-					Message: fmt.Sprintf("%q is already the default %s in this scope; saving fails", other.name, ref.spec.Plugin.Kind),
-					Hint:    fmt.Sprintf("set default to false, or unset default on %q first", other.name),
-				})
+				warnings = append(warnings, fmt.Sprintf("%q is already the default %s in this scope: saving fails while both are default",
+					other.name, ref.spec.Plugin.Kind))
 				break
 			}
 		}
 	}
 	if ref.scope == scopeProject {
 		if _, err := v.client.V1().GlobalDatasource().Get(ref.name); err == nil {
-			warnings = append(warnings, dashboardutil.Issue{
-				Path:    "metadata.name",
-				Message: fmt.Sprintf("hides the global datasource %q in this project", ref.name),
-				Hint:    "use another name unless the project must override the global datasource",
-			})
+			warnings = append(warnings, fmt.Sprintf("the name hides the global datasource %q in this project", ref.name))
 		}
 	}
-	return errs, warnings
+	return warnings
 }
 
 // nameComparator returns how the Perses server compares resource names: unless its database is case-sensitive, it

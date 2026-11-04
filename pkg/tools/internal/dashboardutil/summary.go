@@ -129,8 +129,8 @@ func OutlineOf(d *v1.Dashboard, base *url.URL) Outline {
 	placements := map[string][]string{}
 	for i, layout := range d.Spec.Layouts {
 		group := LayoutOutline{Index: i, Kind: string(layout.Kind), Title: layoutTitle(layout)}
-		for _, items := range itemGroups(i, layout) {
-			for _, item := range items.items {
+		for _, items := range itemGroups(layout) {
+			for _, item := range items {
 				group.Items++
 				key := panelKeyOf(item)
 				if key == "" {

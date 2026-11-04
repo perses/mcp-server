@@ -214,9 +214,9 @@ Prefer the single-plugin tool when working on one panel, query, variable, annota
 Resource: `validate`
 
 These tools validate resources without creating or modifying anything, and stay available in read-only mode.
-They return `{valid, errors: [{path, message, hint}], warnings}`: each error or warning gives the JSON path of the
-field, a message and often a hint. Resources are accepted as a JSON object (preferred) or a JSON string.
-Malformed JSON and validation failures return `valid: false`; connection and unexpected server errors are tool errors.
+They take resources as JSON objects and return `{valid: true}`, or `{valid: false, error}` where `error` is the
+message of the Perses server (or of the Perses model when the resource cannot be decoded), unchanged. Connection and
+unexpected server errors are tool errors.
 
 | Tool                         | Description                                      | Required parameters        | Optional parameters                             |
 |------------------------------|--------------------------------------------------|----------------------------|-------------------------------------------------|
@@ -226,13 +226,13 @@ Malformed JSON and validation failures return `valid: false`; connection and une
 
 The scope (`project` or `global`) is taken from `kind` (`Datasource`/`GlobalDatasource`, `Variable`/`GlobalVariable`)
 when set, else from the `scope` parameter, else it is `project` when a project is given. `project` fills
-`metadata.project` when omitted. Dashboard validation also reports local layout checks as warnings.
+`metadata.project` when omitted.
 
-`perses_validate_datasource` warns about configurations that are valid but likely do not work: a `directUrl`
+`perses_validate_datasource` also returns `warnings`, a list of messages about configurations that are valid but likely do not work: a `directUrl`
 without proxy (only browsers can query it), a proxy URL on `localhost` (resolved by the Perses server), a Prometheus
 URL ending with `/api/v1`, `allowedEndpoints` blocking the endpoints dashboards use, and a project datasource hiding
-a global datasource of the same name. A second default datasource of the same plugin kind is an error, as Perses
-rejects it on save. Pass `name` instead of `datasource` to check a saved datasource.
+a global datasource of the same name, and a second default datasource of the same plugin kind, which Perses rejects on
+save. Pass `name` instead of `datasource` to check a saved datasource.
 
 With `check_connectivity: true`, the datasource is queried once through the Perses server proxy (e.g. `vector(1)`
 for Prometheus, with GET or, when `allowedEndpoints` only allow POST, with POST) and the result has

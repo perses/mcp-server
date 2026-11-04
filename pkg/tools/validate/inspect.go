@@ -20,7 +20,6 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/perses/mcp-server/pkg/tools/internal/dashboardutil"
 	datasourcev1 "github.com/perses/perses/pkg/model/api/v1/datasource"
 	datasourceSpec "github.com/perses/spec/go/datasource"
 	httpproxy "github.com/perses/spec/go/datasource/proxy/http"
@@ -44,8 +43,6 @@ type httpTarget struct {
 	directURL string
 	// proxy is set when the Perses server queries the datasource.
 	proxy *httpproxy.Config
-	// proxyPath is the JSON path of the proxy configuration.
-	proxyPath string
 }
 
 // httpTargetOf finds how the datasource is reached. Most HTTP datasource plugins (Prometheus, Tempo, Loki, ...)
@@ -54,7 +51,7 @@ func httpTargetOf(p plugin.Plugin) httpTarget {
 	if data, err := json.Marshal(p.Spec); err == nil {
 		var spec datasourceSpec.HTTPDatasourceSpec
 		if json.Unmarshal(data, &spec) == nil {
-			target := httpTarget{directURL: spec.DirectURL, proxyPath: "spec.plugin.spec.proxy.spec"}
+			target := httpTarget{directURL: spec.DirectURL}
 			if spec.Proxy != nil && strings.EqualFold(spec.Proxy.Kind, httpproxy.ProxyKindName) {
 				target.proxy = &spec.Proxy.Spec
 			}
@@ -63,41 +60,29 @@ func httpTargetOf(p plugin.Plugin) httpTarget {
 	}
 	if cfg, kind, err := datasourcev1.ValidateAndExtract(p.Spec); err == nil && kind == httpproxy.ProxyKindName {
 		if httpConfig, ok := cfg.(*httpproxy.Config); ok {
-			return httpTarget{proxy: httpConfig, proxyPath: "spec.plugin.spec"}
+			return httpTarget{proxy: httpConfig}
 		}
 	}
 	return httpTarget{}
 }
 
 // lintDatasource reports the datasource configurations that Perses accepts but that likely do not work.
-func lintDatasource(spec datasourceSpec.Spec) []dashboardutil.Issue {
+func lintDatasource(spec datasourceSpec.Spec) []string {
 	target := httpTargetOf(spec.Plugin)
-	var warnings []dashboardutil.Issue
+	var warnings []string
 	if target.directURL != "" && target.proxy == nil {
-		warnings = append(warnings, dashboardutil.Issue{
-			Path: "spec.plugin.spec.directUrl",
-			Message: "only browsers query this datasource: without a proxy, server-side queries (Perses datasource proxy, " +
-				"perses_query_*_datasource tools, connectivity check) fail",
-			Hint: `use "proxy": {"kind": "HTTPProxy", "spec": {"url": "..."}} instead, unless browsers must query it directly`,
-		})
+		warnings = append(warnings, "only browsers query this datasource (directUrl): without a proxy, server-side queries "+
+			"(Perses datasource proxy, perses_query_*_datasource tools, connectivity check) fail")
 	}
 	if target.proxy == nil {
 		return warnings
 	}
 	if u := target.proxy.URL; u != nil && u.URL != nil {
 		if isLoopback(u.Hostname()) {
-			warnings = append(warnings, dashboardutil.Issue{
-				Path:    target.proxyPath + ".url",
-				Message: fmt.Sprintf("%q is resolved by the Perses server, not by the machine of the user", u.Hostname()),
-				Hint:    "use a hostname that the Perses server can reach",
-			})
+			warnings = append(warnings, fmt.Sprintf("the proxy URL host %q is resolved by the Perses server, not by the machine of the user", u.Hostname()))
 		}
 		if spec.Plugin.Kind == prometheusKind && strings.HasSuffix(strings.TrimRight(u.Path, "/"), "/api/v1") {
-			warnings = append(warnings, dashboardutil.Issue{
-				Path:    target.proxyPath + ".url",
-				Message: "the URL ends with /api/v1, which the queries add again",
-				Hint:    "remove /api/v1 from the URL",
-			})
+			warnings = append(warnings, "the proxy URL ends with /api/v1, which the queries add again")
 		}
 	}
 	if spec.Plugin.Kind == prometheusKind {
@@ -108,11 +93,7 @@ func lintDatasource(spec datasourceSpec.Spec) []dashboardutil.Issue {
 			}
 		}
 		if len(blocked) > 0 {
-			warnings = append(warnings, dashboardutil.Issue{
-				Path:    target.proxyPath + ".allowedEndpoints",
-				Message: "dashboards cannot use " + strings.Join(blocked, ", "),
-				Hint:    "allow these endpoints (GET or POST), or remove allowedEndpoints to allow every endpoint",
-			})
+			warnings = append(warnings, "allowedEndpoints blocks endpoints that dashboards use: "+strings.Join(blocked, ", "))
 		}
 	}
 	return warnings

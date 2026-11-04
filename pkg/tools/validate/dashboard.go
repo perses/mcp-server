@@ -33,10 +33,8 @@ func (v *validation) Dashboard() *tools.Tool {
 	tool := &mcp.Tool{
 		Name: "perses_validate_dashboard",
 		Description: "Validate a dashboard against the dashboard and plugin schemas of the Perses server without " +
-			"saving it, e.g. to check a draft in read-only mode. Returns {valid, errors, warnings}: each error has the " +
-			"JSON path of the offending field (e.g. spec.panels.cpu.spec.plugin.spec.calculation), a message and " +
-			"often a hint, so that only that field needs fixing. Warnings flag accepted but likely unintended content, " +
-			"e.g. a panel that no layout item displays. Creating or updating a dashboard runs the same validation.",
+			"saving it, e.g. to check a draft in read-only mode. Returns {valid: true}, or {valid: false, error} with " +
+			"the message of the Perses server. Creating or updating a dashboard runs the same validation.",
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Validates a dashboard against Perses schemas",
 			ReadOnlyHint:    true,
@@ -55,8 +53,8 @@ func (v *validation) Dashboard() *tools.Tool {
 					Pattern:     tools.PatternResourceName,
 				},
 				"dashboard": {
-					Types:       []string{tools.SchemaTypeObject, tools.SchemaTypeString},
-					Description: "The dashboard as a JSON object (preferred); a JSON document serialized in a string is also accepted.",
+					Type:        tools.SchemaTypeObject,
+					Description: "The dashboard as a JSON object.",
 				},
 			},
 			Required: []string{"dashboard"},
@@ -85,18 +83,10 @@ func (v *validation) Dashboard() *tools.Tool {
 	}
 }
 
-func (v *validation) validateDashboard(input ValidateDashboardInput) (*dashboardutil.Validation, error) {
-	dashboardObj, issues := dashboardutil.Decode(input.Dashboard, input.Project)
-	if len(issues) > 0 {
-		return dashboardutil.NewValidation(issues, nil), nil
+func (v *validation) validateDashboard(input ValidateDashboardInput) (*result, error) {
+	dashboardObj, err := dashboardutil.DecodeDashboard(input.Dashboard, input.Project)
+	if err != nil {
+		return invalid(err), nil
 	}
-	errs, warnings := dashboardutil.Lint(dashboardObj)
-	if err := v.client.Validate().Dashboard(dashboardObj); err != nil {
-		message, ok := dashboardutil.IsBadRequest(err)
-		if !ok {
-			return nil, fmt.Errorf("error validating dashboard in project '%s': %w", input.Project, err)
-		}
-		errs = append(dashboardutil.IssuesFromServerMessage(message, dashboardObj), errs...)
-	}
-	return dashboardutil.NewValidation(errs, warnings), nil
+	return serverResult(v.client.Validate().Dashboard(dashboardObj), "error validating dashboard in project '%s'", input.Project)
 }

@@ -478,7 +478,8 @@ The schema tools return the [CUE](https://cuelang.org/) schemas of the plugins i
 Resource: `validate`
 
 These tools validate resources without creating or modifying anything, and stay available in read-only mode.
-They return `{valid, errors: [{path, message, hint}], warnings}` and accept resources as a JSON object or a JSON string.
+They take resources as JSON objects and return `{valid: true}`, or `{valid: false, error}` with the message of the
+Perses server unchanged.
 
 | Tool                         | Description                                      | Required Parameters    |
 |------------------------------|--------------------------------------------------|------------------------|

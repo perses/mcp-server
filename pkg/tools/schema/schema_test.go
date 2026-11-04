@@ -20,13 +20,13 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/perses/mcp-server/pkg/tools"
-	"github.com/perses/mcp-server/pkg/tools/internal/dashboardutil"
 	"github.com/perses/mcp-server/pkg/tools/validate"
 	apiClient "github.com/perses/perses/pkg/client/api"
 	"github.com/perses/perses/pkg/client/perseshttp"
@@ -264,99 +264,58 @@ func TestGetPluginSchemaAcceptsHyphensAndDots(t *testing.T) {
 	}
 }
 
-// validation calls perses_validate_dashboard and decodes its result.
-func validation(t *testing.T, session *mcp.ClientSession, dashboard any) dashboardutil.Validation {
+// validation calls perses_validate_dashboard and returns its result.
+func validation(t *testing.T, session *mcp.ClientSession, dashboard any) string {
 	t.Helper()
 	result, text := callTool(t, session, "perses_validate_dashboard", map[string]any{"project": "myproject", "dashboard": dashboard})
 	if result.IsError {
 		t.Fatalf("unexpected tool error: %s", text)
 	}
-	var validation dashboardutil.Validation
-	if err := json.Unmarshal([]byte(text), &validation); err != nil {
-		t.Fatalf("unable to decode the validation %q: %v", text, err)
-	}
-	return validation
+	return text
 }
 
 func TestValidateDashboard(t *testing.T) {
-	var dashboardObject map[string]any
-	if err := json.Unmarshal([]byte(validDashboard), &dashboardObject); err != nil {
-		t.Fatal(err)
+	withMetadata := func(metadata string) map[string]any {
+		return dashboardObject(t, strings.Replace(validDashboard, `"name": "cpu"`, metadata, 1))
 	}
 
 	testSuites := []struct {
 		title     string
-		dashboard any
-		// expectedPath and expectedMessage describe the single expected error; an empty message expects a valid result.
-		expectedPath    string
-		expectedMessage string
+		dashboard map[string]any
+		expected  string
 		// expectedProject is the metadata.project sent to the server; empty when the dashboard is rejected beforehand.
 		expectedProject string
 	}{
 		{
-			title:           "valid dashboard as a string",
-			dashboard:       validDashboard,
+			title:           "valid dashboard",
+			dashboard:       dashboardObject(t, validDashboard),
+			expected:        `{"valid":true}`,
 			expectedProject: "myproject",
 		},
 		{
-			title:           "valid dashboard as an object",
-			dashboard:       dashboardObject,
-			expectedProject: "myproject",
-		},
-		{
-			title:           "the metadata project matching the project ignoring case is kept",
-			dashboard:       strings.Replace(validDashboard, `"name": "cpu"`, `"name": "cpu", "project": "MyProject"`, 1),
-			expectedProject: "MyProject",
+			title:           "the metadata project is kept",
+			dashboard:       withMetadata(`"name": "cpu", "project": "other"`),
+			expected:        `{"valid":true}`,
+			expectedProject: "other",
 		},
 		{
 			title:           "dashboard rejected by the Perses schemas",
-			dashboard:       strings.Replace(validDashboard, `"mean"`, `"average"`, 1),
-			expectedPath:    "spec.panels.p1.spec.plugin.spec.calculation",
-			expectedMessage: `conflicting values "mean" and "average"`,
+			dashboard:       dashboardObject(t, strings.Replace(validDashboard, `"mean"`, `"average"`, 1)),
+			expected:        `{"valid":false,"error":` + strconv.Quote(invalidCalculationMessage) + `}`,
 			expectedProject: "myproject",
 		},
 		{
-			title:           "malformed JSON",
-			dashboard:       `{"kind": "Dashboard",`,
-			expectedMessage: "malformed JSON",
-		},
-		{
-			title:           "not a dashboard",
-			dashboard:       strings.Replace(validDashboard, `"kind": "Dashboard"`, `"kind": "EphemeralDashboard"`, 1),
-			expectedPath:    "kind",
-			expectedMessage: `invalid kind: "EphemeralDashboard"`,
-		},
-		{
-			title:           "metadata project not matching the project",
-			dashboard:       strings.Replace(validDashboard, `"name": "cpu"`, `"name": "cpu", "project": "other"`, 1),
-			expectedPath:    "metadata.project",
-			expectedMessage: "metadata.project 'other' does not match project 'myproject'",
-		},
-		{
-			title:           "dangling panel reference",
-			dashboard:       strings.Replace(validDashboard, `#/spec/panels/p1`, `#/spec/panels/p2`, 1),
-			expectedPath:    "spec.layouts[0].spec.items[0].content.$ref",
-			expectedMessage: `no panel found for ref "p2"`,
+			title:     "not a dashboard",
+			dashboard: dashboardObject(t, strings.Replace(validDashboard, `"kind": "Dashboard"`, `"kind": "EphemeralDashboard"`, 1)),
+			expected:  `{"valid":false,"error":"invalid kind: \"EphemeralDashboard\" for a Dashboard type"}`,
 		},
 	}
 
 	for _, test := range testSuites {
 		t.Run(test.title, func(t *testing.T) {
 			perses := &fakePerses{}
-			result := validation(t, connect(t, perses), test.dashboard)
-
-			if test.expectedMessage == "" {
-				if !result.Valid || len(result.Errors) > 0 || len(result.Warnings) > 0 {
-					t.Errorf("expected a valid result without issue, got %+v", result)
-				}
-			} else {
-				if result.Valid || len(result.Errors) != 1 {
-					t.Fatalf("expected exactly one error, got %+v", result)
-				}
-				issue := result.Errors[0]
-				if issue.Path != test.expectedPath || !strings.Contains(issue.Message, test.expectedMessage) {
-					t.Errorf("expected error at %q containing %q, got %+v", test.expectedPath, test.expectedMessage, issue)
-				}
+			if text := validation(t, connect(t, perses), test.dashboard); text != test.expected {
+				t.Errorf("expected %s, got %s", test.expected, text)
 			}
 			if perses.validatedProject != test.expectedProject {
 				t.Errorf("expected the dashboard to be validated in project %q, got %q", test.expectedProject, perses.validatedProject)
@@ -365,30 +324,19 @@ func TestValidateDashboard(t *testing.T) {
 	}
 }
 
-func TestValidateDashboardWarnings(t *testing.T) {
-	// p1 is displayed twice at the same place, p2 is never displayed.
-	dashboard := strings.Replace(validDashboard,
-		`"panels": {"p1":`, `"panels": {"p2": {"kind": "Panel", "spec": {"plugin": {"kind": "StatChart", "spec": {"calculation": "mean"}}}}, "p1":`, 1)
-	dashboard = strings.Replace(dashboard,
-		`"items": [`, `"items": [{"x": 0, "y": 0, "width": 30, "height": 6, "content": {"$ref": "#/spec/panels/p1"}}, `, 1)
-	result := validation(t, connect(t, &fakePerses{}), dashboard)
-
-	if result.Valid || len(result.Errors) != 1 || result.Errors[0].Path != "spec.layouts[0].spec.items[0].width" {
-		t.Errorf("expected a width error, got %+v", result)
+func dashboardObject(t *testing.T, document string) map[string]any {
+	t.Helper()
+	var object map[string]any
+	if err := json.Unmarshal([]byte(document), &object); err != nil {
+		t.Fatal(err)
 	}
-	paths := make([]string, 0, len(result.Warnings))
-	for _, warning := range result.Warnings {
-		paths = append(paths, warning.Path)
-	}
-	if expected := []string{"spec.layouts[0].spec.items[1]", "spec.panels.p2"}; strings.Join(paths, ",") != strings.Join(expected, ",") {
-		t.Errorf("expected warnings at %v, got %v", expected, result.Warnings)
-	}
+	return object
 }
 
 func TestValidateDashboardServerError(t *testing.T) {
 	session := connect(t, &fakePerses{})
 
-	dashboard := strings.Replace(validDashboard, `"mean"`, `"crash"`, 1)
+	dashboard := dashboardObject(t, strings.Replace(validDashboard, `"mean"`, `"crash"`, 1))
 	result, text := callTool(t, session, "perses_validate_dashboard", map[string]any{"project": "myproject", "dashboard": dashboard})
 	if !result.IsError {
 		t.Fatalf("expected a tool error when the validation cannot be performed, got %s", text)

@@ -15,16 +15,13 @@ package validate
 
 import (
 	"context"
-	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"sync"
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	"github.com/perses/mcp-server/pkg/tools/internal/dashboardutil"
 	apiclient "github.com/perses/perses/pkg/client/api"
 	"github.com/perses/perses/pkg/client/perseshttp"
 	"github.com/perses/spec/go/common"
@@ -114,41 +111,37 @@ func connect(t *testing.T, perses http.Handler) *mcp.ClientSession {
 	return session
 }
 
-func callTool(t *testing.T, session *mcp.ClientSession, name, field, payload string) (*mcp.CallToolResult, string) {
-	t.Helper()
+func TestRejectsInvalidPayloadWithoutRequest(t *testing.T) {
+	perses := &fakePerses{status: http.StatusOK}
+	session := connect(t, perses)
 	result, err := session.CallTool(context.Background(), &mcp.CallToolParams{
-		Name: name, Arguments: map[string]any{field: payload},
+		Name:      "perses_validate_dashboard",
+		Arguments: map[string]any{"dashboard": rawJSON(`{"kind":"Datasource","metadata":{"name":"test","project":"test"},"spec":{"duration":"1h"}}`)},
 	})
 	if err != nil {
-		t.Fatalf("calling %s: %v", name, err)
+		t.Fatal(err)
 	}
-	var texts []string
-	for _, content := range result.Content {
-		if text, ok := content.(*mcp.TextContent); ok {
-			texts = append(texts, text.Text)
-		}
+	text := result.Content[0].(*mcp.TextContent).Text
+	if result.IsError {
+		t.Fatalf("validation failure must be a successful tool result: %s", text)
 	}
-	return result, strings.Join(texts, "\n")
+	if expected := `{"valid":false,"error":"invalid kind: \"Datasource\" for a Dashboard type"}`; text != expected {
+		t.Errorf("expected %s, got %s", expected, text)
+	}
+	if requests := perses.received(); len(requests) != 0 {
+		t.Errorf("expected no request, got %d", len(requests))
+	}
 }
 
-func TestRejectsInvalidPayloadWithoutRequest(t *testing.T) {
-	for _, payload := range []string{`{"kind":`, `{"kind":"Datasource","metadata":{"name":"test","project":"test"},"spec":{"duration":"1h"}}`} {
-		t.Run(payload, func(t *testing.T) {
-			perses := &fakePerses{status: http.StatusOK}
-			result, text := callTool(t, connect(t, perses), "perses_validate_dashboard", "dashboard", payload)
-			if result.IsError {
-				t.Fatalf("validation failure must be a successful tool result: %s", text)
-			}
-			var decoded dashboardutil.Validation
-			if err := json.Unmarshal([]byte(text), &decoded); err != nil {
-				t.Fatal(err)
-			}
-			if decoded.Valid || len(decoded.Errors) == 0 {
-				t.Errorf("expected validation error, got %s", text)
-			}
-			if requests := perses.received(); len(requests) != 0 {
-				t.Errorf("expected no request, got %d", len(requests))
-			}
-		})
+func TestStringPayloadIsRejected(t *testing.T) {
+	perses := &fakePerses{status: http.StatusOK}
+	result, err := connect(t, perses).CallTool(context.Background(), &mcp.CallToolParams{
+		Name: "perses_validate_dashboard", Arguments: map[string]any{"dashboard": dashboardJSON},
+	})
+	if err == nil && !result.IsError {
+		t.Fatal("expected a dashboard given as a string to be rejected")
+	}
+	if requests := perses.received(); len(requests) != 0 {
+		t.Errorf("expected no request, got %d", len(requests))
 	}
 }
