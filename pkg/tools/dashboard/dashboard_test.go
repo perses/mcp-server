@@ -259,6 +259,21 @@ func TestCreate(t *testing.T) {
 		result := mustCall(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": asObject, "dry_run": true})
 		assert.Equal(t, "would_create", result["action"])
 		assert.Equal(t, true, result["dryRun"])
+		assert.Equal(t, "myproject", result["project"], "the dashboard omits metadata.project: the input project is used")
+		assert.True(t, strings.HasSuffix(result["url"].(string), "/projects/myproject/dashboards/cpu"), result["url"])
+		assert.Empty(t, fake.dashboards)
+	})
+	t.Run("missing kind is rejected", func(t *testing.T) {
+		fake := newFakePerses()
+		session := newSession(t, fake)
+		withoutKind := map[string]any{}
+		for key, value := range asObject {
+			if key != "kind" {
+				withoutKind[key] = value
+			}
+		}
+		text := mustFail(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": withoutKind})
+		assert.Contains(t, text, `invalid kind: "" for a Dashboard type`)
 		assert.Empty(t, fake.dashboards)
 	})
 	t.Run("dry run reports dashboard lookup failures", func(t *testing.T) {
