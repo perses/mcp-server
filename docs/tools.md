@@ -236,12 +236,14 @@ save. Pass `name` instead of `datasource` to check a saved datasource.
 
 With `check_connectivity: true`, the datasource is queried once through the Perses server proxy (e.g. `vector(1)`
 for Prometheus, with GET or, when `allowedEndpoints` only allow POST, with POST) and the result has
-`connectivity: {status, latency_ms, message, hint}`, where `status` is one of `ok`, `dns`, `unreachable`, `timeout`,
-`tls`, `auth`, `blocked`, `forbidden`, `no_proxy`, `skipped` or `error`. A saved datasource only requires the
-permission to read it. An unsaved datasource is sent to the `/proxy/unsaved` endpoints of Perses, which never save it
-but require the permission to create datasources, and to read the secret that the datasource references, if any
-(`forbidden` otherwise). The check is `skipped` when the Perses server disables the proxy of the
-datasource scope (`datasource.global.disable` or `datasource.project.disable`).
+`connectivity: {status, http_status, latency_ms, message, hint}`. `status` is `ok` with `latency_ms` when the answer
+is 2xx, and `error` otherwise, with the `http_status` of the answer and its `message` (the error of Perses or the body
+of the datasource). It is `timeout` when no answer comes within 15 seconds, `no_proxy` for a datasource with only a
+`directUrl`, and `skipped` when the check cannot run: `allowedEndpoints` block every endpoint used to check the
+datasource, or the Perses server disables the proxy of the datasource scope (`datasource.global.disable` or
+`datasource.project.disable`). A saved datasource only requires the permission to read it. An unsaved datasource is
+sent to the `/proxy/unsaved` endpoints of Perses, which never save it but require the permission to create
+datasources, and to read the secret that the datasource references, if any.
 
 ## Grafana dashboards migration
 

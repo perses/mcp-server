@@ -16,7 +16,6 @@ package validate
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"strings"
 	"testing"
@@ -43,10 +42,11 @@ type datasourceResult struct {
 	Error    string   `json:"error"`
 	Warnings []string `json:"warnings"`
 	Conn     *struct {
-		Status    string `json:"status"`
-		LatencyMS int64  `json:"latency_ms"`
-		Message   string `json:"message"`
-		Hint      string `json:"hint"`
+		Status     string `json:"status"`
+		HTTPStatus int    `json:"http_status"`
+		LatencyMS  int64  `json:"latency_ms"`
+		Message    string `json:"message"`
+		Hint       string `json:"hint"`
 	} `json:"connectivity"`
 }
 
@@ -316,36 +316,23 @@ func TestDatasourceWarnings(t *testing.T) {
 
 func TestConnectivity(t *testing.T) {
 	testCases := []struct {
-		name     string
-		response fakeResponse
-		status   string
-		noHint   bool
+		name       string
+		response   fakeResponse
+		status     string
+		httpStatus int
+		message    string
 	}{
 		{name: "ok", response: fakeResponse{status: http.StatusOK, body: `{"status":"success"}`}, status: statusOK},
-		{name: "unknown host", response: fakeResponse{status: http.StatusInternalServerError,
-			body: `{"message":"dial tcp: lookup thanos-global-query on 10.0.0.10:53: no such host"}`}, status: statusDNS},
-		{name: "refused", response: fakeResponse{status: http.StatusBadGateway,
-			body: `{"message":"dial tcp 10.0.0.1:9090: connect: connection refused"}`}, status: statusUnreachable},
-		{name: "upstream unauthorized", response: fakeResponse{status: http.StatusUnauthorized, body: "Unauthorized"}, status: statusAuth},
-		{name: "allowed endpoints", response: fakeResponse{status: http.StatusForbidden,
-			body: `{"message":"you are not allowed to use this endpoint \"/api/v1/query\" with the HTTP method GET"}`}, status: statusBlocked},
-		{name: "missing permission", response: fakeResponse{status: http.StatusForbidden,
-			body: `{"message":"missing 'create' permission in 'test' project for 'Datasource' kind"}`}, status: statusForbidden},
-		{name: "missing secret permission", response: fakeResponse{status: http.StatusForbidden,
-			body: `{"message":"missing 'read' permission in 'test' project for 'Secret' kind"}`}, status: statusForbidden},
-		{name: "HTTPS URL of a plain HTTP datasource", response: fakeResponse{status: http.StatusBadGateway,
-			body: `{"message":"http: server gave HTTP response to HTTPS client"}`}, status: statusTLS},
-		{name: "timeout", response: fakeResponse{status: http.StatusBadGateway,
-			body: `{"message":"dial tcp 10.0.0.1:9090: i/o timeout"}`}, status: statusTimeout},
-		{name: "wrong path", response: fakeResponse{status: http.StatusNotFound, body: "404 page not found"}, status: statusError},
-		{name: "destination denied by the configuration", response: fakeResponse{status: http.StatusForbidden,
-			body: `{"message":"the datasource destination is not allowed by the Perses server configuration ('datasource.proxy')"}`}, status: statusBlocked},
-		{name: "destination denied by the network guard", response: fakeResponse{status: http.StatusForbidden,
-			body: `{"message":"destination not allowed: IP address 10.0.0.1 is denied; if this destination is legitimate, ask your administrator"}`}, status: statusBlocked},
-		{name: "secret file denied by the server", response: fakeResponse{status: http.StatusForbidden,
-			body: `{"message":"forbidden access: secret \"prom\" references a file that is not allowed"}`}, status: statusBlocked},
+		{name: "Perses error", response: fakeResponse{status: http.StatusBadGateway,
+			body: `{"message":"dial tcp 10.0.0.1:9090: connect: connection refused"}`},
+			status: statusError, httpStatus: http.StatusBadGateway, message: "dial tcp 10.0.0.1:9090: connect: connection refused"},
+		{name: "datasource error", response: fakeResponse{status: http.StatusUnauthorized, body: " Unauthorized\n"},
+			status: statusError, httpStatus: http.StatusUnauthorized, message: "Unauthorized"},
+		{name: "error field", response: fakeResponse{status: http.StatusBadRequest, body: `{"status":"error","error":"bad query"}`},
+			status: statusError, httpStatus: http.StatusBadRequest, message: "bad query"},
 		{name: "error body larger than the proxy limit", response: fakeResponse{status: http.StatusInternalServerError,
-			body: strings.Repeat("x", 1<<20+1024)}, status: statusError, noHint: true},
+			body: strings.Repeat("x", 1<<20+1024)}, status: statusError, httpStatus: http.StatusInternalServerError,
+			message: strings.Repeat("x", maxMessageLength) + "…"},
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -359,18 +346,8 @@ func TestConnectivity(t *testing.T) {
 			if decoded.Conn == nil || decoded.Conn.Status != testCase.status {
 				t.Fatalf("expected status %s: %s", testCase.status, text)
 			}
-			if testCase.status != statusOK && (decoded.Conn.Message == "" || (decoded.Conn.Hint == "" && !testCase.noHint)) {
-				t.Errorf("expected message and hint: %s", text)
-			}
-			// The message is built from the raw status and body of the proxy answer, not from the query tool error.
-			if testCase.status != statusOK {
-				prefix := fmt.Sprintf("HTTP %d: ", testCase.response.status)
-				if !strings.HasPrefix(decoded.Conn.Message, prefix) || strings.Contains(decoded.Conn.Message, "datasource returned") {
-					t.Errorf("expected a message starting with %q: %s", prefix, decoded.Conn.Message)
-				}
-				if len(decoded.Conn.Message) > maxMessageLength+len("…") {
-					t.Errorf("message longer than %d bytes: %d", maxMessageLength, len(decoded.Conn.Message))
-				}
+			if decoded.Conn.HTTPStatus != testCase.httpStatus || decoded.Conn.Message != testCase.message {
+				t.Errorf("expected http_status %d and message %q: %s", testCase.httpStatus, testCase.message, text)
 			}
 			request := findRequest(perses.received(), http.MethodPost, "/proxy/unsaved/projects/test/datasources/api/v1/query")
 			if request == nil {
@@ -481,29 +458,8 @@ func TestConnectivityWithPostOnly(t *testing.T) {
 	}
 }
 
-func TestPermissionHint(t *testing.T) {
-	testCases := []struct {
-		message  string
-		saved    bool
-		contains string
-	}{
-		{message: "missing 'create' permission in 'test' project for 'Datasource' kind", contains: "permission to create datasources"},
-		{message: "missing 'create' global permission for 'GlobalDatasource' kind", contains: "permission to create datasources"},
-		{message: "missing 'read' permission in 'test' project for 'Secret' kind", contains: "'read' permission on the Secret referenced"},
-		{message: "missing 'read' global permission for 'GlobalSecret' kind", contains: "'read' permission on the GlobalSecret referenced"},
-		{message: "missing 'read' permission in 'test' project for 'Datasource' kind", saved: true, contains: "'read' permission on Datasource"},
-		{message: "permission denied", saved: true, contains: "cannot read this datasource"},
-		{message: "permission denied", contains: "read the secret it references"},
-	}
-	for _, testCase := range testCases {
-		if hint := permissionHint(testCase.message, testCase.saved); !strings.Contains(hint, testCase.contains) {
-			t.Errorf("hint of %q (saved: %t) = %q, expected it to contain %q", testCase.message, testCase.saved, hint, testCase.contains)
-		}
-	}
-}
-
 // TestConnectivityWithDisabledProxy checks that the datasources whose proxy is disabled by the Perses configuration are
-// not queried: the 404 of Perses would pass for an answer of a datasource probed with "/".
+// not queried.
 func TestConnectivityWithDisabledProxy(t *testing.T) {
 	loki := `{"kind":"LokiDatasource","spec":{"proxy":{"kind":"HTTPProxy","spec":{"url":"http://loki:3100"}}}}`
 	testCases := []struct {

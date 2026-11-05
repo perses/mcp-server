@@ -18,7 +18,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"regexp"
 	"strings"
 	"time"
 
@@ -34,33 +33,26 @@ const (
 
 // Connectivity statuses.
 const (
-	statusOK          = "ok"
-	statusDNS         = "dns"
-	statusUnreachable = "unreachable"
-	statusTimeout     = "timeout"
-	statusTLS         = "tls"
-	statusAuth        = "auth"
-	statusBlocked     = "blocked"
-	statusForbidden   = "forbidden"
-	statusNoProxy     = "no_proxy"
-	statusSkipped     = "skipped"
-	statusError       = "error"
+	statusOK      = "ok"
+	statusTimeout = "timeout"
+	statusNoProxy = "no_proxy"
+	statusSkipped = "skipped"
+	statusError   = "error"
 )
 
 // connectivity is the result of querying the datasource through the Perses server.
 type connectivity struct {
-	Status    string `json:"status"`
-	LatencyMS int64  `json:"latency_ms,omitempty"`
-	Message   string `json:"message,omitempty"`
-	Hint      string `json:"hint,omitempty"`
+	Status     string `json:"status"`
+	HTTPStatus int    `json:"http_status,omitempty"`
+	LatencyMS  int64  `json:"latency_ms,omitempty"`
+	Message    string `json:"message,omitempty"`
+	Hint       string `json:"hint,omitempty"`
 }
 
 // probe is a cheap request telling whether the datasource answers.
 type probe struct {
 	path   string
 	params map[string]string
-	// anyResponse means that any response of the datasource, even an error, proves that it is reachable.
-	anyResponse bool
 	// acceptsPost means that the endpoint also accepts its parameters in a POST request, for the datasources whose
 	// allowedEndpoints only let POST through.
 	acceptsPost bool
@@ -82,7 +74,7 @@ var probesByKind = map[string][]probe{
 	},
 }
 
-var defaultProbes = []probe{{path: "/", anyResponse: true}}
+var defaultProbes = []probe{{path: "/"}}
 
 // pickProbe returns the first probe that the allowedEndpoints of the datasource let through, with GET when allowed,
 // else with POST when the endpoint accepts it. Prometheus reads the parameters of a POST request from the URL too.
@@ -171,17 +163,15 @@ func (v *validation) checkConnectivity(ctx context.Context, ref datasourceRef) *
 		}
 		return &connectivity{Status: statusError, Message: truncate(fmt.Sprintf("unable to query the Perses server: %s", err))}
 	}
-	check := classify(resp.StatusCode, string(resp.Body), selected.anyResponse, ref.saved)
-	if check.Status == statusOK {
-		check.LatencyMS = latency
+	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		return &connectivity{Status: statusOK, LatencyMS: latency}
 	}
-	return check
+	return &connectivity{Status: statusError, HTTPStatus: resp.StatusCode, Message: truncate(errorMessage(string(resp.Body)))}
 }
 
 // proxyDisabled reports the datasources whose proxy routes the Perses server does not serve: datasource.global.disable
-// and datasource.project.disable remove them, and the 404 or 405 of Perses would otherwise pass for an answer of the
-// datasource with the probes accepting any response. When the configuration cannot be read, the proxy is assumed
-// enabled.
+// and datasource.project.disable remove them, and the datasource would otherwise be reported with the 404 or 405 of
+// Perses. When the configuration cannot be read, the proxy is assumed enabled.
 func (v *validation) proxyDisabled(scope string) *connectivity {
 	cfg, err := v.client.Config()
 	if err != nil || cfg == nil {
@@ -201,82 +191,6 @@ func (v *validation) proxyDisabled(scope string) *connectivity {
 		Message: fmt.Sprintf("the Perses server does not serve the %s datasource proxy (%s is set)", scope, setting),
 		Hint:    fmt.Sprintf("the Perses server cannot query %s datasources; ask the administrator to unset %s", scope, setting),
 	}
-}
-
-// permissionPattern matches the permission errors of Perses, e.g. "missing 'read' permission in 'demo' project for
-// 'Secret' kind" or "missing 'create' global permission for 'GlobalDatasource' kind".
-var permissionPattern = regexp.MustCompile(`missing '([^']+)' (?:global )?permission (?:in '[^']+' project )?for '([^']+)' kind`)
-
-// permissionHint explains a permission error of the Perses proxy. Before querying an unsaved datasource, Perses checks
-// the permission to create datasources, then the permission to read the secret that the datasource references. A saved
-// datasource only requires the permission to read it.
-func permissionHint(message string, saved bool) string {
-	if match := permissionPattern.FindStringSubmatch(message); match != nil {
-		action, kind := match[1], match[2]
-		switch {
-		case strings.HasSuffix(kind, "Secret"):
-			return fmt.Sprintf("the Perses user of the MCP server lacks the '%s' permission on the %s referenced by the proxy "+
-				"of the datasource; the datasource cannot be checked without it", action, kind)
-		case action == "create" && !saved:
-			return "checking an unsaved datasource requires the permission to create datasources; save it, then check it by name"
-		}
-		return fmt.Sprintf("the Perses user of the MCP server lacks the '%s' permission on %s resources", action, kind)
-	}
-	if saved {
-		return "the Perses user of the MCP server cannot read this datasource"
-	}
-	return "checking an unsaved datasource requires the permission to create datasources and to read the secret it " +
-		"references; save it, then check it by name"
-}
-
-// classify interprets the response of the Perses datasource proxy. The errors of the Perses server itself (proxy
-// configuration, permissions, network errors) are distinguished by their message from the answers of the datasource.
-func classify(status int, body string, anyResponse, saved bool) *connectivity {
-	if status >= 200 && status < 300 {
-		return &connectivity{Status: statusOK}
-	}
-	message := errorMessage(body)
-	lower := strings.ToLower(message)
-	result := func(s, hint string) *connectivity {
-		return &connectivity{Status: s, Message: truncate(fmt.Sprintf("HTTP %d: %s", status, message)), Hint: hint}
-	}
-	switch {
-	case strings.Contains(lower, "not allowed to use this endpoint"):
-		return result(statusBlocked, "allowedEndpoints of the datasource proxy block this endpoint")
-	// Perses reports a destination denied by its configuration as "the datasource destination is not allowed ..." or,
-	// from its network guard, as "destination not allowed: ...".
-	case strings.Contains(lower, "destination is not allowed"), strings.Contains(lower, "destination not allowed"):
-		return result(statusBlocked, "the Perses server configuration (datasource.proxy) does not allow this destination")
-	// Perses refuses to read a secret file outside of security.secret_file_allowed_directories, before querying the
-	// datasource: "secret \"prom\" references a file that is not allowed".
-	case strings.Contains(lower, "references a file that is not allowed"):
-		return result(statusBlocked, "the secret of the proxy references a file that the Perses server does not allow; "+
-			"review the secret-file policy of the server (security.secret_file_allowed_directories) or the file paths of the secret")
-	case status == http.StatusForbidden && strings.Contains(lower, "permission"):
-		return result(statusForbidden, permissionHint(message, saved))
-	case strings.Contains(lower, "no proxy kind found"):
-		return result(statusNoProxy, "the Perses server cannot query a datasource without proxy")
-	case strings.Contains(lower, "no such host"):
-		return result(statusDNS, "the Perses server cannot resolve this hostname; use one that it can resolve")
-	case strings.Contains(lower, "connection refused"), strings.Contains(lower, "no route to host"),
-		strings.Contains(lower, "network is unreachable"):
-		return result(statusUnreachable, "nothing listens at this address from the Perses server; check the host and port")
-	case strings.Contains(lower, "timeout"), strings.Contains(lower, "deadline exceeded"), status == http.StatusGatewayTimeout:
-		return result(statusTimeout, "the datasource did not answer in time from the Perses server")
-	case strings.Contains(lower, "http response to https client"):
-		return result(statusTLS, "the datasource answers in plain HTTP: use http:// in the URL of the proxy")
-	case strings.Contains(lower, "x509"), strings.Contains(lower, "tls:"), strings.Contains(lower, "certificate"):
-		return result(statusTLS, "check the scheme (http/https) and the TLS configuration of the proxy")
-	case strings.Contains(lower, "doesn't exist"):
-		return result(statusError, "")
-	case status == http.StatusUnauthorized || status == http.StatusForbidden:
-		return result(statusAuth, "the datasource rejected the credentials; check the secret of the proxy")
-	case anyResponse && status < 500:
-		return &connectivity{Status: statusOK}
-	case status == http.StatusNotFound:
-		return result(statusError, "the endpoint was not found; check the path of the URL (e.g. a missing or extra prefix)")
-	}
-	return result(statusError, "")
 }
 
 // errorMessage extracts the message of a Perses error, or returns the body of the datasource answer.
