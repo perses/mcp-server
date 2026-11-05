@@ -13,17 +13,18 @@
 package dashboard
 
 import (
+	"encoding/json"
 	"net/url"
 	"testing"
 
-	"github.com/perses/mcp-server/pkg/tools/internal/dashboardutil"
+	v1 "github.com/perses/perses/pkg/model/api/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 const sampleDashboard = `{
   "kind": "Dashboard",
-  "metadata": {"name": "sample"},
+  "metadata": {"name": "sample", "project": "proj"},
   "spec": {
     "duration": "1h",
     "variables": [
@@ -43,10 +44,10 @@ const sampleDashboard = `{
 }`
 
 func TestSummarize(t *testing.T) {
-	d, err := dashboardutil.DecodeDashboard([]byte(sampleDashboard), "proj")
-	require.NoError(t, err)
+	d := &v1.Dashboard{}
+	require.NoError(t, json.Unmarshal([]byte(sampleDashboard), d))
 	base, _ := url.Parse("http://perses.example/")
-	summary := Summarize(d, base)
+	summary := Summarize(d, "proj", base)
 	assert.Equal(t, "http://perses.example/projects/proj/dashboards/sample", summary.URL)
 	assert.Equal(t, 2, summary.Panels)
 
