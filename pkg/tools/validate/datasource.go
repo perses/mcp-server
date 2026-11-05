@@ -50,7 +50,8 @@ func (v *validation) Datasource() *tools.Tool {
 			"Returns {valid, error, warnings, connectivity}, or the error of the Perses server. Warnings flag " +
 			"configs that are valid but likely do not work (directUrl only, localhost proxy URL, blocked endpoints, " +
 			"another default datasource, name hiding a global datasource). check_connectivity:true queries the " +
-			"datasource through the Perses server proxy (nothing is saved).",
+			"health endpoint of the datasource through the Perses server proxy, like the Test connection button " +
+			"of the Perses UI (Prometheus, AlertManager and OpenSearch datasources; nothing is saved).",
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Validates a datasource and checks its connectivity",
 			ReadOnlyHint:    true,
@@ -75,7 +76,7 @@ func (v *validation) Datasource() *tools.Tool {
 				string(tools.ProjectResource): projectProperty("Project of the saved datasource to check by name; a global datasource when omitted. With datasource, used by the warnings and the connectivity check when metadata.project is omitted."),
 				"check_connectivity": {
 					Type:        tools.SchemaTypeBoolean,
-					Description: "Also query the datasource through the Perses server (default false).",
+					Description: "Also query the health endpoint of the datasource through the Perses server (default false).",
 				},
 			},
 		},

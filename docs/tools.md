@@ -234,16 +234,20 @@ URL ending with `/api/v1`, `allowedEndpoints` blocking the endpoints dashboards 
 a global datasource of the same name, and a second default datasource of the same plugin kind, which Perses rejects on
 save. Pass `name` instead of `datasource` to check a saved datasource.
 
-With `check_connectivity: true`, the datasource is queried once through the Perses server proxy (e.g. `vector(1)`
-for Prometheus, with GET or, when `allowedEndpoints` only allow POST, with POST) and the result has
-`connectivity: {status, http_status, latency_ms, message, hint}`. `status` is `ok` with `latency_ms` when the answer
-is 2xx, and `error` otherwise, with the `http_status` of the answer and its `message` (the error of Perses or the body
-of the datasource). It is `timeout` when no answer comes within 15 seconds, `no_proxy` for a datasource with only a
-`directUrl`, and `skipped` when the check cannot run: `allowedEndpoints` block every endpoint used to check the
-datasource, or the Perses server disables the proxy of the datasource scope (`datasource.global.disable` or
-`datasource.project.disable`). A saved datasource only requires the permission to read it. An unsaved datasource is
-sent to the `/proxy/unsaved` endpoints of Perses, which never save it but require the permission to create
-datasources, and to read the secret that the datasource references, if any.
+With `check_connectivity: true`, the datasource is checked like the Test connection button of the Perses UI: one GET
+of its health endpoint through the Perses server proxy (`/api/v1/status/buildinfo` for Prometheus, `/api/v2/status`
+for AlertManager, `/_cluster/health` for OpenSearch). The result has `connectivity: {status, http_status, latency_ms,
+message, hint}`. `status` is `ok` with `latency_ms` when the answer is 2xx, and `error` otherwise, with the
+`http_status` of the answer and its `message` (the error of Perses or the body of the datasource). It is `timeout`
+when no answer comes within 15 seconds, `no_proxy` for a datasource with only a `directUrl`, and `skipped` when the
+check cannot run: the plugin has no known health endpoint, the `allowedEndpoints` of a saved datasource block it, or
+the Perses server disables the proxy of the datasource scope (`datasource.global.disable` or
+`datasource.project.disable`).
+
+A saved datasource is queried by name and only requires the permission to read it. An unsaved datasource is sent to
+the `/proxy/unsaved` endpoints of Perses, which never save it but require the permission to create datasources, and to
+read the secret that the datasource references, if any. As in the Perses UI, the health endpoint is added to the
+`allowedEndpoints` of an unsaved datasource that has some.
 
 ## Grafana dashboards migration
 

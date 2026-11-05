@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 
@@ -49,52 +50,43 @@ type connectivity struct {
 	Hint       string `json:"hint,omitempty"`
 }
 
-// probe is a cheap request telling whether the datasource answers.
-type probe struct {
-	path   string
-	params map[string]string
-	// acceptsPost means that the endpoint also accepts its parameters in a POST request, for the datasources whose
-	// allowedEndpoints only let POST through.
-	acceptsPost bool
-	// method is the HTTP method picked to query the datasource.
-	method string
+// healthCheckPaths are the health endpoints that the Perses UI queries to test the connection of a datasource, by
+// plugin kind: the healthCheckPath of the datasource plugins of https://github.com/perses/plugins.
+var healthCheckPaths = map[string]string{
+	"AlertManagerDatasource": "/api/v2/status",
+	"OpenSearchDatasource":   "/_cluster/health",
+	prometheusKind:           "/api/v1/status/buildinfo",
 }
 
-// probesByKind lists the probes of the known plugins, by preference. vector(1) needs no data, and checks the query
-// endpoint that dashboards use, on Prometheus as well as on Thanos, Cortex or Mimir.
-var probesByKind = map[string][]probe{
-	prometheusKind: {
-		{path: "/api/v1/query", params: map[string]string{"query": "vector(1)"}, acceptsPost: true},
-		{path: "/api/v1/status/buildinfo"},
-		{path: "/api/v1/labels", acceptsPost: true},
-	},
-	"TempoDatasource": {
-		{path: "/api/echo"},
-		{path: "/api/search/tags"},
-	},
-}
-
-var defaultProbes = []probe{{path: "/"}}
-
-// pickProbe returns the first probe that the allowedEndpoints of the datasource let through, with GET when allowed,
-// else with POST when the endpoint accepts it. Prometheus reads the parameters of a POST request from the URL too.
-func pickProbe(kind string, cfg *httpproxy.Config) (probe, bool) {
-	probes, ok := probesByKind[kind]
-	if !ok {
-		probes = defaultProbes
+// withHealthCheckEndpoint returns a copy of the spec whose HTTP proxy also allows GET on the health endpoint, as the
+// Perses UI does before testing the connection. A proxy without allowedEndpoints already allows every endpoint.
+func withHealthCheckEndpoint(spec datasourceSpec.Spec, path string) (datasourceSpec.Spec, error) {
+	data, err := json.Marshal(spec.Plugin.Spec)
+	if err != nil {
+		return spec, err
 	}
-	for _, candidate := range probes {
-		for _, method := range []string{http.MethodGet, http.MethodPost} {
-			if method == http.MethodPost && !candidate.acceptsPost {
-				continue
-			}
-			if endpointAllowed(cfg, method, candidate.path) {
-				candidate.method = method
-				return candidate, true
-			}
+	var pluginSpec map[string]any
+	if json.Unmarshal(data, &pluginSpec) != nil {
+		return spec, nil
+	}
+	proxySpec, _ := pluginSpec["proxy"].(map[string]any)
+	if kind, _ := proxySpec["kind"].(string); !strings.EqualFold(kind, httpproxy.ProxyKindName) {
+		return spec, nil
+	}
+	httpSpec, _ := proxySpec["spec"].(map[string]any)
+	endpoints, _ := httpSpec["allowedEndpoints"].([]any)
+	if len(endpoints) == 0 {
+		return spec, nil
+	}
+	pattern := regexp.QuoteMeta(path)
+	for _, endpoint := range endpoints {
+		if allowed, _ := endpoint.(map[string]any); allowed["endpointPattern"] == pattern && allowed["method"] == http.MethodGet {
+			return spec, nil
 		}
 	}
-	return probe{}, false
+	httpSpec["allowedEndpoints"] = append(endpoints, map[string]any{"endpointPattern": pattern, "method": http.MethodGet})
+	spec.Plugin.Spec = pluginSpec
+	return spec, nil
 }
 
 // datasourceRef locates the datasource to query: saved datasources are queried by name, the others through the
@@ -119,12 +111,15 @@ func (v *validation) checkConnectivity(ctx context.Context, ref datasourceRef) *
 		}
 		return &connectivity{Status: statusSkipped, Message: "only HTTP proxy datasources can be checked"}
 	}
-	selected, ok := pickProbe(ref.spec.Plugin.Kind, target.proxy)
+	path, ok := healthCheckPaths[ref.spec.Plugin.Kind]
 	if !ok {
+		return &connectivity{Status: statusSkipped, Message: fmt.Sprintf("no health endpoint is known for the %s plugin", ref.spec.Plugin.Kind)}
+	}
+	if ref.saved && !endpointAllowed(target.proxy, http.MethodGet, path) {
 		return &connectivity{
 			Status:  statusSkipped,
-			Message: "allowedEndpoints block every endpoint used to check the datasource",
-			Hint:    "use perses_query_project_datasource or perses_query_global_datasource with an allowed endpoint",
+			Message: fmt.Sprintf("allowedEndpoints of the saved datasource block GET %s, its health endpoint", path),
+			Hint:    "pass the datasource spec instead of its name: the health endpoint is then allowed for the check",
 		}
 	}
 
@@ -132,19 +127,23 @@ func (v *validation) checkConnectivity(ctx context.Context, ref datasourceRef) *
 		return disabled
 	}
 
-	query := proxy.ProxyQuery{Method: selected.method, QueryParams: selected.params}
+	query := proxy.ProxyQuery{Method: http.MethodGet}
 	switch {
 	case ref.saved && ref.scope == scopeProject:
-		query.Path = proxy.ProjectDatasourceProxyPath(ref.project, ref.name, selected.path)
+		query.Path = proxy.ProjectDatasourceProxyPath(ref.project, ref.name, path)
 	case ref.saved:
-		query.Path = proxy.GlobalDatasourceProxyPath(ref.name, selected.path)
+		query.Path = proxy.GlobalDatasourceProxyPath(ref.name, path)
 	default:
 		if ref.scope == scopeProject {
-			query.Path = proxy.UnsavedProjectDatasourceProxyPath(ref.project, selected.path)
+			query.Path = proxy.UnsavedProjectDatasourceProxyPath(ref.project, path)
 		} else {
-			query.Path = proxy.UnsavedGlobalDatasourceProxyPath(selected.path)
+			query.Path = proxy.UnsavedGlobalDatasourceProxyPath(path)
 		}
-		body, err := json.Marshal(proxy.UnsavedBody{Method: selected.method, Spec: ref.spec})
+		spec, err := withHealthCheckEndpoint(ref.spec, path)
+		if err != nil {
+			return &connectivity{Status: statusError, Message: fmt.Sprintf("unable to encode the datasource: %s", err)}
+		}
+		body, err := json.Marshal(proxy.UnsavedBody{Method: http.MethodGet, Spec: spec})
 		if err != nil {
 			return &connectivity{Status: statusError, Message: fmt.Sprintf("unable to encode the datasource: %s", err)}
 		}

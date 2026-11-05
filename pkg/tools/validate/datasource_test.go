@@ -17,6 +17,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -34,7 +35,7 @@ const (
 	projectVarJSON   = `{"kind":"Variable","metadata":{"name":"test","project":"test"},"spec":{"kind":"TextVariable","spec":{"name":"test","value":"test"}}}`
 	globalVarJSON    = `{"kind":"GlobalVariable","metadata":{"name":"test"},"spec":{"kind":"TextVariable","spec":{"name":"test","value":"test"}}}`
 	globalNotFound   = `{"message":"not found"}`
-	unsavedQueryPath = "POST /proxy/unsaved/projects/test/datasources/api/v1/query"
+	unsavedQueryPath = "POST /proxy/unsaved/projects/test/datasources/api/v1/status/buildinfo"
 )
 
 type datasourceResult struct {
@@ -349,12 +350,9 @@ func TestConnectivity(t *testing.T) {
 			if decoded.Conn.HTTPStatus != testCase.httpStatus || decoded.Conn.Message != testCase.message {
 				t.Errorf("expected http_status %d and message %q: %s", testCase.httpStatus, testCase.message, text)
 			}
-			request := findRequest(perses.received(), http.MethodPost, "/proxy/unsaved/projects/test/datasources/api/v1/query")
+			request := findRequest(perses.received(), http.MethodPost, "/proxy/unsaved/projects/test/datasources/api/v1/status/buildinfo")
 			if request == nil {
 				t.Fatal("no request to the unsaved proxy")
-			}
-			if request.query != "query=vector%281%29" {
-				t.Errorf("unexpected query %q", request.query)
 			}
 			var body struct {
 				Method string         `json:"method"`
@@ -369,8 +367,8 @@ func TestConnectivity(t *testing.T) {
 
 func TestConnectivityOfSavedDatasource(t *testing.T) {
 	perses := &fakePerses{status: http.StatusNotFound, body: globalNotFound, routes: map[string]fakeResponse{
-		"GET /api/v1/projects/test/datasources/prom":             {status: http.StatusOK, body: projectDtsJSON},
-		"GET /proxy/projects/test/datasources/prom/api/v1/query": {status: http.StatusOK, body: `{"status":"success"}`},
+		"GET /api/v1/projects/test/datasources/prom":                        {status: http.StatusOK, body: projectDtsJSON},
+		"GET /proxy/projects/test/datasources/prom/api/v1/status/buildinfo": {status: http.StatusOK, body: `{"status":"success"}`},
 	}}
 	result, text := call(t, connect(t, perses), "perses_validate_datasource",
 		map[string]any{"project": "test", "name": "prom", "check_connectivity": true})
@@ -415,53 +413,75 @@ func TestDefaultOfSameDatasourceWithAnotherCase(t *testing.T) {
 	}
 }
 
-// TestConnectivityWithPostOnly checks that a datasource whose allowedEndpoints only let POST through is queried with
-// POST, for a saved as well as for an unsaved datasource.
-func TestConnectivityWithPostOnly(t *testing.T) {
-	plugin := `{"kind":"PrometheusDatasource","spec":{"proxy":{"kind":"HTTPProxy","spec":{"url":"http://prometheus:9090",` +
-		`"allowedEndpoints":[{"endpointPattern":"/api/v1/query","method":"POST"}]}}}}`
-	dts := `{"kind":"Datasource","metadata":{"name":"prom","project":"test"},"spec":{"plugin":` + plugin + `}}`
+// TestConnectivityWithAllowedEndpoints checks that, like the Perses UI, the health endpoint is added to the
+// allowedEndpoints of an unsaved datasource, and that a saved datasource blocking it is not queried.
+func TestConnectivityWithAllowedEndpoints(t *testing.T) {
+	restricted := `{"kind":"Datasource","metadata":{"name":"prom","project":"test"},"spec":{"plugin":{"kind":"PrometheusDatasource",` +
+		`"spec":{"proxy":{"kind":"HTTPProxy","spec":{"url":"http://prometheus:9090",` +
+		`"allowedEndpoints":[{"endpointPattern":"/api/v1/query","method":"POST"}]}}}}}}`
 	perses := &fakePerses{status: http.StatusNotFound, body: globalNotFound, routes: map[string]fakeResponse{
-		"POST /api/validate/datasources":                          {status: http.StatusOK},
-		"GET /api/v1/projects/test/datasources/prom":              {status: http.StatusOK, body: dts},
-		unsavedQueryPath:                                          {status: http.StatusOK, body: `{"status":"success"}`},
-		"POST /proxy/projects/test/datasources/prom/api/v1/query": {status: http.StatusOK, body: `{"status":"success"}`},
+		"POST /api/validate/datasources":             {status: http.StatusOK},
+		"GET /api/v1/projects/test/datasources/prom": {status: http.StatusOK, body: restricted},
+		unsavedQueryPath:                             {status: http.StatusOK, body: `{"status":"success"}`},
 	}}
+	unsavedEndpoints := func(document string) []any {
+		t.Helper()
+		result, text := call(t, connect(t, perses), "perses_validate_datasource",
+			map[string]any{"datasource": rawJSON(document), "check_connectivity": true})
+		if decoded := decode(t, result, text); decoded.Conn == nil || decoded.Conn.Status != statusOK {
+			t.Fatalf("unexpected result for the unsaved datasource: %s", text)
+		}
+		requests := perses.received()
+		request := requests[len(requests)-1]
+		var body struct {
+			Method string `json:"method"`
+			Spec   struct {
+				Plugin struct {
+					Spec struct {
+						Proxy struct {
+							Spec struct {
+								AllowedEndpoints []any `json:"allowedEndpoints"`
+							} `json:"spec"`
+						} `json:"proxy"`
+					} `json:"spec"`
+				} `json:"plugin"`
+			} `json:"spec"`
+		}
+		if request.path != "/proxy/unsaved/projects/test/datasources/api/v1/status/buildinfo" ||
+			json.Unmarshal([]byte(request.body), &body) != nil || body.Method != http.MethodGet {
+			t.Fatalf("unexpected unsaved proxy request %s %s", request.path, request.body)
+		}
+		return body.Spec.Plugin.Spec.Proxy.Spec.AllowedEndpoints
+	}
+
+	endpoints := unsavedEndpoints(restricted)
+	expected := []any{
+		map[string]any{"endpointPattern": "/api/v1/query", "method": "POST"},
+		map[string]any{"endpointPattern": "/api/v1/status/buildinfo", "method": "GET"},
+	}
+	if !reflect.DeepEqual(endpoints, expected) {
+		t.Errorf("unexpected allowedEndpoints %v", endpoints)
+	}
+	if endpoints := unsavedEndpoints(projectDtsJSON); len(endpoints) != 0 {
+		t.Errorf("allowedEndpoints must stay empty: %v", endpoints)
+	}
 
 	result, text := call(t, connect(t, perses), "perses_validate_datasource",
-		map[string]any{"datasource": rawJSON(dts), "check_connectivity": true})
-	if decoded := decode(t, result, text); decoded.Conn == nil || decoded.Conn.Status != statusOK {
-		t.Fatalf("unexpected result for the unsaved datasource: %s", text)
-	}
-	request := findRequest(perses.received(), http.MethodPost, "/proxy/unsaved/projects/test/datasources/api/v1/query")
-	if request == nil || request.query != "query=vector%281%29" {
-		t.Fatalf("unexpected unsaved proxy request %#v", request)
-	}
-	var body struct {
-		Method string `json:"method"`
-	}
-	if err := json.Unmarshal([]byte(request.body), &body); err != nil || body.Method != http.MethodPost {
-		t.Errorf("unexpected unsaved proxy body %s (%v)", request.body, err)
-	}
-
-	result, text = call(t, connect(t, perses), "perses_validate_datasource",
 		map[string]any{"project": "test", "name": "prom", "check_connectivity": true})
-	if decoded := decode(t, result, text); decoded.Conn == nil || decoded.Conn.Status != statusOK {
-		t.Fatalf("unexpected result for the saved datasource: %s", text)
+	decoded := decode(t, result, text)
+	if decoded.Conn == nil || decoded.Conn.Status != statusSkipped || !strings.Contains(decoded.Conn.Message, "/api/v1/status/buildinfo") {
+		t.Fatalf("expected the check of the saved datasource to be skipped: %s", text)
 	}
-	request = findRequest(perses.received(), http.MethodPost, "/proxy/projects/test/datasources/prom/api/v1/query")
-	if request == nil || request.query != "query=vector%281%29" {
-		t.Errorf("unexpected saved proxy request %#v", request)
-	}
-	if findRequest(perses.received(), http.MethodGet, "/proxy/projects/test/datasources/prom/api/v1/query") != nil {
-		t.Error("the datasource must not be queried with GET")
+	for _, request := range perses.received() {
+		if strings.HasPrefix(request.path, "/proxy/projects/") {
+			t.Errorf("unexpected proxy request %s", request.path)
+		}
 	}
 }
 
 // TestConnectivityWithDisabledProxy checks that the datasources whose proxy is disabled by the Perses configuration are
 // not queried.
 func TestConnectivityWithDisabledProxy(t *testing.T) {
-	loki := `{"kind":"LokiDatasource","spec":{"proxy":{"kind":"HTTPProxy","spec":{"url":"http://loki:3100"}}}}`
 	testCases := []struct {
 		name    string
 		config  string
@@ -469,19 +489,19 @@ func TestConnectivityWithDisabledProxy(t *testing.T) {
 		skipped bool
 	}{
 		{name: "project proxy disabled", config: `{"datasource":{"project":{"disable":true}}}`,
-			dts: `{"kind":"Datasource","metadata":{"name":"loki","project":"test"},"spec":{"plugin":` + loki + `}}`, skipped: true},
+			dts: `{"kind":"Datasource","metadata":{"name":"prom","project":"test"},"spec":{"plugin":` + proxyPluginJSON + `}}`, skipped: true},
 		{name: "global proxy disabled", config: `{"datasource":{"global":{"disable":true}}}`,
-			dts: `{"kind":"GlobalDatasource","metadata":{"name":"loki"},"spec":{"plugin":` + loki + `}}`, skipped: true},
+			dts: `{"kind":"GlobalDatasource","metadata":{"name":"prom"},"spec":{"plugin":` + proxyPluginJSON + `}}`, skipped: true},
 		{name: "other scope disabled", config: `{"datasource":{"global":{"disable":true}}}`,
-			dts: `{"kind":"Datasource","metadata":{"name":"loki","project":"test"},"spec":{"plugin":` + loki + `}}`},
+			dts: `{"kind":"Datasource","metadata":{"name":"prom","project":"test"},"spec":{"plugin":` + proxyPluginJSON + `}}`},
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
 			perses := &fakePerses{status: http.StatusNotFound, body: `{"message":"document not found"}`, routes: map[string]fakeResponse{
-				"GET /api/config":                                {status: http.StatusOK, body: testCase.config},
-				"POST /api/validate/datasources":                 {status: http.StatusOK},
-				"POST /api/validate/globaldatasources":           {status: http.StatusOK},
-				"POST /proxy/unsaved/projects/test/datasources/": {status: http.StatusOK},
+				"GET /api/config":                      {status: http.StatusOK, body: testCase.config},
+				"POST /api/validate/datasources":       {status: http.StatusOK},
+				"POST /api/validate/globaldatasources": {status: http.StatusOK},
+				unsavedQueryPath:                       {status: http.StatusOK},
 			}}
 			result, text := call(t, connect(t, perses), "perses_validate_datasource",
 				map[string]any{"datasource": rawJSON(testCase.dts), "check_connectivity": true})
@@ -511,8 +531,8 @@ func TestConnectivityWithoutRequest(t *testing.T) {
 		status string
 	}{
 		{name: "direct URL only", plugin: `{"kind":"PrometheusDatasource","spec":{"directUrl":"http://cortex:9009"}}`, status: statusNoProxy},
-		{name: "every probe blocked", plugin: `{"kind":"PrometheusDatasource","spec":{"proxy":{"kind":"HTTPProxy","spec":{"url":"http://prometheus:9090",` +
-			`"allowedEndpoints":[{"endpointPattern":"/api/v1/query_range","method":"POST"}]}}}}`, status: statusSkipped},
+		{name: "plugin without health endpoint", plugin: `{"kind":"LokiDatasource","spec":{"proxy":{"kind":"HTTPProxy","spec":{"url":"http://loki:3100"}}}}`,
+			status: statusSkipped},
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {

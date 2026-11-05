@@ -488,7 +488,8 @@ decoded. When Perses rejects the resource, the tool returns the error of the Per
 | `perses_validate_variable`   | Validate a project or global variable            | `variable`             |
 
 `perses_validate_datasource` also warns about configurations that are valid but likely do not work, and with
-`check_connectivity: true` queries the datasource through the Perses server without saving it. See
+`check_connectivity: true` queries the health endpoint of the datasource through the Perses server without saving it,
+like the Test connection button of the Perses UI. See
 [Validation tools](./docs/tools.md#validation) for details.
 
 ### Variables
