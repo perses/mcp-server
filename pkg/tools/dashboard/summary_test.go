@@ -13,15 +13,18 @@
 package dashboard
 
 import (
+	"encoding/json"
 	"net/url"
+	"strings"
 	"testing"
 
-	"github.com/perses/mcp-server/pkg/tools/internal/dashboardutil"
+	v1 "github.com/perses/perses/pkg/model/api/v1"
+	dashboardSpec "github.com/perses/spec/go/dashboard"
 )
 
 const sampleDashboard = `{
   "kind": "Dashboard",
-  "metadata": {"name": "sample"},
+  "metadata": {"name": "sample", "project": "proj"},
   "spec": {
     "duration": "1h",
     "variables": [
@@ -41,12 +44,12 @@ const sampleDashboard = `{
 }`
 
 func TestSummarize(t *testing.T) {
-	d, err := dashboardutil.DecodeDashboard([]byte(sampleDashboard), "proj")
-	if err != nil {
+	d := &v1.Dashboard{}
+	if err := json.Unmarshal([]byte(sampleDashboard), d); err != nil {
 		t.Fatal(err)
 	}
 	base, _ := url.Parse("http://perses.example/")
-	summary := summarize(d, base)
+	summary := summarize(d, "proj", base)
 	equal(t, "http://perses.example/projects/proj/dashboards/sample", summary.URL)
 	equal(t, 2, summary.Panels)
 
@@ -60,6 +63,16 @@ func TestSummarize(t *testing.T) {
 	equal(t, "Row", outline.LayoutList[0].Title)
 }
 
+func TestPanelRefWithoutHash(t *testing.T) {
+	d := &v1.Dashboard{}
+	if err := json.Unmarshal([]byte(strings.Replace(sampleDashboard, `"#/spec/panels/p1"`, `"/spec/panels/p1"`, 1)), d); err != nil {
+		t.Fatal(err)
+	}
+	equal(t, "p1", panelKeyOf(d.Spec.Layouts[0].Spec.(*dashboardSpec.GridLayoutSpec).Items[0]))
+	outline := outlineOf(d, nil)
+	equal(t, []string{"layout 0: x=0 y=0 w=12 h=6"}, outline.PanelList[0].Placement)
+}
+
 func TestDashboardURLDropsCredentials(t *testing.T) {
 	base, err := url.Parse("https://user:secret@perses.example/perses/")
 	if err != nil {
@@ -67,4 +80,12 @@ func TestDashboardURLDropsCredentials(t *testing.T) {
 	}
 	equal(t, "https://perses.example/perses/projects/proj/dashboards/sample", dashboardURL(base, "proj", "sample"))
 	equal(t, "https://user:secret@perses.example/perses/", base.String())
+}
+
+func TestDashboardURLEscapesNamesOnce(t *testing.T) {
+	base, err := url.Parse("https://perses.example/perses?tab=1#top")
+	if err != nil {
+		t.Fatal(err)
+	}
+	equal(t, "https://perses.example/perses/projects/my%20proj/dashboards/a%20b", dashboardURL(base, "my proj", "a b"))
 }

@@ -29,7 +29,6 @@ import (
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/perses/mcp-server/pkg/tools"
-	"github.com/perses/mcp-server/pkg/tools/internal/dashboardutil"
 	"github.com/perses/mcp-server/pkg/tools/resource"
 	apiClient "github.com/perses/perses/pkg/client/api"
 	v1Client "github.com/perses/perses/pkg/client/api/v1"
@@ -141,14 +140,12 @@ type writeResult struct {
 	Dashboard *v1.Dashboard `json:"dashboard,omitempty"`
 }
 
-func textResult(value any) (*mcp.CallToolResult, any, error) {
-	text, err := dashboardutil.MarshalText(value)
+func jsonResult(value any) (*mcp.CallToolResult, any, error) {
+	result, err := tools.JSONResult(value)
 	if err != nil {
 		return nil, nil, fmt.Errorf("error marshalling the response: %w", err)
 	}
-	return &mcp.CallToolResult{
-		Content: []mcp.Content{&mcp.TextContent{Text: text}},
-	}, nil, nil
+	return result, nil, nil
 }
 
 // get fetches a dashboard, translating a 404 into a readable error.
@@ -223,7 +220,7 @@ func (d *dashboard) List() *tools.Tool {
 			}
 			listed = append(listed, item)
 		}
-		return textResult(listed)
+		return jsonResult(listed)
 	}
 
 	return &tools.Tool{
@@ -293,7 +290,7 @@ func (d *dashboard) Get() *tools.Tool {
 		}
 		switch {
 		case len(input.Panels) > 0:
-			result := panelsResult{summary: summarize(dash, d.baseURL()), Panels: map[string]*dashboardSpec.Panel{}}
+			result := panelsResult{summary: summarize(dash, dash.Metadata.Project, d.baseURL()), Panels: map[string]*dashboardSpec.Panel{}}
 			for _, key := range input.Panels {
 				if panel, ok := dash.Spec.Panels[key]; ok {
 					result.Panels[key] = panel
@@ -304,11 +301,11 @@ func (d *dashboard) Get() *tools.Tool {
 			if len(result.Missing) > 0 {
 				result.Available = availablePanels(dash)
 			}
-			return textResult(result)
+			return jsonResult(result)
 		case input.Summary == nil || *input.Summary:
-			return textResult(outlineOf(dash, d.baseURL()))
+			return jsonResult(outlineOf(dash, d.baseURL()))
 		default:
-			return textResult(dash)
+			return jsonResult(dash)
 		}
 	}
 

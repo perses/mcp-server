@@ -83,11 +83,11 @@ func (d *dashboard) Create() *tools.Tool {
 			default:
 				return nil, nil, fmt.Errorf("error checking whether dashboard '%s' exists in project '%s': %w", dash.Metadata.Name, input.Project, err)
 			}
-			result.summary = summarize(dash, d.baseURL())
+			result.summary = summarize(dash, input.Project, d.baseURL())
 			if input.IncludeDashboard {
 				result.Dashboard = dash
 			}
-			return textResult(result)
+			return jsonResult(result)
 		}
 
 		saved, err := d.api(input.Project).Create(dash)
@@ -146,11 +146,11 @@ func alreadyExistsError(name, project string) error {
 
 // saved completes the result with the summary of the dashboard returned by the server.
 func (d *dashboard) saved(result writeResult, saved *v1.Dashboard, include bool) (*mcp.CallToolResult, any, error) {
-	result.summary = summarize(saved, d.baseURL())
+	result.summary = summarize(saved, saved.Metadata.Project, d.baseURL())
 	if include {
 		result.Dashboard = saved
 	}
-	return textResult(result)
+	return jsonResult(result)
 }
 
 type UpdateDashboardInput struct {
@@ -247,11 +247,11 @@ func (d *dashboard) save(req editRequest, dash *v1.Dashboard, changes []string) 
 		if err := d.client.Validate().Dashboard(dash); err != nil {
 			return nil, nil, err
 		}
-		result.summary = summarize(dash, d.baseURL())
+		result.summary = summarize(dash, req.project, d.baseURL())
 		if req.include {
 			result.Dashboard = dash
 		}
-		return textResult(result)
+		return jsonResult(result)
 	}
 	saved, err := d.api(req.project).Update(dash)
 	if err != nil {
