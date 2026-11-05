@@ -108,21 +108,11 @@ func TestValidationRequests(t *testing.T) {
 			path: "/api/validate/dashboards", expected: dashboardJSON, entity: &v1.Dashboard{},
 		},
 		{
-			name: "project datasource from kind", tool: "perses_validate_datasource", args: map[string]any{"datasource": rawJSON(projectDtsJSON)},
+			name: "project datasource", tool: "perses_validate_datasource", args: map[string]any{"datasource": rawJSON(projectDtsJSON)},
 			path: "/api/validate/datasources", expected: projectDtsJSON, entity: &v1.Datasource{},
 		},
 		{
-			name: "project datasource from project", tool: "perses_validate_datasource",
-			args: map[string]any{"project": "test", "datasource": rawJSON(`{"metadata":{"name":"prom"},"spec":{"plugin":` + proxyPluginJSON + `}}`)},
-			path: "/api/validate/datasources", expected: projectDtsJSON, entity: &v1.Datasource{},
-		},
-		{
-			name: "global datasource from kind", tool: "perses_validate_datasource", args: map[string]any{"datasource": rawJSON(globalDtsJSON)},
-			path: "/api/validate/globaldatasources", expected: globalDtsJSON, entity: &v1.GlobalDatasource{},
-		},
-		{
-			name: "global datasource from scope", tool: "perses_validate_datasource",
-			args: map[string]any{"scope": "global", "datasource": rawJSON(`{"metadata":{"name":"prom"},"spec":{"plugin":` + proxyPluginJSON + `}}`)},
+			name: "global datasource", tool: "perses_validate_datasource", args: map[string]any{"datasource": rawJSON(globalDtsJSON)},
 			path: "/api/validate/globaldatasources", expected: globalDtsJSON, entity: &v1.GlobalDatasource{},
 		},
 		{
@@ -130,8 +120,7 @@ func TestValidationRequests(t *testing.T) {
 			path: "/api/validate/variables", expected: projectVarJSON, entity: &v1.Variable{},
 		},
 		{
-			name: "global variable from scope", tool: "perses_validate_variable",
-			args: map[string]any{"scope": "global", "variable": rawJSON(`{"metadata":{"name":"test"},"spec":{"kind":"TextVariable","spec":{"name":"test","value":"test"}}}`)},
+			name: "global variable", tool: "perses_validate_variable", args: map[string]any{"variable": rawJSON(globalVarJSON)},
 			path: "/api/validate/globalvariables", expected: globalVarJSON, entity: &v1.GlobalVariable{},
 		},
 	}
@@ -222,12 +211,11 @@ func TestInputErrors(t *testing.T) {
 	}{
 		{name: "neither datasource nor name", args: map[string]any{"project": "test"}, isError: true},
 		{name: "both datasource and name", args: map[string]any{"name": "prom", "datasource": rawJSON(projectDtsJSON)}, isError: true},
-		{name: "invalid scope", args: map[string]any{"scope": "dashboard", "datasource": rawJSON(projectDtsJSON)}, isError: true},
-		{name: "kind and scope mismatch", args: map[string]any{"scope": "global", "datasource": rawJSON(projectDtsJSON)}, isError: true},
-		{name: "unknown scope", args: map[string]any{"datasource": rawJSON(`{"metadata":{"name":"x"},"spec":{}}`)}, isError: true},
+		{name: "missing kind", args: map[string]any{"project": "test", "datasource": rawJSON(`{"metadata":{"name":"x"},"spec":{}}`)},
+			message: `invalid kind: "" for a Datasource type`},
 		{name: "invalid kind", args: map[string]any{"project": "test", "datasource": rawJSON(`{"kind":"Dashboard","metadata":{"name":"x"}}`)},
 			message: `invalid kind: "Dashboard" for a Datasource type`},
-		{name: "empty spec", args: map[string]any{"project": "test", "datasource": rawJSON(`{"spec":{}}`)}, message: "spec cannot be empty"},
+		{name: "empty spec", args: map[string]any{"project": "test", "datasource": rawJSON(`{"kind":"Datasource","spec":{}}`)}, message: "spec cannot be empty"},
 		{name: "non-string project", args: map[string]any{"project": "test",
 			"datasource": rawJSON(`{"kind":"Datasource","metadata":{"name":"prom","project":42},"spec":{}}`)}, message: "cannot unmarshal number"},
 	}

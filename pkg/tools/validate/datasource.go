@@ -27,12 +27,9 @@ import (
 	datasourceSpec "github.com/perses/spec/go/datasource"
 )
 
-var datasourceKinds = resourceKinds{project: string(v1.KindDatasource), global: string(v1.KindGlobalDatasource)}
-
 type ValidateDatasourceInput struct {
 	Datasource        json.RawMessage `json:"datasource,omitempty"`
 	Name              string          `json:"name,omitempty"`
-	Scope             string          `json:"scope,omitempty"`
 	Project           string          `json:"project,omitempty"`
 	CheckConnectivity bool            `json:"check_connectivity,omitempty"`
 }
@@ -48,7 +45,8 @@ type datasourceValidation struct {
 func (v *validation) Datasource() *tools.Tool {
 	tool := &mcp.Tool{
 		Name: "perses_validate_datasource",
-		Description: "Validate a project or global datasource without saving it, or check a saved one by name. " +
+		Description: "Validate a datasource without saving it, its kind (Datasource or GlobalDatasource) telling the " +
+			"scope, or check a saved one by name (in project when set, else global). " +
 			"Returns {valid, error, warnings, connectivity}, or the error of the Perses server. Warnings flag " +
 			"configs that are valid but likely do not work (directUrl only, localhost proxy URL, blocked endpoints, " +
 			"another default datasource, name hiding a global datasource). check_connectivity:true queries the " +
@@ -65,7 +63,7 @@ func (v *validation) Datasource() *tools.Tool {
 			Properties: map[string]*jsonschema.Schema{
 				"datasource": {
 					Type:        tools.SchemaTypeObject,
-					Description: "Datasource to validate, as a JSON object. Exclusive with name.",
+					Description: "Datasource to validate, as a JSON object with kind Datasource (project) or GlobalDatasource. Exclusive with name.",
 				},
 				tools.ResourceName: {
 					Type:        tools.SchemaTypeString,
@@ -74,8 +72,7 @@ func (v *validation) Datasource() *tools.Tool {
 					MaxLength:   new(75),
 					Pattern:     tools.PatternResourceName,
 				},
-				"scope":                       scopeProperty(datasourceKinds),
-				string(tools.ProjectResource): projectProperty("Project of a project datasource; fills metadata.project when omitted."),
+				string(tools.ProjectResource): projectProperty("Project of the saved datasource to check by name; a global datasource when omitted. With datasource, used by the warnings and the connectivity check when metadata.project is omitted."),
 				"check_connectivity": {
 					Type:        tools.SchemaTypeBoolean,
 					Description: "Also query the datasource through the Perses server (default false).",
@@ -89,11 +86,11 @@ func (v *validation) Datasource() *tools.Tool {
 		if err != nil {
 			return nil, nil, err
 		}
-		text, err := writeResult(result)
+		toolResult, err := tools.JSONResult(result)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, fmt.Errorf("error marshalling datasource validation: %w", err)
 		}
-		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: text}}}, nil, nil
+		return toolResult, nil, nil
 	}
 
 	return &tools.Tool{
@@ -141,47 +138,31 @@ func (v *validation) validateDatasource(ctx context.Context, input ValidateDatas
 // validateDatasourceDocument validates an unsaved datasource with the Perses API. The returned reference is empty
 // when the datasource cannot be decoded.
 func (v *validation) validateDatasourceDocument(input ValidateDatasourceInput) (datasourceRef, *result, error) {
-	scope, err := resolveScope(input.Datasource, datasourceKinds, input.Scope, input.Project)
-	if err != nil {
-		return datasourceRef{}, nil, err
-	}
-	if scope == scopeProject {
-		entity := &v1.Datasource{}
-		if err := decodeResource(input.Datasource, datasourceKinds, scope, entity); err != nil {
+	if kindOf(input.Datasource) == string(v1.KindGlobalDatasource) {
+		entity := &v1.GlobalDatasource{}
+		if err := json.Unmarshal(input.Datasource, entity); err != nil {
 			return datasourceRef{}, invalid(err), nil
 		}
-		if entity.Metadata.Project == "" {
-			entity.Metadata.Project = input.Project
-		}
-		ref := datasourceRef{scope: scope, project: entity.Metadata.Project, name: entity.Metadata.Name, spec: entity.Spec}
-		validation, err := serverResult(v.client.Validate().Datasource(entity))
+		ref := datasourceRef{scope: scopeGlobal, name: entity.Metadata.Name, spec: entity.Spec}
+		validation, err := serverResult(v.client.Validate().GlobalDatasource(entity))
 		return ref, validation, err
 	}
-	entity := &v1.GlobalDatasource{}
-	if err := decodeResource(input.Datasource, datasourceKinds, scope, entity); err != nil {
+	entity := &v1.Datasource{}
+	if err := json.Unmarshal(input.Datasource, entity); err != nil {
 		return datasourceRef{}, invalid(err), nil
 	}
-	ref := datasourceRef{scope: scope, name: entity.Metadata.Name, spec: entity.Spec}
-	validation, err := serverResult(v.client.Validate().GlobalDatasource(entity))
+	project := entity.Metadata.Project
+	if project == "" {
+		project = input.Project
+	}
+	ref := datasourceRef{scope: scopeProject, project: project, name: entity.Metadata.Name, spec: entity.Spec}
+	validation, err := serverResult(v.client.Validate().Datasource(entity))
 	return ref, validation, err
 }
 
-// getSavedDatasource reads a saved datasource, to check its configuration and connectivity.
 func (v *validation) getSavedDatasource(input ValidateDatasourceInput) (datasourceRef, error) {
-	scope := input.Scope
-	switch {
-	case scope != "" && scope != scopeProject && scope != scopeGlobal:
-		return datasourceRef{}, fmt.Errorf("invalid scope %q: use %q or %q", scope, scopeProject, scopeGlobal)
-	case scope == "" && input.Project != "":
-		scope = scopeProject
-	case scope == "":
-		scope = scopeGlobal
-	}
-	ref := datasourceRef{scope: scope, project: input.Project, name: input.Name, saved: true}
-	if scope == scopeProject {
-		if input.Project == "" {
-			return datasourceRef{}, errors.New("project is required for a project datasource")
-		}
+	if input.Project != "" {
+		ref := datasourceRef{scope: scopeProject, project: input.Project, name: input.Name, saved: true}
 		entity, err := v.client.V1().Datasource(input.Project).Get(input.Name)
 		if err != nil {
 			return datasourceRef{}, fmt.Errorf("error getting the project datasource %q: %w", input.Name, err)
@@ -193,8 +174,7 @@ func (v *validation) getSavedDatasource(input ValidateDatasourceInput) (datasour
 	if err != nil {
 		return datasourceRef{}, fmt.Errorf("error getting the global datasource %q: %w", input.Name, err)
 	}
-	ref.spec = entity.Spec
-	return ref, nil
+	return datasourceRef{scope: scopeGlobal, name: input.Name, spec: entity.Spec, saved: true}, nil
 }
 
 // checkOtherDatasources compares the datasource with the saved ones. Two defaults of the same plugin kind in a scope

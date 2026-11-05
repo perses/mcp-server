@@ -15,11 +15,9 @@ package validate
 
 import (
 	"encoding/json"
-	"fmt"
 
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/perses/mcp-server/pkg/tools"
-	"github.com/perses/mcp-server/pkg/tools/internal/dashboardutil"
 )
 
 const (
@@ -47,76 +45,6 @@ func serverResult(err error) (*result, error) {
 	return &result{Valid: true}, nil
 }
 
-// resourceKinds describes a resource that exists in a project and a global flavor, e.g. Datasource and GlobalDatasource.
-type resourceKinds struct {
-	project string
-	global  string
-}
-
-func (k resourceKinds) of(scope string) string {
-	if scope == scopeProject {
-		return k.project
-	}
-	return k.global
-}
-
-// resourceHeader is the part of a datasource or variable needed to know which Perses API validates it.
-type resourceHeader struct {
-	Kind     string `json:"kind"`
-	Metadata struct {
-		Project string `json:"project"`
-	} `json:"metadata"`
-}
-
-// resolveScope resolves the scope of a datasource or variable from, in order: kind, the scope argument, then the
-// project argument or metadata.project. An unknown kind is left to the Perses model to reject.
-func resolveScope(raw json.RawMessage, kinds resourceKinds, scope, project string) (string, error) {
-	if scope != "" && scope != scopeProject && scope != scopeGlobal {
-		return "", fmt.Errorf("invalid scope %q: use %q or %q", scope, scopeProject, scopeGlobal)
-	}
-	var header resourceHeader
-	// A decoding error is reported by the Perses model when decoding the resource.
-	_ = json.Unmarshal(raw, &header)
-	kindScope := ""
-	switch header.Kind {
-	case kinds.project:
-		kindScope = scopeProject
-	case kinds.global:
-		kindScope = scopeGlobal
-	}
-	switch {
-	case kindScope != "" && scope != "" && kindScope != scope:
-		return "", fmt.Errorf("kind %q does not match scope %q", header.Kind, scope)
-	case kindScope != "":
-		return kindScope, nil
-	case scope != "":
-		return scope, nil
-	case project != "" || header.Metadata.Project != "":
-		return scopeProject, nil
-	}
-	return "", fmt.Errorf("cannot tell whether this is a project or a global resource: set kind (%q or %q), scope or project",
-		kinds.project, kinds.global)
-}
-
-// decodeResource decodes the resource into its Perses model, kind defaulting to the kind of the scope. The decoding
-// error is returned unchanged.
-func decodeResource(raw json.RawMessage, kinds resourceKinds, scope string, target any) error {
-	document, err := dashboardutil.WithDefaultKind(raw, kinds.of(scope))
-	if err != nil {
-		return err
-	}
-	return json.Unmarshal(document, target)
-}
-
-// writeResult encodes a validation result as the text content of the tool result.
-func writeResult(result any) (string, error) {
-	text, err := dashboardutil.MarshalText(result)
-	if err != nil {
-		return "", fmt.Errorf("error marshalling validation result: %w", err)
-	}
-	return text, nil
-}
-
 func projectProperty(description string) *jsonschema.Schema {
 	return &jsonschema.Schema{
 		Type:        tools.SchemaTypeString,
@@ -127,11 +55,12 @@ func projectProperty(description string) *jsonschema.Schema {
 	}
 }
 
-func scopeProperty(kinds resourceKinds) *jsonschema.Schema {
-	return &jsonschema.Schema{
-		Type: tools.SchemaTypeString,
-		Description: fmt.Sprintf("Optional: taken from kind (%s or %s) when set, else project when a project is given.",
-			kinds.project, kinds.global),
-		Enum: []any{scopeProject, scopeGlobal},
+// kindOf returns the kind of a datasource or variable, which tells whether it is a project or a global resource. A
+// decoding error is left to the Perses model, which also rejects a missing or unknown kind.
+func kindOf(raw json.RawMessage) string {
+	var header struct {
+		Kind string `json:"kind"`
 	}
+	_ = json.Unmarshal(raw, &header)
+	return header.Kind
 }

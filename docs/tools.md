@@ -218,15 +218,15 @@ They take resources as JSON objects and return `{valid: true}`, or `{valid: fals
 message of the Perses model when the resource cannot be decoded. When the Perses server rejects the resource, or cannot
 be reached, the tool returns the error of the Perses client unchanged as a tool error.
 
-| Tool                         | Description                                      | Required parameters        | Optional parameters                             |
-|------------------------------|--------------------------------------------------|----------------------------|-------------------------------------------------|
-| `perses_validate_dashboard`  | Validate a dashboard                             | `dashboard`                | `project`                                       |
-| `perses_validate_datasource` | Validate or check a project or global datasource | `datasource` or `name`     | `scope`, `project`, `check_connectivity`        |
-| `perses_validate_variable`   | Validate a project or global variable            | `variable`                 | `scope`, `project`                              |
+| Tool                         | Description                                      | Required parameters    | Optional parameters             |
+|------------------------------|--------------------------------------------------|------------------------|---------------------------------|
+| `perses_validate_dashboard`  | Validate a dashboard                             | `dashboard`            |                                 |
+| `perses_validate_datasource` | Validate or check a project or global datasource | `datasource` or `name` | `project`, `check_connectivity` |
+| `perses_validate_variable`   | Validate a project or global variable            | `variable`             |                                 |
 
-The scope (`project` or `global`) is taken from `kind` (`Datasource`/`GlobalDatasource`, `Variable`/`GlobalVariable`)
-when set, else from the `scope` parameter, else it is `project` when a project is given. `project` fills
-`metadata.project` when omitted.
+`kind` is required on the resource and tells whether it is a project or a global one: `Datasource` or
+`GlobalDatasource`, `Variable` or `GlobalVariable`. A missing or unknown kind is rejected by Perses. To check a saved
+datasource by `name`, set `project` for a project datasource and omit it for a global one.
 
 `perses_validate_datasource` also returns `warnings`, a list of messages about configurations that are valid but likely do not work: a `directUrl`
 without proxy (only browsers can query it), a proxy URL on `localhost` (resolved by the Perses server), a Prometheus

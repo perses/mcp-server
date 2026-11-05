@@ -16,6 +16,7 @@ package validate
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -23,18 +24,15 @@ import (
 	v1 "github.com/perses/perses/pkg/model/api/v1"
 )
 
-var variableKinds = resourceKinds{project: string(v1.KindVariable), global: string(v1.KindGlobalVariable)}
-
 type ValidateVariableInput struct {
 	Variable json.RawMessage `json:"variable"`
-	Scope    string          `json:"scope,omitempty"`
-	Project  string          `json:"project,omitempty"`
 }
 
 func (v *validation) Variable() *tools.Tool {
 	tool := &mcp.Tool{
 		Name: "perses_validate_variable",
-		Description: "Validate a project or global variable against the plugin schemas without saving it. Returns " +
+		Description: "Validate a variable against the plugin schemas without saving it, its kind (Variable or " +
+			"GlobalVariable) telling the scope. Returns " +
 			"{valid: true}, or the error of the Perses server.",
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Validates a variable against Perses schemas",
@@ -48,10 +46,8 @@ func (v *validation) Variable() *tools.Tool {
 			Properties: map[string]*jsonschema.Schema{
 				"variable": {
 					Type:        tools.SchemaTypeObject,
-					Description: "Variable to validate, as a JSON object.",
+					Description: "Variable to validate, as a JSON object with kind Variable (project) or GlobalVariable.",
 				},
-				"scope":                       scopeProperty(variableKinds),
-				string(tools.ProjectResource): projectProperty("Project of a project variable; fills metadata.project when omitted."),
 			},
 			Required: []string{"variable"},
 		},
@@ -62,11 +58,11 @@ func (v *validation) Variable() *tools.Tool {
 		if err != nil {
 			return nil, nil, err
 		}
-		text, err := writeResult(result)
+		toolResult, err := tools.JSONResult(result)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, fmt.Errorf("error marshalling variable validation: %w", err)
 		}
-		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: text}}}, nil, nil
+		return toolResult, nil, nil
 	}
 
 	return &tools.Tool{
@@ -78,23 +74,16 @@ func (v *validation) Variable() *tools.Tool {
 }
 
 func (v *validation) validateVariable(input ValidateVariableInput) (*result, error) {
-	scope, err := resolveScope(input.Variable, variableKinds, input.Scope, input.Project)
-	if err != nil {
-		return nil, err
-	}
-	if scope == scopeProject {
-		entity := &v1.Variable{}
-		if err := decodeResource(input.Variable, variableKinds, scope, entity); err != nil {
+	if kindOf(input.Variable) == string(v1.KindGlobalVariable) {
+		entity := &v1.GlobalVariable{}
+		if err := json.Unmarshal(input.Variable, entity); err != nil {
 			return invalid(err), nil
 		}
-		if entity.Metadata.Project == "" {
-			entity.Metadata.Project = input.Project
-		}
-		return serverResult(v.client.Validate().Variable(entity))
+		return serverResult(v.client.Validate().GlobalVariable(entity))
 	}
-	entity := &v1.GlobalVariable{}
-	if err := decodeResource(input.Variable, variableKinds, scope, entity); err != nil {
+	entity := &v1.Variable{}
+	if err := json.Unmarshal(input.Variable, entity); err != nil {
 		return invalid(err), nil
 	}
-	return serverResult(v.client.Validate().GlobalVariable(entity))
+	return serverResult(v.client.Validate().Variable(entity))
 }

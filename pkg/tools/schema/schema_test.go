@@ -266,7 +266,7 @@ func TestGetPluginSchemaAcceptsHyphensAndDots(t *testing.T) {
 // validation calls perses_validate_dashboard and returns its result.
 func validation(t *testing.T, session *mcp.ClientSession, dashboard any) string {
 	t.Helper()
-	result, text := callTool(t, session, "perses_validate_dashboard", map[string]any{"project": "myproject", "dashboard": dashboard})
+	result, text := callTool(t, session, "perses_validate_dashboard", map[string]any{"dashboard": dashboard})
 	if result.IsError {
 		t.Fatalf("unexpected tool error: %s", text)
 	}
@@ -282,17 +282,16 @@ func TestValidateDashboard(t *testing.T) {
 		title     string
 		dashboard map[string]any
 		expected  string
-		// expectedProject is the metadata.project sent to the server; empty when the dashboard is rejected beforehand.
+		// expectedProject is the metadata.project sent to the server; empty when the dashboard omits it or is rejected beforehand.
 		expectedProject string
 	}{
 		{
-			title:           "valid dashboard",
-			dashboard:       dashboardObject(t, validDashboard),
-			expected:        `{"valid":true}`,
-			expectedProject: "myproject",
+			title:     "valid dashboard",
+			dashboard: dashboardObject(t, validDashboard),
+			expected:  `{"valid":true}`,
 		},
 		{
-			title:           "the metadata project is kept",
+			title:           "the metadata project is sent unchanged",
 			dashboard:       withMetadata(`"name": "cpu", "project": "other"`),
 			expected:        `{"valid":true}`,
 			expectedProject: "other",
@@ -334,7 +333,7 @@ func TestValidateDashboardPersesErrors(t *testing.T) {
 		`"crash"`:   "internal server error",
 	} {
 		dashboard := dashboardObject(t, strings.Replace(validDashboard, `"mean"`, replacement, 1))
-		result, text := callTool(t, session, "perses_validate_dashboard", map[string]any{"project": "myproject", "dashboard": dashboard})
+		result, text := callTool(t, session, "perses_validate_dashboard", map[string]any{"dashboard": dashboard})
 		if !result.IsError || !strings.Contains(text, message) {
 			t.Errorf("expected the error of the Perses client unchanged, got %s", text)
 		}

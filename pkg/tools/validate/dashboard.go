@@ -21,11 +21,10 @@ import (
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/perses/mcp-server/pkg/tools"
-	"github.com/perses/mcp-server/pkg/tools/internal/dashboardutil"
+	v1 "github.com/perses/perses/pkg/model/api/v1"
 )
 
 type ValidateDashboardInput struct {
-	Project   string          `json:"project,omitempty"`
 	Dashboard json.RawMessage `json:"dashboard"`
 }
 
@@ -45,13 +44,6 @@ func (v *validation) Dashboard() *tools.Tool {
 		InputSchema: &jsonschema.Schema{
 			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
-				string(tools.ProjectResource): {
-					Type:        tools.SchemaTypeString,
-					Description: "Project name; fills metadata.project when the dashboard omits it. Optional when metadata.project is already set.",
-					MinLength:   new(1),
-					MaxLength:   new(75),
-					Pattern:     tools.PatternResourceName,
-				},
 				"dashboard": {
 					Type:        tools.SchemaTypeObject,
 					Description: "The dashboard as a JSON object.",
@@ -66,13 +58,11 @@ func (v *validation) Dashboard() *tools.Tool {
 		if err != nil {
 			return nil, nil, err
 		}
-		resultJSON, err := dashboardutil.MarshalText(result)
+		toolResult, err := tools.JSONResult(result)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error marshalling dashboard validation: %w", err)
 		}
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{&mcp.TextContent{Text: resultJSON}},
-		}, nil, nil
+		return toolResult, nil, nil
 	}
 
 	return &tools.Tool{
@@ -84,8 +74,8 @@ func (v *validation) Dashboard() *tools.Tool {
 }
 
 func (v *validation) validateDashboard(input ValidateDashboardInput) (*result, error) {
-	dashboardObj, err := dashboardutil.DecodeDashboard(input.Dashboard, input.Project)
-	if err != nil {
+	dashboardObj := &v1.Dashboard{}
+	if err := json.Unmarshal(input.Dashboard, dashboardObj); err != nil {
 		return invalid(err), nil
 	}
 	return serverResult(v.client.Validate().Dashboard(dashboardObj))
