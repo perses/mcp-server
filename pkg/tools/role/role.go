@@ -15,7 +15,6 @@ package role
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/google/jsonschema-go/jsonschema"
@@ -81,17 +80,11 @@ func (r *role) List() *tools.Tool {
 			return nil, nil, fmt.Errorf("error retrieving roles in project '%s': %w", input.Project, err)
 		}
 
-		rolesJSON, err := json.Marshal(roles)
+		toolResult, err := tools.JSONResult(roles)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error marshalling roles: %w", err)
 		}
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{
-					Text: string(rolesJSON),
-				},
-			},
-		}, nil, nil
+		return toolResult, nil, nil
 	}
 
 	return &tools.Tool{
@@ -146,17 +139,11 @@ func (r *role) Get() *tools.Tool {
 			return nil, nil, fmt.Errorf("error retrieving role '%s' in project '%s': %w", input.Name, input.Project, err)
 		}
 
-		roleJSON, err := json.Marshal(role)
+		toolResult, err := tools.JSONResult(role)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error marshalling role: %w", err)
 		}
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{
-					Text: string(roleJSON),
-				},
-			},
-		}, nil, nil
+		return toolResult, nil, nil
 	}
 
 	return &tools.Tool{
@@ -256,17 +243,11 @@ func (r *role) Create() *tools.Tool {
 			return nil, nil, fmt.Errorf("error creating role '%s' in project '%s': %w", input.Name, input.Project, err)
 		}
 
-		resultJSON, err := json.Marshal(result)
+		toolResult, err := tools.JSONResult(result)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error marshalling created role: %w", err)
 		}
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{
-					Text: string(resultJSON),
-				},
-			},
-		}, nil, nil
+		return toolResult, nil, nil
 	}
 
 	return &tools.Tool{
@@ -366,17 +347,11 @@ func (r *role) Update() *tools.Tool {
 			return nil, nil, fmt.Errorf("error updating role '%s' in project '%s': %w", input.Name, input.Project, err)
 		}
 
-		resultJSON, err := json.Marshal(result)
+		toolResult, err := tools.JSONResult(result)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error marshalling updated role: %w", err)
 		}
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{
-					Text: string(resultJSON),
-				},
-			},
-		}, nil, nil
+		return toolResult, nil, nil
 	}
 
 	return &tools.Tool{
@@ -431,13 +406,7 @@ func (r *role) Delete() *tools.Tool {
 			return nil, nil, fmt.Errorf("error deleting role '%s' in project '%s': %w", input.Name, input.Project, err)
 		}
 
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{
-					Text: fmt.Sprintf("Role '%s' deleted successfully from project '%s'", input.Name, input.Project),
-				},
-			},
-		}, nil, nil
+		return tools.TextResult(fmt.Sprintf("Role '%s' deleted successfully from project '%s'", input.Name, input.Project)), nil, nil
 	}
 
 	return &tools.Tool{

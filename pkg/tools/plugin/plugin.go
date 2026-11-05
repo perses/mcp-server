@@ -15,7 +15,6 @@ package plugin
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -59,17 +58,11 @@ func (p *plugin) List() *tools.Tool {
 			return nil, nil, fmt.Errorf("error retrieving plugins: %w", err)
 		}
 
-		pluginsJSON, err := json.Marshal(plugins)
+		toolResult, err := tools.JSONResult(plugins)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error marshalling plugins: %w", err)
 		}
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{
-					Text: string(pluginsJSON),
-				},
-			},
-		}, nil, nil
+		return toolResult, nil, nil
 	}
 
 	return &tools.Tool{

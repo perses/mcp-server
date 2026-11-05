@@ -15,7 +15,6 @@ package globalrolebinding
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/google/jsonschema-go/jsonschema"
@@ -65,17 +64,11 @@ func (g *globalRoleBinding) List() *tools.Tool {
 			return nil, nil, fmt.Errorf("error retrieving global role bindings: %w", err)
 		}
 
-		globalRoleBindingsJSON, err := json.Marshal(globalRoleBindings)
+		toolResult, err := tools.JSONResult(globalRoleBindings)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error marshalling global role bindings: %w", err)
 		}
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{
-					Text: string(globalRoleBindingsJSON),
-				},
-			},
-		}, nil, nil
+		return toolResult, nil, nil
 	}
 
 	return &tools.Tool{
@@ -122,17 +115,11 @@ func (g *globalRoleBinding) Get() *tools.Tool {
 			return nil, nil, fmt.Errorf("error retrieving global role binding '%s': %w", input.Name, err)
 		}
 
-		globalRoleBindingJSON, err := json.Marshal(globalRoleBinding)
+		toolResult, err := tools.JSONResult(globalRoleBinding)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error marshalling global role binding '%s': %w", input.Name, err)
 		}
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{
-					Text: string(globalRoleBindingJSON),
-				},
-			},
-		}, nil, nil
+		return toolResult, nil, nil
 	}
 
 	return &tools.Tool{
@@ -212,17 +199,11 @@ func (g *globalRoleBinding) Create() *tools.Tool {
 			return nil, nil, fmt.Errorf("error creating global role binding '%s': %w", input.Name, err)
 		}
 
-		resultJSON, err := json.Marshal(result)
+		toolResult, err := tools.JSONResult(result)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error marshalling created global role binding: %w", err)
 		}
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{
-					Text: string(resultJSON),
-				},
-			},
-		}, nil, nil
+		return toolResult, nil, nil
 	}
 
 	return &tools.Tool{
@@ -302,17 +283,11 @@ func (g *globalRoleBinding) Update() *tools.Tool {
 			return nil, nil, fmt.Errorf("error updating global role binding '%s': %w", input.Name, err)
 		}
 
-		resultJSON, err := json.Marshal(result)
+		toolResult, err := tools.JSONResult(result)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error marshalling updated global role binding: %w", err)
 		}
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{
-					Text: string(resultJSON),
-				},
-			},
-		}, nil, nil
+		return toolResult, nil, nil
 	}
 
 	return &tools.Tool{
@@ -359,13 +334,7 @@ func (g *globalRoleBinding) Delete() *tools.Tool {
 			return nil, nil, fmt.Errorf("error deleting global role binding '%s': %w", input.Name, err)
 		}
 
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{
-					Text: fmt.Sprintf("Global role binding '%s' deleted successfully", input.Name),
-				},
-			},
-		}, nil, nil
+		return tools.TextResult(fmt.Sprintf("Global role binding '%s' deleted successfully", input.Name)), nil, nil
 	}
 
 	return &tools.Tool{

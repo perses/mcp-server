@@ -15,7 +15,6 @@ package globalrole
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/google/jsonschema-go/jsonschema"
@@ -66,17 +65,11 @@ func (g *globalRole) List() *tools.Tool {
 			return nil, nil, fmt.Errorf("error retrieving global roles: %w", err)
 		}
 
-		globalRolesJSON, err := json.Marshal(globalRoles)
+		toolResult, err := tools.JSONResult(globalRoles)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error marshalling global roles: %w", err)
 		}
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{
-					Text: string(globalRolesJSON),
-				},
-			},
-		}, nil, nil
+		return toolResult, nil, nil
 	}
 
 	return &tools.Tool{
@@ -123,17 +116,11 @@ func (g *globalRole) Get() *tools.Tool {
 			return nil, nil, fmt.Errorf("error retrieving global role '%s': %w", input.Name, err)
 		}
 
-		globalRoleJSON, err := json.Marshal(globalRole)
+		toolResult, err := tools.JSONResult(globalRole)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error marshalling global role '%s': %w", input.Name, err)
 		}
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{
-					Text: string(globalRoleJSON),
-				},
-			},
-		}, nil, nil
+		return toolResult, nil, nil
 	}
 
 	return &tools.Tool{
@@ -220,17 +207,11 @@ func (g *globalRole) Create() *tools.Tool {
 			return nil, nil, fmt.Errorf("error creating global role '%s': %w", input.Name, err)
 		}
 
-		resultJSON, err := json.Marshal(result)
+		toolResult, err := tools.JSONResult(result)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error marshalling created global role: %w", err)
 		}
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{
-					Text: string(resultJSON),
-				},
-			},
-		}, nil, nil
+		return toolResult, nil, nil
 	}
 
 	return &tools.Tool{
@@ -317,17 +298,11 @@ func (g *globalRole) Update() *tools.Tool {
 			return nil, nil, fmt.Errorf("error updating global role '%s': %w", input.Name, err)
 		}
 
-		resultJSON, err := json.Marshal(result)
+		toolResult, err := tools.JSONResult(result)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error marshalling updated global role: %w", err)
 		}
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{
-					Text: string(resultJSON),
-				},
-			},
-		}, nil, nil
+		return toolResult, nil, nil
 	}
 
 	return &tools.Tool{
@@ -374,13 +349,7 @@ func (g *globalRole) Delete() *tools.Tool {
 			return nil, nil, fmt.Errorf("error deleting global role '%s': %w", input.Name, err)
 		}
 
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{
-					Text: fmt.Sprintf("Global role '%s' deleted successfully", input.Name),
-				},
-			},
-		}, nil, nil
+		return tools.TextResult(fmt.Sprintf("Global role '%s' deleted successfully", input.Name)), nil, nil
 	}
 
 	return &tools.Tool{

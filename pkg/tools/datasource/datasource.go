@@ -138,11 +138,7 @@ func (d *datasource) Query() *tools.Tool {
 			return nil, nil, fmt.Errorf("error querying datasource '%s' in project '%s': %w", input.DatasourceName, input.Project, err)
 		}
 
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{Text: text},
-			},
-		}, nil, nil
+		return tools.TextResult(text), nil, nil
 	}
 
 	return &tools.Tool{
@@ -189,17 +185,11 @@ func (d *datasource) List() *tools.Tool {
 			return nil, nil, fmt.Errorf("error retrieving datasources in project '%s': %w", input.Project, err)
 		}
 
-		datasourcesJSON, err := json.Marshal(datasources)
+		toolResult, err := tools.JSONResult(datasources)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error marshalling datasources: %w", err)
 		}
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{
-					Text: string(datasourcesJSON),
-				},
-			},
-		}, nil, nil
+		return toolResult, nil, nil
 	}
 
 	return &tools.Tool{
@@ -254,17 +244,11 @@ func (d *datasource) Get() *tools.Tool {
 			return nil, nil, fmt.Errorf("error retrieving datasource '%s' in project '%s': %w", input.Name, input.Project, err)
 		}
 
-		datasourceJSON, err := json.Marshal(datasource)
+		toolResult, err := tools.JSONResult(datasource)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error marshalling datasource: %w", err)
 		}
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{
-					Text: string(datasourceJSON),
-				},
-			},
-		}, nil, nil
+		return toolResult, nil, nil
 	}
 
 	return &tools.Tool{
@@ -321,17 +305,11 @@ func (d *datasource) Create() *tools.Tool {
 			return nil, nil, fmt.Errorf("error creating datasource in project '%s': %w", input.Project, err)
 		}
 
-		datasourceJSON, err := json.Marshal(createdDatasource)
+		toolResult, err := tools.JSONResult(createdDatasource)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error marshalling created datasource: %w", err)
 		}
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{
-					Text: string(datasourceJSON),
-				},
-			},
-		}, nil, nil
+		return toolResult, nil, nil
 	}
 
 	return &tools.Tool{
@@ -388,17 +366,11 @@ func (d *datasource) Update() *tools.Tool {
 			return nil, nil, fmt.Errorf("error updating datasource in project '%s': %w", input.Project, err)
 		}
 
-		datasourceJSON, err := json.Marshal(updatedDatasource)
+		toolResult, err := tools.JSONResult(updatedDatasource)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error marshalling updated datasource: %w", err)
 		}
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{
-					Text: string(datasourceJSON),
-				},
-			},
-		}, nil, nil
+		return toolResult, nil, nil
 	}
 
 	return &tools.Tool{
@@ -453,13 +425,7 @@ func (d *datasource) Delete() *tools.Tool {
 			return nil, nil, fmt.Errorf("error deleting datasource '%s' in project '%s': %w", input.Name, input.Project, err)
 		}
 
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{
-					Text: fmt.Sprintf("Datasource '%s' deleted successfully from project '%s'", input.Name, input.Project),
-				},
-			},
-		}, nil, nil
+		return tools.TextResult(fmt.Sprintf("Datasource '%s' deleted successfully from project '%s'", input.Name, input.Project)), nil, nil
 	}
 
 	return &tools.Tool{
