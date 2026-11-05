@@ -66,7 +66,7 @@ func (s *schema) List() *tools.Tool {
 		if err != nil {
 			return nil, nil, fmt.Errorf("error retrieving the plugin schemas: %w", err)
 		}
-		return textResult(definitions), nil, nil
+		return tools.TextResult(string(definitions)), nil, nil
 	}
 
 	return &tools.Tool{
@@ -124,7 +124,7 @@ func (s *schema) Get() *tools.Tool {
 		if err != nil {
 			return nil, nil, fmt.Errorf("error retrieving the schema of plugin '%s': %w", input.Kind, err)
 		}
-		return textResult(definition), nil, nil
+		return tools.TextResult(string(definition)), nil, nil
 	}
 
 	return &tools.Tool{
@@ -148,12 +148,4 @@ func (s *schema) Update() *tools.Tool {
 // Delete is not supported for schemas
 func (s *schema) Delete() *tools.Tool {
 	return nil
-}
-
-func textResult(text []byte) *mcp.CallToolResult {
-	return &mcp.CallToolResult{
-		Content: []mcp.Content{
-			&mcp.TextContent{Text: string(text)},
-		},
-	}
 }
