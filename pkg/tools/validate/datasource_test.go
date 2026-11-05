@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -241,37 +242,14 @@ func TestInputErrors(t *testing.T) {
 	}
 }
 
-func TestDatasourceWarnings(t *testing.T) {
-	withPlugin := func(plugin string) map[string]any {
-		return rawJSON(`{"kind":"Datasource","metadata":{"name":"prom","project":"test"},"spec":{"plugin":` + plugin + `}}`)
-	}
+// TestOtherDatasourceWarnings checks the conflicts with the saved datasources that the validation API does not report.
+func TestOtherDatasourceWarnings(t *testing.T) {
 	testCases := []struct {
 		name       string
 		datasource map[string]any
 		routes     map[string]fakeResponse
 		warning    string
 	}{
-		{
-			name:       "direct URL only",
-			datasource: withPlugin(`{"kind":"PrometheusDatasource","spec":{"directUrl":"http://cortex:9009"}}`),
-			warning:    "only browsers query this datasource",
-		},
-		{
-			name:       "localhost proxy",
-			datasource: withPlugin(`{"kind":"PrometheusDatasource","spec":{"proxy":{"kind":"HTTPProxy","spec":{"url":"http://127.0.0.1:9090"}}}}`),
-			warning:    "resolved by the Perses server",
-		},
-		{
-			name:       "api path in URL",
-			datasource: withPlugin(`{"kind":"PrometheusDatasource","spec":{"proxy":{"kind":"HTTPProxy","spec":{"url":"http://prometheus:9090/api/v1/"}}}}`),
-			warning:    "ends with /api/v1",
-		},
-		{
-			name: "blocked endpoints",
-			datasource: withPlugin(`{"kind":"PrometheusDatasource","spec":{"proxy":{"kind":"HTTPProxy","spec":{"url":"http://prometheus:9090",` +
-				`"allowedEndpoints":[{"endpointPattern":"/api/v1/query$","method":"POST"}]}}}}`),
-			warning: "allowedEndpoints blocks endpoints",
-		},
 		{
 			name:       "hides a global datasource",
 			datasource: rawJSON(projectDtsJSON),
@@ -414,8 +392,9 @@ func TestDefaultOfSameDatasourceWithAnotherCase(t *testing.T) {
 }
 
 // TestConnectivityWithAllowedEndpoints checks that, like the Perses UI, the health endpoint is added to the
-// allowedEndpoints of an unsaved datasource, and that a saved datasource blocking it is not queried.
+// allowedEndpoints of an unsaved datasource, and that a saved datasource blocking it reports the error of Perses.
 func TestConnectivityWithAllowedEndpoints(t *testing.T) {
+	const blockedMessage = `you are not allowed to use this endpoint "/api/v1/status/buildinfo" with the HTTP method GET`
 	restricted := `{"kind":"Datasource","metadata":{"name":"prom","project":"test"},"spec":{"plugin":{"kind":"PrometheusDatasource",` +
 		`"spec":{"proxy":{"kind":"HTTPProxy","spec":{"url":"http://prometheus:9090",` +
 		`"allowedEndpoints":[{"endpointPattern":"/api/v1/query","method":"POST"}]}}}}}}`
@@ -423,6 +402,8 @@ func TestConnectivityWithAllowedEndpoints(t *testing.T) {
 		"POST /api/validate/datasources":             {status: http.StatusOK},
 		"GET /api/v1/projects/test/datasources/prom": {status: http.StatusOK, body: restricted},
 		unsavedQueryPath:                             {status: http.StatusOK, body: `{"status":"success"}`},
+		"GET /proxy/projects/test/datasources/prom/api/v1/status/buildinfo": {status: http.StatusForbidden,
+			body: `{"message":` + strconv.Quote(blockedMessage) + `}`},
 	}}
 	unsavedEndpoints := func(document string) []any {
 		t.Helper()
@@ -469,13 +450,9 @@ func TestConnectivityWithAllowedEndpoints(t *testing.T) {
 	result, text := call(t, connect(t, perses), "perses_validate_datasource",
 		map[string]any{"project": "test", "name": "prom", "check_connectivity": true})
 	decoded := decode(t, result, text)
-	if decoded.Conn == nil || decoded.Conn.Status != statusSkipped || !strings.Contains(decoded.Conn.Message, "/api/v1/status/buildinfo") {
-		t.Fatalf("expected the check of the saved datasource to be skipped: %s", text)
-	}
-	for _, request := range perses.received() {
-		if strings.HasPrefix(request.path, "/proxy/projects/") {
-			t.Errorf("unexpected proxy request %s", request.path)
-		}
+	if decoded.Conn == nil || decoded.Conn.Status != statusError || decoded.Conn.HTTPStatus != http.StatusForbidden ||
+		decoded.Conn.Message != blockedMessage {
+		t.Fatalf("expected the error of the Perses proxy for the saved datasource: %s", text)
 	}
 }
 
@@ -530,7 +507,9 @@ func TestConnectivityWithoutRequest(t *testing.T) {
 		plugin string
 		status string
 	}{
-		{name: "direct URL only", plugin: `{"kind":"PrometheusDatasource","spec":{"directUrl":"http://cortex:9009"}}`, status: statusNoProxy},
+		{name: "direct URL only", plugin: `{"kind":"PrometheusDatasource","spec":{"directUrl":"http://cortex:9009"}}`, status: statusSkipped},
+		{name: "SQL proxy", plugin: `{"kind":"PostgresDatasource","spec":{"proxy":{"kind":"SQLProxy","spec":{"driver":"postgres","host":"db:5432"}}}}`,
+			status: statusSkipped},
 		{name: "plugin without health endpoint", plugin: `{"kind":"LokiDatasource","spec":{"proxy":{"kind":"HTTPProxy","spec":{"url":"http://loki:3100"}}}}`,
 			status: statusSkipped},
 	}

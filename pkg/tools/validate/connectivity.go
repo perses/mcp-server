@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/perses/mcp-server/pkg/tools/internal/proxy"
+	datasourcev1 "github.com/perses/perses/pkg/model/api/v1/datasource"
 	datasourceSpec "github.com/perses/spec/go/datasource"
 	httpproxy "github.com/perses/spec/go/datasource/proxy/http"
 )
@@ -36,7 +37,6 @@ const (
 const (
 	statusOK      = "ok"
 	statusTimeout = "timeout"
-	statusNoProxy = "no_proxy"
 	statusSkipped = "skipped"
 	statusError   = "error"
 )
@@ -55,7 +55,7 @@ type connectivity struct {
 var healthCheckPaths = map[string]string{
 	"AlertManagerDatasource": "/api/v2/status",
 	"OpenSearchDatasource":   "/_cluster/health",
-	prometheusKind:           "/api/v1/status/buildinfo",
+	"PrometheusDatasource":   "/api/v1/status/buildinfo",
 }
 
 // withHealthCheckEndpoint returns a copy of the spec whose HTTP proxy also allows GET on the health endpoint, as the
@@ -100,27 +100,12 @@ type datasourceRef struct {
 }
 
 func (v *validation) checkConnectivity(ctx context.Context, ref datasourceRef) *connectivity {
-	target := httpTargetOf(ref.spec.Plugin)
-	if target.proxy == nil {
-		if target.directURL != "" {
-			return &connectivity{
-				Status:  statusNoProxy,
-				Message: "the datasource has only a directUrl: the Perses server cannot query it",
-				Hint:    "only browsers can query it; add a proxy for server-side queries",
-			}
-		}
-		return &connectivity{Status: statusSkipped, Message: "only HTTP proxy datasources can be checked"}
+	if _, kind, err := datasourcev1.ValidateAndExtract(ref.spec.Plugin.Spec); err != nil || kind != httpproxy.ProxyKindName {
+		return &connectivity{Status: statusSkipped, Message: "the datasource has no HTTP proxy: the Perses server cannot query it"}
 	}
 	path, ok := healthCheckPaths[ref.spec.Plugin.Kind]
 	if !ok {
 		return &connectivity{Status: statusSkipped, Message: fmt.Sprintf("no health endpoint is known for the %s plugin", ref.spec.Plugin.Kind)}
-	}
-	if ref.saved && !endpointAllowed(target.proxy, http.MethodGet, path) {
-		return &connectivity{
-			Status:  statusSkipped,
-			Message: fmt.Sprintf("allowedEndpoints of the saved datasource block GET %s, its health endpoint", path),
-			Hint:    "pass the datasource spec instead of its name: the health endpoint is then allowed for the check",
-		}
 	}
 
 	if disabled := v.proxyDisabled(ref.scope); disabled != nil {

@@ -34,8 +34,8 @@ type ValidateDatasourceInput struct {
 	CheckConnectivity bool            `json:"check_connectivity,omitempty"`
 }
 
-// datasourceValidation is the result of perses_validate_datasource. Warnings flag configurations that Perses
-// accepts but that likely do not work.
+// datasourceValidation is the result of perses_validate_datasource. Warnings flag conflicts with the saved
+// datasources that the validation API does not check.
 type datasourceValidation struct {
 	result
 	Warnings     []string      `json:"warnings,omitempty"`
@@ -48,8 +48,8 @@ func (v *validation) Datasource() *tools.Tool {
 		Description: "Validate a datasource without saving it, its kind (Datasource or GlobalDatasource) telling the " +
 			"scope, or check a saved one by name (in project when set, else global). " +
 			"Returns {valid, error, warnings, connectivity}, or the error of the Perses server. Warnings flag " +
-			"configs that are valid but likely do not work (directUrl only, localhost proxy URL, blocked endpoints, " +
-			"another default datasource, name hiding a global datasource). check_connectivity:true queries the " +
+			"conflicts with the saved datasources (another default datasource, name hiding a global datasource). " +
+			"check_connectivity:true queries the " +
 			"health endpoint of the datasource through the Perses server proxy, like the Test connection button " +
 			"of the Perses UI (Prometheus, AlertManager and OpenSearch datasources; nothing is saved).",
 		Annotations: &mcp.ToolAnnotations{
@@ -125,7 +125,7 @@ func (v *validation) validateDatasource(ctx context.Context, input ValidateDatas
 		return output, nil
 	}
 
-	output.Warnings = append(lintDatasource(ref.spec), v.checkOtherDatasources(ref)...)
+	output.Warnings = v.checkOtherDatasources(ref)
 	if input.CheckConnectivity {
 		if !output.Valid && !ref.saved {
 			output.Connectivity = &connectivity{Status: statusSkipped, Message: "fix the error first"}
