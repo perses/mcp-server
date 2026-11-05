@@ -193,6 +193,19 @@ Resource: `plugin`
 |-----------------------|------------------------------------------|---------------------|
 | `perses_list_plugins` | List all the plugins installed in Perses | -                   |
 
+## Schemas
+
+Resource: `schema`
+
+These read-only tools return raw [CUE](https://cuelang.org/) source from Perses v0.55 or later.
+
+| Tool | Description | Required parameters |
+|------|-------------|---------------------|
+| `perses_list_plugin_schemas` | Get all installed plugin schemas | - |
+| `perses_get_plugin_schema` | Get the latest installed schema of one plugin kind | `kind` |
+
+Prefer the single-plugin tool when working on one panel, query, variable, annotation or datasource.
+
 ## Grafana dashboards migration
 
 Resource: `migrate`
