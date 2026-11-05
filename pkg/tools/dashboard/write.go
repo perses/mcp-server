@@ -22,7 +22,6 @@ import (
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/perses/mcp-server/pkg/tools"
-	"github.com/perses/mcp-server/pkg/tools/internal/dashboardutil"
 	"github.com/perses/perses/pkg/client/perseshttp"
 	v1 "github.com/perses/perses/pkg/model/api/v1"
 )
@@ -45,7 +44,7 @@ func (d *dashboard) Create() *tools.Tool {
 		InputSchema: &jsonschema.Schema{
 			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
-				string(tools.ProjectResource): projectSchema("Project to create the dashboard in; fills metadata.project when omitted from the dashboard."),
+				string(tools.ProjectResource): projectSchema("Project to create the dashboard in; Perses fills metadata.project from it when omitted."),
 				"dashboard":                   dashboardSchema("The dashboard: {kind: Dashboard, metadata: {name}, spec: {display, variables, panels, layouts, duration}}."),
 				dryRunProperty:                dryRunSchema(),
 				includeDashboardProp:          includeDashboardSchema(),
@@ -62,8 +61,8 @@ func (d *dashboard) Create() *tools.Tool {
 	}
 
 	handler := func(_ context.Context, _ *mcp.CallToolRequest, input CreateDashboardInput) (*mcp.CallToolResult, any, error) { //nolint:unparam
-		dash, err := dashboardutil.DecodeDashboard(input.Dashboard, input.Project)
-		if err != nil {
+		dash := &v1.Dashboard{}
+		if err := json.Unmarshal(input.Dashboard, dash); err != nil {
 			return nil, nil, err
 		}
 		if err := d.client.Validate().Dashboard(dash); err != nil {
@@ -81,8 +80,8 @@ func (d *dashboard) Create() *tools.Tool {
 			default:
 				return nil, nil, fmt.Errorf("error checking whether dashboard '%s' exists in project '%s': %w", dash.Metadata.Name, input.Project, err)
 			}
-			result.Summary = dashboardutil.Summarize(dash, d.baseURL())
-			return textResult(result)
+			result.Summary = Summarize(dash, input.Project, d.baseURL())
+			return jsonResult(result)
 		}
 
 		saved, err := d.api(input.Project).Create(dash)
@@ -110,11 +109,11 @@ func alreadyExistsError(name, project string) error {
 
 // saved completes the result with the summary of the dashboard returned by the server.
 func (d *dashboard) saved(result writeResult, saved *v1.Dashboard, include bool) (*mcp.CallToolResult, any, error) {
-	result.Summary = dashboardutil.Summarize(saved, d.baseURL())
+	result.Summary = Summarize(saved, saved.Metadata.Project, d.baseURL())
 	if include {
 		result.Dashboard = saved
 	}
-	return textResult(result)
+	return jsonResult(result)
 }
 
 type UpdateDashboardInput struct {
@@ -151,8 +150,8 @@ func (d *dashboard) Update() *tools.Tool {
 	}
 
 	handler := func(_ context.Context, _ *mcp.CallToolRequest, input UpdateDashboardInput) (*mcp.CallToolResult, any, error) { //nolint:unparam
-		dash, err := dashboardutil.DecodeDashboard(input.Dashboard, input.Project)
-		if err != nil {
+		dash := &v1.Dashboard{}
+		if err := json.Unmarshal(input.Dashboard, dash); err != nil {
 			return nil, nil, err
 		}
 		// Perses checks the read and update permissions independently: read the dashboard only when needed, so that
@@ -208,8 +207,8 @@ func (d *dashboard) save(req editRequest, dash *v1.Dashboard, changes []string) 
 	result := writeResult{Action: "updated", DryRun: req.dryRun, Changes: changes}
 	if req.dryRun {
 		result.Action = "would_update"
-		result.Summary = dashboardutil.Summarize(dash, d.baseURL())
-		return textResult(result)
+		result.Summary = Summarize(dash, req.project, d.baseURL())
+		return jsonResult(result)
 	}
 	saved, err := d.api(req.project).Update(dash)
 	if err != nil {

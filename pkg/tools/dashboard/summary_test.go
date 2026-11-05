@@ -10,8 +10,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
-package dashboardutil
+package dashboard
 
 import (
 	"encoding/json"
@@ -19,14 +18,13 @@ import (
 	"testing"
 
 	v1 "github.com/perses/perses/pkg/model/api/v1"
-	"github.com/perses/spec/go/dashboard"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 const sampleDashboard = `{
   "kind": "Dashboard",
-  "metadata": {"name": "sample"},
+  "metadata": {"name": "sample", "project": "proj"},
   "spec": {
     "duration": "1h",
     "variables": [
@@ -45,58 +43,11 @@ const sampleDashboard = `{
   }
 }`
 
-func mustDecode(t *testing.T, raw string) *v1.Dashboard {
-	t.Helper()
-	d, err := DecodeDashboard(json.RawMessage(raw), "proj")
-	require.NoError(t, err)
-	return d
-}
-
-func TestDecodeDashboard(t *testing.T) {
-	d := mustDecode(t, sampleDashboard)
-	assert.Equal(t, v1.KindDashboard, d.Kind)
-	assert.Equal(t, "proj", d.Metadata.Project)
-
-	d, err := DecodeDashboard(json.RawMessage(`{"metadata": {"name": "d", "project": "other"}, "spec": {"duration": "1h"}}`), "proj")
-	require.NoError(t, err)
-	assert.Equal(t, v1.KindDashboard, d.Kind)
-	assert.Equal(t, "other", d.Metadata.Project)
-
-	_, err = DecodeDashboard(json.RawMessage(`{"kind": "Datasource", "metadata": {"name": "d"}, "spec": {"duration": "1h"}}`), "proj")
-	assert.EqualError(t, err, `invalid kind: "Datasource" for a Dashboard type`)
-}
-
-func TestPlacePanel(t *testing.T) {
-	var layouts []dashboard.Layout
-	index := EnsureLayout(&layouts, "Row")
-	require.Equal(t, 0, index)
-	assert.Equal(t, "Row", layoutTitle(layouts[0]))
-
-	positions := [][2]int{}
-	for _, key := range []string{"a", "b", "c"} {
-		item, err := PlacePanel(&layouts[index], key, 12, 6)
-		require.NoError(t, err)
-		positions = append(positions, [2]int{item.X, item.Y})
-	}
-	assert.Equal(t, [][2]int{{0, 0}, {12, 0}, {0, 6}}, positions)
-
-	item, err := PlacePanel(&layouts[index], "wide", 48, 0)
-	require.NoError(t, err)
-	assert.Equal(t, GridColumns, item.Width)
-	assert.Equal(t, DefaultPanelHeight, item.Height)
-	assert.Equal(t, 12, item.Y)
-
-	assert.Equal(t, 0, EnsureLayout(&layouts, "row"))
-	assert.Equal(t, 0, FindLayout(layouts, ""))
-	assert.Equal(t, 1, EnsureLayout(&layouts, "Other"))
-	assert.Equal(t, 1, RemovePanelItems(layouts, "b"))
-	assert.Len(t, layouts[0].Spec.(*dashboard.GridLayoutSpec).Items, 3)
-}
-
 func TestSummarize(t *testing.T) {
-	d := mustDecode(t, sampleDashboard)
+	d := &v1.Dashboard{}
+	require.NoError(t, json.Unmarshal([]byte(sampleDashboard), d))
 	base, _ := url.Parse("http://perses.example/")
-	summary := Summarize(d, base)
+	summary := Summarize(d, "proj", base)
 	assert.Equal(t, "http://perses.example/projects/proj/dashboards/sample", summary.URL)
 	assert.Equal(t, 2, summary.Panels)
 
