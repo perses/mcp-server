@@ -150,6 +150,7 @@ ignored. The MCP server refuses to start if a name is unknown.
 | `globalrolebinding`  | [Global role bindings](./tools.md#roles-and-role-bindings)            |
 | `plugin`             | [Plugins](./tools.md#plugins)                                         |
 | `schema`             | [Schemas](./tools.md#schemas)                                         |
+| `validate`           | [Validation](./tools.md#validation)                                   |
 | `migrate`            | [Grafana dashboards migration](./tools.md#grafana-dashboards-migration) |
 
 > [!TIP]

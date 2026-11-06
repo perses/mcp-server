@@ -17,6 +17,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -25,6 +26,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/perses/mcp-server/pkg/tools"
+	"github.com/perses/mcp-server/pkg/tools/validate"
 	apiClient "github.com/perses/perses/pkg/client/api"
 	"github.com/perses/perses/pkg/client/perseshttp"
 	"github.com/perses/spec/go/common"
@@ -34,12 +36,26 @@ const (
 	authorization         = "Bearer test-token"
 	timeSeriesChartSchema = "#TimeSeriesChart: {\n\tkind: \"TimeSeriesChart\"\n}\n"
 	statChartSchema       = "#StatChart: {\n\tkind: \"StatChart\"\n}\n"
+	// invalidCalculationMessage is how the Perses server reports a value rejected by a plugin schema.
+	invalidCalculationMessage = `bad request: invalid panel p1: spec.calculation: conflicting values "mean" and "average"`
 )
 
-// fakePerses mimics the schema API of the Perses server and records the requests it receives.
+const validDashboard = `{
+	"kind": "Dashboard",
+	"metadata": {"name": "cpu"},
+	"spec": {
+		"duration": "1h",
+		"panels": {"p1": {"kind": "Panel", "spec": {"display": {"name": "CPU"}, "plugin": {"kind": "StatChart", "spec": {"calculation": "mean"}}}}},
+		"layouts": [{"kind": "Grid", "spec": {"items": [{"x": 0, "y": 0, "width": 12, "height": 6, "content": {"$ref": "#/spec/panels/p1"}}]}}]
+	}
+}`
+
+// fakePerses mimics the schema and validate APIs of the Perses server and records the requests it receives.
 type fakePerses struct {
 	mutex    sync.Mutex
 	requests []*http.Request
+	// validatedProject is the metadata.project of the last validated dashboard.
+	validatedProject string
 }
 
 func (f *fakePerses) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -48,6 +64,8 @@ func (f *fakePerses) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	f.mutex.Unlock()
 
 	switch r.URL.Path {
+	case "/api/validate/dashboards":
+		f.validate(w, r)
 	case "/api/v1/schemas/plugins":
 		_, _ = w.Write([]byte(timeSeriesChartSchema + statChartSchema))
 	case "/api/v1/schemas/plugins/TimeSeriesChart":
@@ -58,6 +76,32 @@ func (f *fakePerses) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		kind := strings.TrimPrefix(r.URL.Path, "/api/v1/schemas/plugins/")
 		w.WriteHeader(http.StatusNotFound)
 		_ = json.NewEncoder(w).Encode(map[string]string{"message": fmt.Sprintf("document not found: plugin %q not found", kind)})
+	}
+}
+
+// validate accepts any dashboard, except a "average" calculation that the schemas reject and a "crash" one that
+// makes the server fail.
+func (f *fakePerses) validate(w http.ResponseWriter, r *http.Request) {
+	body, _ := io.ReadAll(r.Body)
+	var dashboard struct {
+		Metadata struct {
+			Project string `json:"project"`
+		} `json:"metadata"`
+	}
+	_ = json.Unmarshal(body, &dashboard)
+	f.mutex.Lock()
+	f.validatedProject = dashboard.Metadata.Project
+	f.mutex.Unlock()
+
+	switch {
+	case strings.Contains(string(body), `"average"`):
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"message": invalidCalculationMessage})
+	case strings.Contains(string(body), `"crash"`):
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]string{"message": "internal server error"})
+	default:
+		w.WriteHeader(http.StatusOK)
 	}
 }
 
@@ -76,7 +120,7 @@ func (f *fakePerses) paths() []string {
 	return paths
 }
 
-// connect registers the schema tools on an in-memory MCP server backed by perses.
+// connect registers schema and validation tools together to exercise their integration.
 func connect(t *testing.T, perses http.Handler) *mcp.ClientSession {
 	t.Helper()
 	httpServer := httptest.NewServer(perses)
@@ -89,7 +133,7 @@ func connect(t *testing.T, perses http.Handler) *mcp.ClientSession {
 
 	server := mcp.NewServer(&mcp.Implementation{Name: "test-server"}, nil)
 	client := apiClient.NewWithClient(restClient)
-	toolset := New(client.V1()).GetTools()
+	toolset := append(New(client.V1()).GetTools(), validate.New(client).GetTools()...)
 	names := map[string]bool{}
 	for _, tool := range toolset {
 		if names[tool.MCPTool.Name] {
@@ -216,6 +260,83 @@ func TestGetPluginSchemaAcceptsHyphensAndDots(t *testing.T) {
 	callTool(t, session, "perses_get_plugin_schema", map[string]any{"kind": "my-plugin.v2"})
 	if paths := perses.paths(); len(paths) != 1 || paths[0] != "/api/v1/schemas/plugins/my-plugin.v2" {
 		t.Errorf("expected a request to the my-plugin.v2 schema, got %v", paths)
+	}
+}
+
+// validation calls perses_validate_dashboard and returns its result.
+func validation(t *testing.T, session *mcp.ClientSession, dashboard any) string {
+	t.Helper()
+	result, text := callTool(t, session, "perses_validate_dashboard", map[string]any{"dashboard": dashboard})
+	if result.IsError {
+		t.Fatalf("unexpected tool error: %s", text)
+	}
+	return text
+}
+
+func TestValidateDashboard(t *testing.T) {
+	withMetadata := func(metadata string) map[string]any {
+		return dashboardObject(t, strings.Replace(validDashboard, `"name": "cpu"`, metadata, 1))
+	}
+
+	testSuites := []struct {
+		title     string
+		dashboard map[string]any
+		expected  string
+		// expectedProject is the metadata.project sent to the server; empty when the dashboard omits it or is rejected beforehand.
+		expectedProject string
+	}{
+		{
+			title:     "valid dashboard",
+			dashboard: dashboardObject(t, validDashboard),
+			expected:  `{"valid":true}`,
+		},
+		{
+			title:           "the metadata project is sent unchanged",
+			dashboard:       withMetadata(`"name": "cpu", "project": "other"`),
+			expected:        `{"valid":true}`,
+			expectedProject: "other",
+		},
+		{
+			title:     "not a dashboard",
+			dashboard: dashboardObject(t, strings.Replace(validDashboard, `"kind": "Dashboard"`, `"kind": "EphemeralDashboard"`, 1)),
+			expected:  `{"valid":false,"error":"invalid kind: \"EphemeralDashboard\" for a Dashboard type"}`,
+		},
+	}
+
+	for _, test := range testSuites {
+		t.Run(test.title, func(t *testing.T) {
+			perses := &fakePerses{}
+			if text := validation(t, connect(t, perses), test.dashboard); text != test.expected {
+				t.Errorf("expected %s, got %s", test.expected, text)
+			}
+			if perses.validatedProject != test.expectedProject {
+				t.Errorf("expected the dashboard to be validated in project %q, got %q", test.expectedProject, perses.validatedProject)
+			}
+		})
+	}
+}
+
+func dashboardObject(t *testing.T, document string) map[string]any {
+	t.Helper()
+	var object map[string]any
+	if err := json.Unmarshal([]byte(document), &object); err != nil {
+		t.Fatal(err)
+	}
+	return object
+}
+
+func TestValidateDashboardPersesErrors(t *testing.T) {
+	session := connect(t, &fakePerses{})
+
+	for replacement, message := range map[string]string{
+		`"average"`: invalidCalculationMessage,
+		`"crash"`:   "internal server error",
+	} {
+		dashboard := dashboardObject(t, strings.Replace(validDashboard, `"mean"`, replacement, 1))
+		result, text := callTool(t, session, "perses_validate_dashboard", map[string]any{"dashboard": dashboard})
+		if !result.IsError || !strings.Contains(text, message) {
+			t.Errorf("expected the error of the Perses client unchanged, got %s", text)
+		}
 	}
 }
 
