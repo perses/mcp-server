@@ -28,7 +28,7 @@ func New(client apiclient.ClientInterface) resource.Resource {
 }
 
 func (v *validation) GetTools() []*tools.Tool {
-	return []*tools.Tool{v.Dashboard(), v.Datasource(), v.Variable()}
+	return []*tools.Tool{v.Dashboard(), v.Variable()}
 }
 
 func (v *validation) Create() *tools.Tool { return nil }

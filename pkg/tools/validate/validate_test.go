@@ -15,21 +15,29 @@ package validate
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/perses/mcp-server/pkg/tools"
 	apiclient "github.com/perses/perses/pkg/client/api"
 	"github.com/perses/perses/pkg/client/perseshttp"
+	v1 "github.com/perses/perses/pkg/model/api/v1"
 	"github.com/perses/spec/go/common"
 )
 
 const testAuthorization = "Bearer test"
 
-const dashboardJSON = `{"kind":"Dashboard","metadata":{"name":"test","project":"test"},"spec":{"duration":"1h","panels":{},"layouts":[]}}`
+const (
+	dashboardJSON  = `{"kind":"Dashboard","metadata":{"name":"test","project":"test"},"spec":{"duration":"1h","panels":{},"layouts":[]}}`
+	projectVarJSON = `{"kind":"Variable","metadata":{"name":"test","project":"test"},"spec":{"kind":"TextVariable","spec":{"name":"test","value":"test"}}}`
+	globalVarJSON  = `{"kind":"GlobalVariable","metadata":{"name":"test"},"spec":{"kind":"TextVariable","spec":{"name":"test","value":"test"}}}`
+)
 
 type capturedRequest struct {
 	method        string
@@ -37,7 +45,6 @@ type capturedRequest struct {
 	body          string
 	contentType   string
 	authorization string
-	query         string
 }
 
 type fakeResponse struct {
@@ -67,7 +74,6 @@ func (f *fakePerses) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		body:          string(body),
 		contentType:   r.Header.Get("Content-Type"),
 		authorization: r.Header.Get("Authorization"),
-		query:         r.URL.RawQuery,
 	})
 	f.mutex.Unlock()
 	response, ok := f.routes[r.Method+" "+r.URL.Path]
@@ -143,5 +149,150 @@ func TestStringPayloadIsRejected(t *testing.T) {
 	}
 	if requests := perses.received(); len(requests) != 0 {
 		t.Errorf("expected no request, got %d", len(requests))
+	}
+}
+
+func call(t *testing.T, session *mcp.ClientSession, name string, args map[string]any) (*mcp.CallToolResult, string) {
+	t.Helper()
+	result, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: name, Arguments: args})
+	if err != nil {
+		t.Fatalf("calling %s: %v", name, err)
+	}
+	var texts []string
+	for _, content := range result.Content {
+		if text, ok := content.(*mcp.TextContent); ok {
+			texts = append(texts, text.Text)
+		}
+	}
+	return result, strings.Join(texts, "\n")
+}
+
+func rawJSON(document string) map[string]any {
+	var value map[string]any
+	if err := json.Unmarshal([]byte(document), &value); err != nil {
+		panic(err)
+	}
+	return value
+}
+
+func findRequest(requests []capturedRequest, method, path string) *capturedRequest {
+	for i := range requests {
+		if requests[i].method == method && requests[i].path == path {
+			return &requests[i]
+		}
+	}
+	return nil
+}
+
+func TestValidationRequests(t *testing.T) {
+	testCases := []struct {
+		name     string
+		tool     string
+		args     map[string]any
+		path     string
+		expected string
+		entity   any
+	}{
+		{
+			name: "dashboard", tool: "perses_validate_dashboard", args: map[string]any{"dashboard": rawJSON(dashboardJSON)},
+			path: "/api/validate/dashboards", expected: dashboardJSON, entity: &v1.Dashboard{},
+		},
+		{
+			name: "project variable", tool: "perses_validate_variable", args: map[string]any{"variable": rawJSON(projectVarJSON)},
+			path: "/api/validate/variables", expected: projectVarJSON, entity: &v1.Variable{},
+		},
+		{
+			name: "global variable", tool: "perses_validate_variable", args: map[string]any{"variable": rawJSON(globalVarJSON)},
+			path: "/api/validate/globalvariables", expected: globalVarJSON, entity: &v1.GlobalVariable{},
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			if err := json.Unmarshal([]byte(testCase.expected), testCase.entity); err != nil {
+				t.Fatalf("invalid test fixture: %v", err)
+			}
+			expectedBody, err := json.Marshal(testCase.entity)
+			if err != nil {
+				t.Fatal(err)
+			}
+			perses := &fakePerses{status: http.StatusOK}
+			result, text := call(t, connect(t, perses), testCase.tool, testCase.args)
+			if result.IsError || text != `{"valid":true}` {
+				t.Fatalf("unexpected validation result: IsError=%v, %s", result.IsError, text)
+			}
+			request := findRequest(perses.received(), http.MethodPost, testCase.path)
+			if request == nil {
+				t.Fatalf("no request to %s: %#v", testCase.path, perses.received())
+			}
+			if request.body != string(expectedBody) {
+				t.Errorf("unexpected body %s; expected %s", request.body, expectedBody)
+			}
+			if request.contentType != "application/json" || request.authorization != testAuthorization {
+				t.Errorf("unexpected request headers: %#v", request)
+			}
+		})
+	}
+}
+
+func TestValidationServerErrors(t *testing.T) {
+	testCases := []struct {
+		name    string
+		tool    string
+		args    map[string]any
+		path    string
+		status  int
+		body    string
+		message string
+	}{
+		{
+			name: "variable plugin field", tool: "perses_validate_variable", args: map[string]any{"variable": rawJSON(projectVarJSON)},
+			path: "POST /api/validate/variables", status: http.StatusBadRequest,
+			body:    `{"message":"invalid variable : spec.foo: field not allowed"}`,
+			message: "invalid variable : spec.foo: field not allowed",
+		},
+		{
+			name: "server failure", tool: "perses_validate_variable", args: map[string]any{"variable": rawJSON(globalVarJSON)},
+			path: "POST /api/validate/globalvariables", status: http.StatusInternalServerError, body: `{"message":"boom"}`,
+			message: "internal server error",
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			perses := &fakePerses{status: http.StatusNotFound, routes: map[string]fakeResponse{
+				testCase.path: {status: testCase.status, body: testCase.body},
+			}}
+			result, text := call(t, connect(t, perses), testCase.tool, testCase.args)
+			if !result.IsError || !strings.Contains(text, testCase.message) {
+				t.Errorf("expected the error of the Perses client unchanged, got %s", text)
+			}
+		})
+	}
+}
+
+func TestValidationToolsMetadata(t *testing.T) {
+	expected := []string{"perses_validate_dashboard", "perses_validate_variable"}
+	toolset := New(apiclient.NewWithClient(&perseshttp.RESTClient{})).GetTools()
+	if len(toolset) != len(expected) {
+		t.Fatalf("expected %d tools, got %d", len(expected), len(toolset))
+	}
+	for i, tool := range toolset {
+		name := tool.MCPTool.Name
+		if name != expected[i] {
+			t.Errorf("unexpected tool %s, expected %s", name, expected[i])
+		}
+		annotations := tool.MCPTool.Annotations
+		if tool.IsWriteTool || !annotations.ReadOnlyHint || !annotations.IdempotentHint {
+			t.Errorf("%s: expected read-only, idempotent metadata", name)
+		}
+		if annotations.DestructiveHint == nil || *annotations.DestructiveHint ||
+			annotations.OpenWorldHint == nil || *annotations.OpenWorldHint {
+			t.Errorf("%s: expected non-destructive, closed-world metadata", name)
+		}
+		if tool.ResourceType != tools.ValidateResource {
+			t.Errorf("%s: unexpected resource %q", name, tool.ResourceType)
+		}
+		if !strings.Contains(tool.MCPTool.Description, "without saving") {
+			t.Errorf("%s: description must say that nothing is saved", name)
+		}
 	}
 }

@@ -13,17 +13,7 @@
 
 package validate
 
-import (
-	"encoding/json"
-
-	"github.com/google/jsonschema-go/jsonschema"
-	"github.com/perses/mcp-server/pkg/tools"
-)
-
-const (
-	scopeProject = "project"
-	scopeGlobal  = "global"
-)
+import "encoding/json"
 
 // result is the result of the validation tools. Error is set when the resource cannot be decoded.
 type result struct {
@@ -45,17 +35,7 @@ func serverResult(err error) (*result, error) {
 	return &result{Valid: true}, nil
 }
 
-func projectProperty(description string) *jsonschema.Schema {
-	return &jsonschema.Schema{
-		Type:        tools.SchemaTypeString,
-		Description: description,
-		MinLength:   new(1),
-		MaxLength:   new(75),
-		Pattern:     tools.PatternResourceName,
-	}
-}
-
-// kindOf returns the kind of a datasource or variable, which tells whether it is a project or a global resource. A
+// kindOf returns the kind of a variable, which tells whether it is a project or a global resource. A
 // decoding error is left to the Perses model, which also rejects a missing or unknown kind.
 func kindOf(raw json.RawMessage) string {
 	var header struct {

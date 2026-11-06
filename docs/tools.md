@@ -218,34 +218,13 @@ They take resources as JSON objects and return `{valid: true}`, or `{valid: fals
 message of the Perses model when the resource cannot be decoded. When the Perses server rejects the resource, or cannot
 be reached, the tool returns the error of the Perses client unchanged as a tool error.
 
-| Tool                         | Description                                      | Required parameters    | Optional parameters             |
-|------------------------------|--------------------------------------------------|------------------------|---------------------------------|
-| `perses_validate_dashboard`  | Validate a dashboard                             | `dashboard`            |                                 |
-| `perses_validate_datasource` | Validate or check a project or global datasource | `datasource` or `name` | `project`, `check_connectivity` |
-| `perses_validate_variable`   | Validate a project or global variable            | `variable`             |                                 |
+| Tool                        | Description                           | Required parameters |
+|-----------------------------|---------------------------------------|---------------------|
+| `perses_validate_dashboard` | Validate a dashboard                  | `dashboard`         |
+| `perses_validate_variable`  | Validate a project or global variable | `variable`          |
 
-`kind` is required on the resource and tells whether it is a project or a global one: `Datasource` or
-`GlobalDatasource`, `Variable` or `GlobalVariable`. A missing or unknown kind is rejected by Perses. To check a saved
-datasource by `name`, set `project` for a project datasource and omit it for a global one.
-
-`perses_validate_datasource` also returns `warnings` about conflicts with the saved datasources, which the validation
-API does not check: a project datasource hiding a global datasource of the same name, and a second default datasource
-of the same plugin kind, which Perses rejects on save. Pass `name` instead of `datasource` to check a saved datasource.
-
-With `check_connectivity: true`, the datasource is checked like the Test connection button of the Perses UI: one GET
-of its health endpoint through the Perses server proxy (`/api/v1/status/buildinfo` for Prometheus, `/api/v2/status`
-for AlertManager, `/_cluster/health` for OpenSearch). The result has `connectivity: {status, http_status, latency_ms,
-message, hint}`. `status` is `ok` with `latency_ms` when the answer is 2xx, and `error` otherwise, with the
-`http_status` of the answer and its `message` (the error of Perses or the body of the datasource). It is `timeout`
-when no answer comes within 15 seconds, and `skipped` when the check cannot run: the datasource has no HTTP proxy (for
-example only a `directUrl`), the plugin has no known health endpoint, or the Perses server disables the proxy of the
-datasource scope (`datasource.global.disable` or `datasource.project.disable`).
-
-A saved datasource is queried by name and only requires the permission to read it. An unsaved datasource is sent to
-the `/proxy/unsaved` endpoints of Perses, which never save it but require the permission to create datasources, and to
-read the secret that the datasource references, if any. As in the Perses UI, the health endpoint is added to the
-`allowedEndpoints` of an unsaved datasource that has some. When the `allowedEndpoints` of a saved datasource block the
-health endpoint, the status is `error` with the message of Perses.
+`kind` is required on a variable and tells whether it is a project or a global one: `Variable` or `GlobalVariable`.
+A missing or unknown kind is rejected by Perses.
 
 ## Grafana dashboards migration
 

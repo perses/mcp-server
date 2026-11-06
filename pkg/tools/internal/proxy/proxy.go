@@ -42,7 +42,6 @@ const (
 	pathProjects          = "projects"
 	pathDatasources       = "datasources"
 	pathGlobalDatasources = "globaldatasources"
-	pathUnsaved           = "unsaved"
 )
 
 type ProxyQuery struct {
@@ -70,32 +69,6 @@ func GlobalDatasourceProxyPath(datasource, subPath string) string {
 		pathProxy,
 		pathGlobalDatasources, url.PathEscape(datasource),
 		NormalizePath(subPath))
-}
-
-// UnsavedProjectDatasourceProxyPath builds the Perses proxy sub-path to query a project datasource that is not saved:
-// the datasource spec is sent in the body of a POST request (see UnsavedBody), and nothing is stored.
-func UnsavedProjectDatasourceProxyPath(project, subPath string) string {
-	return fmt.Sprintf("/%s/%s/%s/%s/%s%s",
-		pathProxy, pathUnsaved,
-		pathProjects, url.PathEscape(project),
-		pathDatasources,
-		NormalizePath(subPath))
-}
-
-// UnsavedGlobalDatasourceProxyPath builds the Perses proxy sub-path to query a global datasource that is not saved.
-func UnsavedGlobalDatasourceProxyPath(subPath string) string {
-	return fmt.Sprintf("/%s/%s/%s%s",
-		pathProxy, pathUnsaved,
-		pathGlobalDatasources,
-		NormalizePath(subPath))
-}
-
-// UnsavedBody is the body of a request to an unsaved datasource proxy endpoint. Method is the HTTP method used to
-// query the datasource; the request to Perses itself is always a POST.
-type UnsavedBody struct {
-	Method string `json:"method"`
-	Body   []byte `json:"body,omitempty"`
-	Spec   any    `json:"spec"`
 }
 
 // Response is the raw answer of the Perses proxy.

@@ -91,7 +91,7 @@ The `resources` field accepts the following resource names (case-insensitive, co
 | `plugin` | Plugin tools |
 | `migrate` | Grafana → Perses dashboard migration tool |
 | `schema` | Plugin schema tools (requires Perses v0.55+) |
-| `validate` | Dashboard, datasource, and variable validation tools |
+| `validate` | Dashboard and variable validation tools |
 
 #### Environment Variables
 
@@ -481,16 +481,12 @@ These tools validate resources without creating or modifying anything, and stay 
 They take resources as JSON objects and return `{valid: true}`, or `{valid: false, error}` when the resource cannot be
 decoded. When Perses rejects the resource, the tool returns the error of the Perses client unchanged.
 
-| Tool                         | Description                                      | Required Parameters    |
-|------------------------------|--------------------------------------------------|------------------------|
-| `perses_validate_dashboard`  | Validate a dashboard                             | `dashboard`            |
-| `perses_validate_datasource` | Validate or check a project or global datasource | `datasource` or `name` |
-| `perses_validate_variable`   | Validate a project or global variable            | `variable`             |
+| Tool                        | Description                           | Required Parameters |
+|-----------------------------|---------------------------------------|---------------------|
+| `perses_validate_dashboard` | Validate a dashboard                  | `dashboard`         |
+| `perses_validate_variable`  | Validate a project or global variable | `variable`          |
 
-`perses_validate_datasource` also warns about conflicts with the saved datasources, and with
-`check_connectivity: true` queries the health endpoint of the datasource through the Perses server without saving it,
-like the Test connection button of the Perses UI. See
-[Validation tools](./docs/tools.md#validation) for details.
+See [Validation tools](./docs/tools.md#validation) for details.
 
 ### Variables
 
