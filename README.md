@@ -343,21 +343,34 @@ perses-mcp-server --config /path/to/config.yaml
 
 ### Dashboards
 
-| Tool                           | Description                                                                                                     | Required Parameters    |
-| ------------------------------ | --------------------------------------------------------------------------------------------------------------- | ---------------------- |
-| `perses_list_dashboards`       | List the dashboards of a project (name, display name, version, panel count)                                     | `project`              |
-| `perses_get_dashboard_by_name` | Get an outline by default; `summary: false` returns complete JSON for read-modify-write, `panels: [keys]` returns those full panels regardless of `summary` (unknown keys come back in `missing` with the `available` keys) | `project`, `name` |
-| `perses_create_dashboard`      | Create a dashboard (JSON object); fails if it exists; options `dry_run`, `include_dashboard`                      | `project`, `dashboard` |
-| `perses_update_dashboard`      | Replace an existing dashboard; options `expected_version`, `dry_run`, `include_dashboard`                       | `project`, `dashboard` |
-| `perses_delete_dashboard`      | Delete a dashboard from a project                                                                               | `project`, `name`      |
+| Tool                                | Description                                                                                                     | Required Parameters          |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------------- | ---------------------------- |
+| `perses_list_dashboards`            | List the dashboards of a project (name, display name, version, panel count)                                     | `project`                    |
+| `perses_get_dashboard_by_name`      | Get an outline by default; `summary: false` returns complete JSON for read-modify-write, `panels: [keys]` returns those full panels regardless of `summary` (unknown keys come back in `missing` with the `available` keys) | `project`, `name` |
+| `perses_create_dashboard`           | Create a dashboard (JSON object); fails if it exists; options `dry_run`, `include_dashboard`                      | `project`, `dashboard`       |
+| `perses_update_dashboard`           | Replace an existing dashboard; options `expected_version`, `dry_run`, `include_dashboard`                       | `project`, `dashboard`       |
+| `perses_delete_dashboard`           | Delete a dashboard from a project                                                                               | `project`, `name`            |
+| `perses_set_dashboard_panels`       | Add, replace or `remove` panels; new panels are appended to a panel `group`                                    | `project`, `name`; at least one entry in `panels` or `remove` |
+| `perses_set_dashboard_variables`    | Add, replace (matched by `spec.name`) or `remove` dashboard variables                                         | `project`, `name`; at least one entry in `variables` or `remove` |
+| `perses_set_dashboard_layout`       | Define, replace or `remove` a panel group (`panels`, `panels_per_line`, `panel_height`, `collapsed`)            | `project`, `name`, `title`   |
 
 The write tools validate the dashboard against the Perses schemas before saving it and return a short summary
-(`project`, `name`, `version`, `url`, counts) instead of echoing the whole dashboard.
+(`project`, `name`, `version`, `url`, counts, `changes`) instead of echoing the whole dashboard.
 Validation failures are returned as a tool error with the error of the Perses client, unchanged.
-Pass `expected_version` to `perses_update_dashboard` to reject a dashboard whose version has changed since you
-read it. This is a client-side preflight check, not an atomic server-side lock; a concurrent write after the
-check can still race. Only `expected_version` and `dry_run` read the dashboard first, so a plain update needs only the
-update permission.
+The incremental `set_*` tools read the dashboard, modify it in memory and write it back; pass
+`expected_version` to reject a dashboard whose version has changed before editing. This is a client-side
+preflight check, not an atomic server-side lock; a concurrent write after the check can still race.
+
+Grid layouts are edited as panel groups, like the Perses SDKs build them: every panel of a group has the same
+size, `24 / panels_per_line` columns wide and `panel_height` rows high, and panels fill the rows in order.
+`perses_set_dashboard_layout` defines a group from an ordered list of panel keys, moving them out of other Grid
+groups. `perses_set_dashboard_panels` keeps the position of a replaced panel and appends new panels to `group`
+(the last group by default, created with 2 panels per line and height 8 if missing), laying out that group again
+with the size of its first panel, so custom positions in that group are reset. Tabs layouts are left untouched.
+Custom positions need `perses_update_dashboard`.
+
+`perses_update_dashboard` reads the dashboard first only for `expected_version` or `dry_run`, so a plain
+update needs only the update permission.
 
 `perses_validate_dashboard` checks the JSON against installed plugin CUE schemas without saving it.
 `perses_get_plugin_schema` provides plugin field definitions.
@@ -489,8 +502,8 @@ The schema tools return the [CUE](https://cuelang.org/) schemas of the plugins i
 Resource: `validate`
 
 These tools validate resources without creating or modifying anything, and stay available in read-only mode.
-They take resources as JSON objects and return `{valid: true}`, or `{valid: false, error}` when the resource cannot be
-decoded. When Perses rejects the resource, the tool returns the error of the Perses client unchanged.
+They take resources as JSON objects and return `{valid: true}`, or `{valid: false, error}` with the message of the
+Perses server unchanged.
 
 | Tool                        | Description                           | Required Parameters |
 |-----------------------------|---------------------------------------|---------------------|

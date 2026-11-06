@@ -5,8 +5,8 @@ This page lists the tools provided by the Perses MCP Server. The tools are group
 
 > [!NOTE]
 > In [read-only mode](./configuration.md#definition) (`read_only: true`), the tools creating, updating or deleting
-> resources (`perses_create_*`, `perses_update_*` and `perses_delete_*`) are not registered. Read and validation
-> tools stay available.
+> resources (`perses_create_*`, `perses_update_*`, `perses_delete_*`, `perses_set_*` and `perses_remove_*`) are not
+> registered. Read and validation tools stay available.
 
 Whatever the tools registered, they can only do what the identity configured in the MCP server is allowed to do in
 Perses (see [Permissions](./overview.md#permissions)).
@@ -34,6 +34,9 @@ Resource: `dashboard`
 | `perses_create_dashboard`      | Create a dashboard in a project            | `project`, `dashboard` |
 | `perses_update_dashboard`      | Update an existing dashboard of a project  | `project`, `dashboard` |
 | `perses_delete_dashboard`      | Delete a dashboard from a project          | `project`, `name`      |
+| `perses_set_dashboard_panels` | Add, replace or `remove` panels (with their layout items); new panels are appended to a panel `group` | `project`, `name`; at least one entry in `panels` or `remove` |
+| `perses_set_dashboard_variables` | Add, replace or `remove` variables by name | `project`, `name`; at least one entry in `variables` or `remove` |
+| `perses_set_dashboard_layout` | Define, replace or `remove` a panel group | `project`, `name`, `title` |
 
 The parameter `dashboard` is a dashboard in the [Perses format](https://perses.dev/docs/perses/latest/api/dashboard/).
 Create and update take the dashboard as a JSON object and have the Perses server validate it before saving; a
@@ -41,9 +44,32 @@ validation failure is a tool error with the error of the Perses client, unchange
 dashboard with the same name exists; use `perses_update_dashboard` to change it. Writes return a compact summary; set
 `include_dashboard: true` to include the saved dashboard. Use `dry_run: true` to validate without saving.
 
-Update accepts `expected_version` to detect changes made since the dashboard was read; it is not an atomic
-server-side lock, so a concurrent write after the check can still race. Only `expected_version` and `dry_run` read the
-dashboard first, so a plain update needs only the update permission.
+The incremental tools fetch the current dashboard, apply the requested changes, validate, and save it.
+In `perses_set_dashboard_panels` and `perses_set_dashboard_variables`, `remove` is applied before additions in the
+same write and must not name a key that is also being set. Invalid edits do not persist any changes.
+`expected_version` checks the version before editing to detect intervening changes; it is not an atomic
+server-side lock, so a concurrent write after the check can still race.
+
+Grid layouts are edited as panel groups, like the Perses
+[Go SDK](https://github.com/perses/perses/blob/main/go-sdk/dashboard/options.go) (`AddPanelGroup`) and
+[CUE DaC utils](https://github.com/perses/perses/tree/main/cue/dac-utils/panelgroup) build them. Every panel of a
+group has the same size, `width = 24 / panels_per_line` (rounded down) and `panel_height` rows of 30px, and the
+panels are laid out in order: panel `i` is at `x = width * (i % panels_per_line)`, `y = panel_height * (i / panels_per_line)`.
+For example, 4 panels with `panels_per_line: 3` and `panel_height: 6` are placed at `(0,0)`, `(8,0)`, `(16,0)` and `(0,6)`.
+
+- `perses_set_dashboard_layout` defines or replaces the Grid group with the given `title` (ignoring case) from an
+  ordered list of existing `panels`. `panels_per_line`, `panel_height` and `collapsed` default to those of the
+  replaced group, else 2 panels per line, height 8, not collapsible. Listed panels move out of other Grid groups;
+  panels left out are reported as no longer displayed. `remove: true` deletes the group and keeps its panels.
+- `perses_set_dashboard_panels` keeps the layout item of a replaced panel. New panels are appended, in key order, to
+  the Grid group titled `group` (the last group by default, created if missing), and that group is laid out again:
+  its panels per line and height come from its first panel (`24 / width`), so custom positions in that group are
+  reset. Removed panels lose their layout items.
+
+Tabs layouts are left untouched. Custom positions need `perses_update_dashboard`.
+
+`perses_update_dashboard` reads the dashboard first only for `expected_version` or `dry_run`, so a plain
+update needs only the update permission.
 
 `perses_validate_dashboard` checks the JSON against installed plugin CUE schemas without saving it.
 `perses_get_plugin_schema` provides plugin field definitions.
