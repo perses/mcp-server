@@ -343,13 +343,24 @@ perses-mcp-server --config /path/to/config.yaml
 
 ### Dashboards
 
-| Tool                           | Description                                                    | Required Parameters    |
-| ------------------------------ | -------------------------------------------------------------- | ---------------------- |
-| `perses_list_dashboards`       | List all dashboards for a specific project                     | `project`              |
-| `perses_get_dashboard_by_name` | Get a dashboard by name for a project                          | `project`, `name`      |
-| `perses_create_dashboard`      | Create a dashboard given a project and dashboard configuration | `project`, `dashboard` |
-| `perses_update_dashboard`      | Update an existing dashboard in a project                      | `project`, `dashboard` |
-| `perses_delete_dashboard`      | Delete a dashboard from a project                              | `project`, `name`      |
+| Tool                           | Description                                                                                                     | Required Parameters    |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------- | ---------------------- |
+| `perses_list_dashboards`       | List the dashboards of a project (name, display name, version, panel count)                                     | `project`              |
+| `perses_get_dashboard_by_name` | Get an outline by default; `summary: false` returns complete JSON for read-modify-write, `panels: [keys]` returns those full panels regardless of `summary` (unknown keys come back in `missing` with the `available` keys) | `project`, `name` |
+| `perses_create_dashboard`      | Create a dashboard (JSON object); fails if it exists; options `dry_run`, `include_dashboard`                      | `project`, `dashboard` |
+| `perses_update_dashboard`      | Replace an existing dashboard; options `expected_version`, `dry_run`, `include_dashboard`                       | `project`, `dashboard` |
+| `perses_delete_dashboard`      | Delete a dashboard from a project                                                                               | `project`, `name`      |
+
+The write tools validate the dashboard against the Perses schemas before saving it and return a short summary
+(`project`, `name`, `version`, `url`, counts) instead of echoing the whole dashboard.
+Validation failures are returned as a tool error with the error of the Perses client, unchanged.
+Pass `expected_version` to `perses_update_dashboard` to reject a dashboard whose version has changed since you
+read it. This is a client-side preflight check, not an atomic server-side lock; a concurrent write after the
+check can still race. Only `expected_version` and `dry_run` read the dashboard first, so a plain update needs only the
+update permission.
+
+`perses_validate_dashboard` checks the JSON against installed plugin CUE schemas without saving it.
+`perses_get_plugin_schema` provides plugin field definitions.
 
 For dashboard configuration, see [Perses Dashboards](https://github.com/perses/perses/blob/main/docs/api/dashboard.md)
 
