@@ -559,16 +559,36 @@ func TestSetPanels(t *testing.T) {
 	})
 }
 
-func TestSetPanelsNormalizesTheGroup(t *testing.T) {
-	fake := newFakePerses()
-	session := newSession(t, fake)
-	custom := strings.Replace(validDashboard, `"x": 0, "y": 0, "width": 12, "height": 6`, `"x": 6, "y": 3, "width": 8, "height": 4`, 1)
-	mustCall(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": object(t, custom)})
+func TestSetPanelsAppendsToTheGroup(t *testing.T) {
+	panels := map[string]any{
+		"p2": object(t, strings.ReplaceAll(statPanel, "%s", "P2")),
+		"p3": object(t, strings.ReplaceAll(statPanel, "%s", "P3")),
+	}
+	t.Run("a group laid out like the SDK is laid out again", func(t *testing.T) {
+		fake := newFakePerses()
+		session := newSession(t, fake)
+		sdk := strings.Replace(validDashboard, `"x": 0, "y": 0, "width": 12, "height": 6`, `"x": 0, "y": 0, "width": 8, "height": 4`, 1)
+		mustCall(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": object(t, sdk)})
 
-	panels := map[string]any{"p2": object(t, strings.ReplaceAll(statPanel, "%s", "P2"))}
-	result := mustCall(t, session, "perses_set_dashboard_panels", map[string]any{"project": "myproject", "name": "cpu", "panels": panels})
-	// The size of the first panel gives 3 panels per line; its custom position is reset.
-	equal(t, []any{"added panel p2", `group 0 "Row": p1 x=0 y=0, p2 x=8 y=0 (w=8 h=4)`}, result["changes"])
+		result := mustCall(t, session, "perses_set_dashboard_panels", map[string]any{"project": "myproject", "name": "cpu", "panels": panels})
+		// The size of the first panel gives 3 panels per line.
+		equal(t, []any{"added panel p2", "added panel p3", `group 0 "Row": p1 x=0 y=0, p2 x=8 y=0, p3 x=16 y=0 (w=8 h=4)`}, result["changes"])
+	})
+	t.Run("a group arranged by hand keeps its positions", func(t *testing.T) {
+		fake := newFakePerses()
+		session := newSession(t, fake)
+		custom := strings.Replace(validDashboard, `"x": 0, "y": 0, "width": 12, "height": 6`, `"x": 6, "y": 3, "width": 8, "height": 4`, 1)
+		mustCall(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": object(t, custom)})
+
+		result := mustCall(t, session, "perses_set_dashboard_panels", map[string]any{"project": "myproject", "name": "cpu", "panels": panels})
+		// The new panels take the size of the first panel, 3 per line, below its bottom (y=3+4).
+		equal(t, []any{
+			"added panel p2", "added panel p3",
+			`group 0 "Row" is arranged by hand: kept its positions and appended p2, p3 below`,
+			`group 0 "Row": p1 x=6 y=3, p2 x=0 y=7, p3 x=8 y=7 (w=8 h=4)`,
+		}, result["changes"])
+		contains(t, fake.stored(t), `{"content":{"$ref":"#/spec/panels/p1"},"height":4,"width":8,"x":6,"y":3}`)
+	})
 }
 
 func TestLayoutKeepsRepeatVariables(t *testing.T) {
@@ -795,8 +815,22 @@ func TestSetLayoutLeavesTabsUntouched(t *testing.T) {
 	mustCall(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": object(t, tabs)})
 
 	result := mustCall(t, session, "perses_set_dashboard_layout", map[string]any{"project": "myproject", "name": "cpu", "title": "Grid", "panels": []string{"p1"}})
-	equal(t, []any{`group 1 "Grid": p1 x=0 y=0 (w=12 h=8)`}, result["changes"])
+	equal(t, []any{`group 1 "Grid": p1 x=0 y=0 (w=12 h=8)`, `p1 is also displayed in tab "A" of layout 0`}, result["changes"])
 	contains(t, fake.stored(t), `"tabs":[{"items":[{"content":{"$ref":"#/spec/panels/p1"},"height":6,"width":12,"x":0,"y":0}],"name":"A"}]`)
+}
+
+func TestSetLayoutPanelHeightIsBounded(t *testing.T) {
+	session := newSession(t, newFakePerses())
+	mustCall(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": object(t, validDashboard)})
+
+	args := map[string]any{"project": "myproject", "name": "cpu", "title": "Row", "panels": []string{"p1"}, "panel_height": maxPanelHeight + 1}
+	result, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: "perses_set_dashboard_layout", Arguments: args})
+	if err == nil && !result.IsError {
+		t.Fatalf("a panel_height above %d must be rejected", maxPanelHeight)
+	}
+	args["panel_height"] = maxPanelHeight
+	result2 := mustCall(t, session, "perses_set_dashboard_layout", args)
+	equal(t, []any{`group 0 "Row": p1 x=0 y=0 (w=12 h=48)`}, result2["changes"])
 }
 
 func TestGetAndList(t *testing.T) {

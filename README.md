@@ -366,9 +366,10 @@ Grid layouts are edited as panel groups, like the Perses SDKs build them: every 
 size, `24 / panels_per_line` columns wide and `panel_height` rows high, and panels fill the rows in order.
 `perses_set_dashboard_layout` defines a group from an ordered list of panel keys, moving them out of other Grid
 groups. `perses_set_dashboard_panels` keeps the position of a replaced panel and appends new panels to `group`
-(the last group by default, created with 2 panels per line and height 8 if missing), laying out that group again
-with the size of its first panel, so custom positions in that group are reset. Tabs layouts are left untouched.
-Custom positions need `perses_update_dashboard`.
+(the last group by default, created with 2 panels per line and height 8 if missing) with the size of its first panel:
+a group laid out like the SDKs is laid out again, while a group arranged by hand keeps its positions and gets the new
+panels below its lowest one. Tabs layouts are left untouched; `perses_set_dashboard_layout` reports a listed panel
+that a tab also displays. Custom positions need `perses_update_dashboard`.
 
 `perses_update_dashboard` reads the dashboard first only for `expected_version` or `dry_run`, so a plain
 update needs only the update permission.

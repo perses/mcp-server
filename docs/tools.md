@@ -45,7 +45,8 @@ dashboard with the same name exists; use `perses_update_dashboard` to change it.
 `include_dashboard: true` to include the saved dashboard, or with `dry_run: true` (validate without saving) the
 dashboard that would be saved.
 
-The incremental tools fetch the current dashboard, apply the requested changes, validate, and save it.
+The incremental tools fetch the current dashboard, apply the requested changes and save it; Perses validates it when
+saving, and `dry_run: true` validates it without saving.
 In `perses_set_dashboard_panels` and `perses_set_dashboard_variables`, `remove` is applied before additions in the
 same write and must not name a key that is also being set. Invalid edits do not persist any changes.
 `expected_version` checks the version before editing to detect intervening changes; it is not an atomic
@@ -54,19 +55,21 @@ server-side lock, so a concurrent write after the check can still race.
 Grid layouts are edited as panel groups, like the Perses
 [Go SDK](https://github.com/perses/perses/blob/main/go-sdk/dashboard/options.go) (`AddPanelGroup`) and
 [CUE DaC utils](https://github.com/perses/perses/tree/main/cue/dac-utils/panelgroup) build them. Every panel of a
-group has the same size, `width = 24 / panels_per_line` (rounded down) and `panel_height` rows of 30px, and the
-panels are laid out in order: panel `i` is at `x = width * (i % panels_per_line)`, `y = panel_height * (i / panels_per_line)`.
+group has the same size, `width = 24 / panels_per_line` (rounded down) and `panel_height` rows of 30px (at most 48,
+already taller than most screens), and the panels are laid out in order: panel `i` is at `x = width * (i % panels_per_line)`, `y = panel_height * (i / panels_per_line)`.
 For example, 4 panels with `panels_per_line: 3` and `panel_height: 6` are placed at `(0,0)`, `(8,0)`, `(16,0)` and `(0,6)`.
 
 - `perses_set_dashboard_layout` defines or replaces the Grid group with the given `title` (an exact match, else
   ignoring case if only one group matches) from an ordered list of existing `panels`. `panels_per_line`,
   `panel_height` and `collapsed` default to those of the replaced group, else 2 panels per line, height 8, not
-  collapsible. Listed panels move out of other Grid groups; panels left out are reported as no longer displayed.
+  collapsible. Listed panels move out of other Grid groups; panels left out are reported as no longer displayed, and
+  listed panels that a tab also displays are reported too.
   `remove: true` deletes the group and keeps its panels, reported as no longer displayed; it takes no other option.
 - `perses_set_dashboard_panels` keeps the layout item of a replaced panel. New panels are appended, in key order, to
-  the Grid group titled `group` (the last group by default, created if missing), and that group is laid out again:
-  its panels per line and height come from its first panel (`24 / width`), so custom positions in that group are
-  reset. Removed panels lose their layout items.
+  the Grid group titled `group` (the last group by default, created if missing), with the size of its first panel.
+  When the items of the group are where the formula above puts them, the group is laid out again with its panels per
+  line (`24 / width`) and height. Otherwise the group was arranged by hand: its items keep their positions and the new
+  panels fill rows below its lowest item. Removed panels lose their layout items.
 
 Tabs layouts are left untouched. Custom positions need `perses_update_dashboard`.
 

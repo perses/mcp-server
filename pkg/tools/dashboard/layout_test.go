@@ -43,21 +43,61 @@ func TestFindGroup(t *testing.T) {
 	}
 	layouts := []dashboardSpec.Layout{grid("R"), grid("r"), grid("Ab"), grid("aB")}
 	for title, expected := range map[string]int{"R": 0, "r": 1, "": 3, "Ab": 2, "x": -1} {
-		index, err := findGroup(layouts, title)
+		index, spec, err := findGroup(layouts, title)
 		if err != nil {
 			t.Fatalf("%v: %v", title, err)
 		}
 		equal(t, expected, index, title)
+		if index >= 0 && spec != layouts[index].Spec {
+			t.Errorf("%v: findGroup must return the spec of layout %d", title, index)
+		}
+		if index < 0 && spec != nil {
+			t.Errorf("%v: expected no spec, got %#v", title, spec)
+		}
 	}
-	_, err := findGroup(layouts, "AB")
+	_, _, err := findGroup(layouts, "AB")
 	if err == nil || err.Error() != `no Grid group is titled exactly "AB" and several match ignoring case ("Ab", "aB"): give the exact title` {
 		t.Errorf("expected error %q, got %v", `no Grid group is titled exactly "AB" and several match ignoring case ("Ab", "aB"): give the exact title`, err)
 	}
-	index, err := findGroup(layouts[2:3], "AB")
+	index, spec, err := findGroup(layouts[2:3], "AB")
 	if err != nil {
 		t.Fatal(err)
 	}
 	equal(t, 0, index, "a single case-insensitive match is accepted")
+	if spec != layouts[2].Spec {
+		t.Error("findGroup must return the spec of the case-insensitive match")
+	}
+}
+
+func TestFollowsSDK(t *testing.T) {
+	sdk := &dashboardSpec.GridLayoutSpec{Items: gridItems([]string{"a", "b", "c"}, 3, 6)}
+	sdk.Items[0], sdk.Items[2] = sdk.Items[2], sdk.Items[0]
+	equal(t, true, followsSDK(sdk), "the item order does not matter")
+	equal(t, true, followsSDK(&dashboardSpec.GridLayoutSpec{}), "an empty group")
+
+	moved := &dashboardSpec.GridLayoutSpec{Items: gridItems([]string{"a", "b"}, 2, 8)}
+	moved.Items[1].Y = 3
+	equal(t, false, followsSDK(moved), "a moved panel")
+
+	resized := &dashboardSpec.GridLayoutSpec{Items: gridItems([]string{"a", "b"}, 2, 8)}
+	resized.Items[1].Height = 4
+	equal(t, false, followsSDK(resized), "a resized panel")
+
+	// A width that does not divide 24 is not what gridItems produces.
+	equal(t, false, followsSDK(&dashboardSpec.GridLayoutSpec{Items: []dashboardSpec.GridItem{
+		{Width: 10, Height: 6, Content: gridItems([]string{"a"}, 1, 1)[0].Content},
+	}}))
+}
+
+func TestAppendBelow(t *testing.T) {
+	grid := &dashboardSpec.GridLayoutSpec{Items: []dashboardSpec.GridItem{
+		{X: 4, Y: 0, Width: 10, Height: 5, Content: gridItems([]string{"a"}, 1, 1)[0].Content},
+		{X: 0, Y: 3, Width: 6, Height: 9, Content: gridItems([]string{"b"}, 1, 1)[0].Content},
+	}}
+	appendBelow(grid, []string{"c", "d", "e"})
+	equal(t, []position{{4, 0, 10, 5}, {0, 3, 6, 9}, {0, 12, 10, 5}, {10, 12, 10, 5}, {0, 17, 10, 5}}, positions(grid.Items),
+		"existing items stay, new ones take the size of the first item below the lowest one")
+	equal(t, "#/spec/panels/e", grid.Items[4].Content.Ref)
 }
 
 func TestGroupPanels(t *testing.T) {

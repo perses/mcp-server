@@ -29,7 +29,9 @@ const (
 	// Default panel size of a group, as in go-sdk/panel-group: 2 panels per line, 8 rows high.
 	defaultPanelsPerLine = 2
 	defaultPanelHeight   = 8
-	panelRefPrefix       = "#/spec/panels/"
+	// maxPanelHeight bounds panel_height: 48 rows of 30px (1440px) is already taller than most screens.
+	maxPanelHeight = 48
+	panelRefPrefix = "#/spec/panels/"
 )
 
 // gridItems lays out the panels of a group in order, panelsPerLine per row, like go-sdk/dashboard.AddPanelGroup and
@@ -51,13 +53,19 @@ func gridItems(keys []string, panelsPerLine, height int) []dashboardSpec.GridIte
 	return items
 }
 
+// readingOrder returns the items of a group sorted top to bottom, then left to right.
+func readingOrder(items []dashboardSpec.GridItem) []dashboardSpec.GridItem {
+	sorted := slices.Clone(items)
+	sort.SliceStable(sorted, func(i, j int) bool {
+		return sorted[i].Y < sorted[j].Y || (sorted[i].Y == sorted[j].Y && sorted[i].X < sorted[j].X)
+	})
+	return sorted
+}
+
 // groupPanels returns the panel keys of a group in reading order (top to bottom, then left to right), and the
 // panels per line and panel height of the group, inferred from its first item, or the SDK defaults.
 func groupPanels(grid *dashboardSpec.GridLayoutSpec) ([]string, int, int) {
-	items := slices.Clone(grid.Items)
-	sort.SliceStable(items, func(i, j int) bool {
-		return items[i].Y < items[j].Y || (items[i].Y == items[j].Y && items[i].X < items[j].X)
-	})
+	items := readingOrder(grid.Items)
 	keys := make([]string, 0, len(items))
 	for _, item := range items {
 		if key := panelKeyOf(item); key != "" {
@@ -68,6 +76,41 @@ func groupPanels(grid *dashboardSpec.GridLayoutSpec) ([]string, int, int) {
 		return keys, defaultPanelsPerLine, defaultPanelHeight
 	}
 	return keys, max(gridColumns/items[0].Width, 1), items[0].Height
+}
+
+// followsSDK reports whether the items of a group are exactly where gridItems would put its panels, i.e. the group
+// has not been arranged by hand.
+func followsSDK(grid *dashboardSpec.GridLayoutSpec) bool {
+	keys, perLine, height := groupPanels(grid)
+	if len(keys) != len(grid.Items) {
+		return false
+	}
+	expected := gridItems(keys, perLine, height)
+	for i, item := range readingOrder(grid.Items) {
+		if item.X != expected[i].X || item.Y != expected[i].Y || item.Width != expected[i].Width || item.Height != expected[i].Height {
+			return false
+		}
+	}
+	return true
+}
+
+// appendBelow places the panels below the lowest item of a group arranged by hand, without moving its items. The new
+// panels take the size of the group's first item and fill rows like gridItems.
+func appendBelow(grid *dashboardSpec.GridLayoutSpec, keys []string) {
+	top := 0
+	for _, item := range grid.Items {
+		top = max(top, item.Y+item.Height)
+	}
+	first := readingOrder(grid.Items)[0]
+	width := min(max(first.Width, 1), gridColumns)
+	height := max(first.Height, 1)
+	perLine := gridColumns / width
+	for i, item := range gridItems(keys, perLine, height) {
+		item.X = width * (i % perLine)
+		item.Y += top
+		item.Width = width
+		grid.Items = append(grid.Items, item)
+	}
 }
 
 // keepRepeats copies the repeat settings of the panels from their current Grid items to the rebuilt items.
@@ -87,34 +130,37 @@ func keepRepeats(items []dashboardSpec.GridItem, layouts []dashboardSpec.Layout)
 	}
 }
 
-// findGroup returns the index of the Grid layout with the given title, or -1. An exact title match is preferred;
-// otherwise the case is ignored, and several groups matching that way are an error. An empty title designates the
-// last Grid layout.
-func findGroup(layouts []dashboardSpec.Layout, title string) (int, error) {
+// findGroup returns the index and spec of the Grid layout with the given title, or -1 and nil. An exact title match
+// is preferred; otherwise the case is ignored, and several groups matching that way are an error. An empty title
+// designates the last Grid layout.
+func findGroup(layouts []dashboardSpec.Layout, title string) (int, *dashboardSpec.GridLayoutSpec, error) {
 	var folded []int
+	var foldedGrid *dashboardSpec.GridLayoutSpec
 	for i := len(layouts) - 1; i >= 0; i-- {
-		if _, ok := layouts[i].Spec.(*dashboardSpec.GridLayoutSpec); !ok {
+		grid, ok := layouts[i].Spec.(*dashboardSpec.GridLayoutSpec)
+		if !ok {
 			continue
 		}
 		current := layoutTitle(layouts[i])
 		if title == "" || current == title {
-			return i, nil
+			return i, grid, nil
 		}
 		if strings.EqualFold(current, title) {
 			folded = append(folded, i)
+			foldedGrid = grid
 		}
 	}
 	switch len(folded) {
 	case 0:
-		return -1, nil
+		return -1, nil, nil
 	case 1:
-		return folded[0], nil
+		return folded[0], foldedGrid, nil
 	}
 	titles := make([]string, 0, len(folded))
 	for _, i := range slices.Backward(folded) {
 		titles = append(titles, fmt.Sprintf("%q", layoutTitle(layouts[i])))
 	}
-	return -1, fmt.Errorf("no Grid group is titled exactly %q and several match ignoring case (%s): give the exact title", title, strings.Join(titles, ", "))
+	return -1, nil, fmt.Errorf("no Grid group is titled exactly %q and several match ignoring case (%s): give the exact title", title, strings.Join(titles, ", "))
 }
 
 // itemGroups returns the lists of grid items of a layout: a grid layout has one, a tabs layout has one per tab.
@@ -157,6 +203,23 @@ func panelKeyOf(item dashboardSpec.GridItem) string {
 		return path[2]
 	}
 	return strings.TrimPrefix(item.Content.Ref, panelRefPrefix)
+}
+
+// tabsDisplaying returns the tabs, as `tab "A" of layout 1`, whose items reference the panel key.
+func tabsDisplaying(layouts []dashboardSpec.Layout, key string) []string {
+	var tabs []string
+	for i, layout := range layouts {
+		spec, ok := layout.Spec.(*dashboardSpec.TabLayoutSpec)
+		if !ok {
+			continue
+		}
+		for _, tab := range spec.Tabs {
+			if slices.ContainsFunc(tab.Items, func(item dashboardSpec.GridItem) bool { return panelKeyOf(item) == key }) {
+				tabs = append(tabs, fmt.Sprintf("tab %q of layout %d", tab.Name, i))
+			}
+		}
+	}
+	return tabs
 }
 
 // isPlaced reports whether a layout item references the panel key.
