@@ -199,6 +199,10 @@ Resource: `schema`
 
 These read-only tools return raw [CUE](https://cuelang.org/) source from Perses v0.55 or later.
 
+> [!NOTE]
+> On Perses v0.55.x, shared types such as calculation, format and thresholds are referenced but not defined.
+> [perses/perses#4738](https://github.com/perses/perses/pull/4738) fixes this but isn't released yet.
+
 | Tool | Description | Required parameters |
 |------|-------------|---------------------|
 | `perses_list_plugin_schemas` | Get all installed plugin schemas | - |

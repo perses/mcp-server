@@ -52,7 +52,8 @@ func (s *schema) List() *tools.Tool {
 	tool := &mcp.Tool{
 		Name: "perses_list_plugin_schemas",
 		Description: "List the CUE schemas of all plugins installed on the Perses server: panels, queries, variables, " +
-			"datasources and annotations. Requires Perses v0.55 or later.",
+			"datasources and annotations. The response is large: prefer perses_get_plugin_schema for a known kind. " +
+			"Requires Perses v0.55 or later.",
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Lists the CUE schemas of all plugins in Perses",
 			ReadOnlyHint:    true,
@@ -117,9 +118,9 @@ func (s *schema) Get() *tools.Tool {
 		definition, err := s.client.Schema().Plugin(input.Kind, nil)
 		if errors.Is(err, perseshttp.RequestNotFoundError) {
 			return nil, nil, fmt.Errorf(
-				"no schema of plugin %q found (requires Perses v0.55 or later). Use perses_list_plugin_schemas to "+
-					"find plugin kinds. Server error: %w",
-				input.Kind, err,
+				"no schema of plugin %q found (requires Perses v0.55 or later). Kind names are the "+
+					"spec.plugins[].spec.name values from perses_list_plugins",
+				input.Kind,
 			)
 		}
 		if err != nil {

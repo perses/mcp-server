@@ -14,39 +14,24 @@
 package schema
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"net/http/httptest"
 	"strings"
-	"sync"
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/perses/mcp-server/pkg/tools"
-	apiClient "github.com/perses/perses/pkg/client/api"
-	"github.com/perses/perses/pkg/client/perseshttp"
-	"github.com/perses/spec/go/common"
+	"github.com/perses/mcp-server/pkg/tools/internal/tooltest"
 )
 
 const (
-	authorization         = "Bearer test-token"
 	timeSeriesChartSchema = "#TimeSeriesChart: {\n\tkind: \"TimeSeriesChart\"\n}\n"
 	statChartSchema       = "#StatChart: {\n\tkind: \"StatChart\"\n}\n"
 )
 
-// fakePerses mimics the schema API of the Perses server and records the requests it receives.
-type fakePerses struct {
-	mutex    sync.Mutex
-	requests []*http.Request
-}
-
-func (f *fakePerses) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	f.mutex.Lock()
-	f.requests = append(f.requests, r)
-	f.mutex.Unlock()
-
+// serveSchemas mimics the schema API of the Perses server.
+func serveSchemas(w http.ResponseWriter, r *http.Request) {
 	switch r.URL.Path {
 	case "/api/v1/schemas/plugins":
 		_, _ = w.Write([]byte(timeSeriesChartSchema + statChartSchema))
@@ -61,17 +46,16 @@ func (f *fakePerses) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (f *fakePerses) received() []*http.Request {
-	f.mutex.Lock()
-	defer f.mutex.Unlock()
-	return append([]*http.Request(nil), f.requests...)
+// fakePerses returns a fake of the schema API of the Perses server recording the requests it receives.
+func fakePerses() *tooltest.Perses {
+	return &tooltest.Perses{Handler: http.HandlerFunc(serveSchemas)}
 }
 
-// paths returns the paths of the received requests.
-func (f *fakePerses) paths() []string {
+// paths returns the paths of the requests received by perses.
+func paths(perses *tooltest.Perses) []string {
 	var paths []string
-	for _, request := range f.received() {
-		paths = append(paths, request.URL.Path)
+	for _, request := range perses.Received() {
+		paths = append(paths, request.Path)
 	}
 	return paths
 }
@@ -79,55 +63,8 @@ func (f *fakePerses) paths() []string {
 // connect registers the schema tools on an in-memory MCP server backed by perses.
 func connect(t *testing.T, perses http.Handler) *mcp.ClientSession {
 	t.Helper()
-	httpServer := httptest.NewServer(perses)
-	t.Cleanup(httpServer.Close)
-	restClient := &perseshttp.RESTClient{
-		BaseURL: common.MustParseURL(httpServer.URL),
-		Client:  httpServer.Client(),
-		Headers: map[string]string{"Authorization": authorization},
-	}
-
-	server := mcp.NewServer(&mcp.Implementation{Name: "test-server"}, nil)
-	client := apiClient.NewWithClient(restClient)
-	toolset := New(client.V1()).GetTools()
-	names := map[string]bool{}
-	for _, tool := range toolset {
-		if names[tool.MCPTool.Name] {
-			t.Fatalf("duplicate tool registration: %s", tool.MCPTool.Name)
-		}
-		names[tool.MCPTool.Name] = true
-		tool.RegisterWith(server)
-	}
-	serverTransport, clientTransport := mcp.NewInMemoryTransports()
-	serverSession, err := server.Connect(context.Background(), serverTransport, nil)
-	if err != nil {
-		t.Fatalf("connecting the server: %v", err)
-	}
-	t.Cleanup(func() { _ = serverSession.Close() })
-
-	session, err := mcp.NewClient(&mcp.Implementation{Name: "test-client"}, nil).Connect(context.Background(), clientTransport, nil)
-	if err != nil {
-		t.Fatalf("connecting the client: %v", err)
-	}
-	t.Cleanup(func() { _ = session.Close() })
-	return session
+	return tooltest.Connect(t, New(tooltest.NewClient(t, perses).V1()).GetTools())
 }
-
-func callTool(t *testing.T, session *mcp.ClientSession, name string, arguments map[string]any) (*mcp.CallToolResult, string) {
-	t.Helper()
-	result, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: name, Arguments: arguments})
-	if err != nil {
-		t.Fatalf("calling %s: %v", name, err)
-	}
-	var texts []string
-	for _, content := range result.Content {
-		if text, ok := content.(*mcp.TextContent); ok {
-			texts = append(texts, text.Text)
-		}
-	}
-	return result, strings.Join(texts, "\n")
-}
-
 func TestSchemaTools(t *testing.T) {
 	testSuites := []struct {
 		title     string
@@ -152,74 +89,81 @@ func TestSchemaTools(t *testing.T) {
 			tool:      "perses_get_plugin_schema",
 			arguments: map[string]any{"kind": "LineChart"},
 			isError:   true,
-			expected:  `no schema of plugin "LineChart" found`,
+			expected: `no schema of plugin "LineChart" found (requires Perses v0.55 or later). Kind names are the ` +
+				`spec.plugins[].spec.name values from perses_list_plugins`,
 		},
 	}
 
-	session := connect(t, &fakePerses{})
+	session := connect(t, fakePerses())
 	for _, test := range testSuites {
 		t.Run(test.title, func(t *testing.T) {
-			arguments := test.arguments
-			if arguments == nil {
-				arguments = map[string]any{}
-			}
-			result, text := callTool(t, session, test.tool, arguments)
+			result, text := tooltest.CallTool(t, session, test.tool, test.arguments)
 			if result.IsError != test.isError {
 				t.Fatalf("expected isError=%v, got %v: %s", test.isError, result.IsError, text)
 			}
-			// Error texts embed the Perses client's error wording, so only check our part.
-			if test.isError && !strings.Contains(text, test.expected) {
-				t.Errorf("expected %q to contain %q", text, test.expected)
-			}
-			if !test.isError && text != test.expected {
+			if text != test.expected {
 				t.Errorf("expected %q, got %q", test.expected, text)
 			}
 		})
 	}
 }
 
+func TestSchemaToolsServerError(t *testing.T) {
+	session := connect(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	for name, arguments := range map[string]map[string]any{
+		"perses_list_plugin_schemas": {},
+		"perses_get_plugin_schema":   {"kind": "TimeSeriesChart"},
+	} {
+		if result, text := tooltest.CallTool(t, session, name, arguments); !result.IsError {
+			t.Errorf("%s: expected an error, got %s", name, text)
+		}
+	}
+}
+
 func TestGetPluginSchemaRequest(t *testing.T) {
-	perses := &fakePerses{}
+	perses := fakePerses()
 	session := connect(t, perses)
 
-	result, text := callTool(t, session, "perses_get_plugin_schema", map[string]any{"kind": "TimeSeriesChart"})
+	result, text := tooltest.CallTool(t, session, "perses_get_plugin_schema", map[string]any{"kind": "TimeSeriesChart"})
 	if result.IsError {
 		t.Fatalf("unexpected error: %s", text)
 	}
-	requests := perses.received()
+	requests := perses.Received()
 	if len(requests) != 1 {
 		t.Fatalf("expected 1 request, got %d", len(requests))
 	}
 	request := requests[0]
-	if request.URL.Path != "/api/v1/schemas/plugins/TimeSeriesChart" || request.URL.RawQuery != "" {
-		t.Errorf("unexpected request %s", request.URL)
+	if request.Path != "/api/v1/schemas/plugins/TimeSeriesChart" || request.RawQuery != "" {
+		t.Errorf("unexpected request %s?%s", request.Path, request.RawQuery)
 	}
-	if got := request.Header.Get("Authorization"); got != authorization {
+	if got := request.Authorization; got != tooltest.Authorization {
 		t.Errorf("expected the configured authorization header, got %q", got)
 	}
 }
 
 func TestGetPluginSchemaRejectsInvalidKinds(t *testing.T) {
-	perses := &fakePerses{}
+	perses := fakePerses()
 	session := connect(t, perses)
 
 	for _, kind := range []string{"../projects", "Time/Series", ".", "..", ".hidden", "a b", "a?b", "a%2Fb"} {
-		if result, text := callTool(t, session, "perses_get_plugin_schema", map[string]any{"kind": kind}); !result.IsError {
+		if result, text := tooltest.CallTool(t, session, "perses_get_plugin_schema", map[string]any{"kind": kind}); !result.IsError {
 			t.Errorf("kind %q: expected an error, got %s", kind, text)
 		}
 	}
-	if requests := perses.received(); len(requests) != 0 {
+	if requests := perses.Received(); len(requests) != 0 {
 		t.Errorf("expected no request to Perses, got %d", len(requests))
 	}
 }
 
 func TestGetPluginSchemaAcceptsHyphensAndDots(t *testing.T) {
-	perses := &fakePerses{}
+	perses := fakePerses()
 	session := connect(t, perses)
 
-	callTool(t, session, "perses_get_plugin_schema", map[string]any{"kind": "my-plugin.v2"})
-	if paths := perses.paths(); len(paths) != 1 || paths[0] != "/api/v1/schemas/plugins/my-plugin.v2" {
-		t.Errorf("expected a request to the my-plugin.v2 schema, got %v", paths)
+	tooltest.CallTool(t, session, "perses_get_plugin_schema", map[string]any{"kind": "my-plugin.v2"})
+	if got := paths(perses); len(got) != 1 || got[0] != "/api/v1/schemas/plugins/my-plugin.v2" {
+		t.Errorf("expected a request to the my-plugin.v2 schema, got %v", got)
 	}
 }
 
