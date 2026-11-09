@@ -61,6 +61,7 @@ func New(cfg Config) (async.SimpleTask, error) {
 				Tools: &mcp.ToolCapabilities{ListChanged: false},
 			},
 		})
+	mcpServer.AddReceivingMiddleware(recoverPanics)
 
 	return &server{
 		cfg:          cfg,
