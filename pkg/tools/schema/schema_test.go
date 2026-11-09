@@ -152,7 +152,7 @@ func TestSchemaTools(t *testing.T) {
 			tool:      "perses_get_plugin_schema",
 			arguments: map[string]any{"kind": "LineChart"},
 			isError:   true,
-			expected:  noSchemaFound("LineChart"),
+			expected:  `no schema of plugin "LineChart" found`,
 		},
 	}
 
@@ -167,7 +167,11 @@ func TestSchemaTools(t *testing.T) {
 			if result.IsError != test.isError {
 				t.Fatalf("expected isError=%v, got %v: %s", test.isError, result.IsError, text)
 			}
-			if text != test.expected {
+			// Error texts embed the Perses client's error wording, so only check our part.
+			if test.isError && !strings.Contains(text, test.expected) {
+				t.Errorf("expected %q to contain %q", text, test.expected)
+			}
+			if !test.isError && text != test.expected {
 				t.Errorf("expected %q, got %q", test.expected, text)
 			}
 		})
@@ -228,11 +232,4 @@ func TestSchemaToolsAreReadOnly(t *testing.T) {
 			t.Errorf("%s: expected the %q resource type, got %q", tool.MCPTool.Name, tools.SchemaResource, tool.ResourceType)
 		}
 	}
-}
-
-// noSchemaFound is the error returned when Perses has no schema for the kind.
-func noSchemaFound(kind string) string {
-	return fmt.Sprintf("no schema of plugin %q found (requires Perses v0.55 or later). Use perses_list_plugin_schemas to "+
-		"find plugin kinds. Server error: something wrong happened with the request to the API.  "+
-		"Message: document not found StatusCode: 404", kind)
 }

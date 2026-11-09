@@ -4,6 +4,10 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    ignore:
+      # TODO: remove once a Perses release containing the schema client (perses/perses#4637) is tagged.
+      # go.mod pins a pseudo-version that sorts below v0.55.1, which lacks the schema client.
+      - dependency-name: "github.com/perses/perses"
     groups:
       gomod:
         patterns:

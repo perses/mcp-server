@@ -17,7 +17,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/url"
 	"regexp"
 
 	"github.com/google/jsonschema-go/jsonschema"
@@ -30,6 +29,8 @@ import (
 
 // kindPattern matches the valid plugin kinds, e.g. TimeSeriesChart or my-plugin.v2. The kind is a single segment of
 // the request path: slashes are rejected and it can't start with a dot, so neither "." nor ".." reaches other API paths.
+// The kind is passed to the client unescaped (the client escapes the path itself), so this pattern is what prevents
+// path traversal: don't relax it.
 var kindPattern = regexp.MustCompile(`^[A-Za-z0-9_-][A-Za-z0-9_.-]*$`)
 
 type schema struct {
@@ -113,7 +114,7 @@ func (s *schema) Get() *tools.Tool {
 		if !kindPattern.MatchString(input.Kind) {
 			return nil, nil, fmt.Errorf("invalid plugin kind %q", input.Kind)
 		}
-		definition, err := s.client.Schema().Plugin(url.PathEscape(input.Kind), nil)
+		definition, err := s.client.Schema().Plugin(input.Kind, nil)
 		if errors.Is(err, perseshttp.RequestNotFoundError) {
 			return nil, nil, fmt.Errorf(
 				"no schema of plugin %q found (requires Perses v0.55 or later). Use perses_list_plugin_schemas to "+
