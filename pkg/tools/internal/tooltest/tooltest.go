@@ -79,6 +79,17 @@ func (p *Perses) Received() []Request {
 	return append([]Request(nil), p.requests...)
 }
 
+// Count returns the number of requests received for the method and path.
+func (p *Perses) Count(method, path string) int {
+	count := 0
+	for _, request := range p.Received() {
+		if request.Method == method && request.Path == path {
+			count++
+		}
+	}
+	return count
+}
+
 // NewClient serves perses on a test HTTP server and returns a Perses client sending Authorization to it.
 func NewClient(t testing.TB, perses http.Handler) apiClient.ClientInterface {
 	t.Helper()

@@ -25,6 +25,7 @@ import (
 
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/perses/mcp-server/pkg/tools/internal/tooltest"
 	apiClient "github.com/perses/perses/pkg/client/api"
 	"github.com/perses/perses/pkg/client/perseshttp"
 	v1 "github.com/perses/perses/pkg/model/api/v1"
@@ -44,24 +45,25 @@ const validDashboard = `{
 
 // fakePerses is an in-memory Perses API storing dashboards as raw JSON documents. Like the real server, it validates
 // dashboards on the validation endpoint and when creating or updating them, rejecting the calculation "average".
+// The embedded tooltest.Perses records the requests.
 type fakePerses struct {
+	tooltest.Perses
 	mu         sync.Mutex
 	dashboards map[string]map[string]any
 	getStatus  int
 	// validated is the last dashboard sent to the validation endpoint.
 	validated map[string]any
-	// requests counts the requests per "METHOD path".
-	requests map[string]int
 }
 
 func newFakePerses() *fakePerses {
-	return &fakePerses{dashboards: map[string]map[string]any{}, requests: map[string]int{}}
+	fake := &fakePerses{dashboards: map[string]map[string]any{}}
+	fake.Handler = http.HandlerFunc(fake.serve)
+	return fake
 }
 
-func (f *fakePerses) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (f *fakePerses) serve(w http.ResponseWriter, r *http.Request) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.requests[r.Method+" "+r.URL.Path]++
 	body, _ := io.ReadAll(r.Body)
 
 	if r.Method == http.MethodPost && r.URL.Path == "/api/validate/dashboards" {
@@ -161,46 +163,13 @@ func (f *fakePerses) writeMessage(w http.ResponseWriter, status int, message str
 
 func newSession(t *testing.T, fake *fakePerses) *mcp.ClientSession {
 	t.Helper()
-	srv := httptest.NewServer(fake)
-	t.Cleanup(srv.Close)
-
-	client := apiClient.NewWithClient(&perseshttp.RESTClient{
-		BaseURL: common.MustParseURL(srv.URL),
-		Client:  srv.Client(),
-	})
-	return connect(t, client)
-}
-
-func connect(t *testing.T, client apiClient.ClientInterface) *mcp.ClientSession {
-	t.Helper()
-	server := mcp.NewServer(&mcp.Implementation{Name: "perses-mcp-server-test"}, nil)
-	for _, tool := range New(client).GetTools() {
-		tool.RegisterWith(server)
-	}
-
-	ctx := context.Background()
-	serverTransport, clientTransport := mcp.NewInMemoryTransports()
-	serverSession, err := server.Connect(ctx, serverTransport, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = serverSession.Close() })
-
-	session, err := mcp.NewClient(&mcp.Implementation{Name: "test-client"}, nil).Connect(ctx, clientTransport, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = session.Close() })
-	return session
+	return tooltest.Connect(t, New(tooltest.NewClient(t, fake)).GetTools())
 }
 
 // callTool calls a tool and returns its first text content and whether the result is an error.
 func callTool(t *testing.T, session *mcp.ClientSession, name string, args map[string]any) (string, bool) {
 	t.Helper()
-	result, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: name, Arguments: args})
-	if err != nil {
-		t.Fatalf("protocol error calling %s: %v", name, err)
-	}
+	result, _ := tooltest.CallTool(t, session, name, args)
 	if !hasLen(t, result.Content, 1) {
 		t.FailNow()
 	}
@@ -273,7 +242,7 @@ func TestCreate(t *testing.T) {
 		if result["dashboard"] != nil {
 			t.Errorf("expected nil, got %v", result["dashboard"])
 		}
-		equal(t, 0, fake.requests["POST /api/validate/dashboards"], "a real write relies on the validation of Perses")
+		equal(t, 0, fake.Count(http.MethodPost, "/api/validate/dashboards"), "a real write relies on the validation of Perses")
 	})
 	t.Run("string input is rejected", func(t *testing.T) {
 		fake := newFakePerses()
@@ -307,7 +276,7 @@ func TestCreate(t *testing.T) {
 			text := mustFail(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": object(t, other), "dry_run": dryRun})
 			equal(t, "project parameter value 'myproject' does not match provided metadata value 'other'", text)
 		}
-		equal(t, 0, fake.requests["POST /api/validate/dashboards"])
+		equal(t, 0, fake.Count(http.MethodPost, "/api/validate/dashboards"))
 		empty(t, fake.dashboards)
 	})
 	t.Run("project differing only by case is accepted", func(t *testing.T) {
@@ -360,7 +329,7 @@ func TestCreate(t *testing.T) {
 		text := mustFail(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": asObject, "dry_run": true})
 		contains(t, text, "error checking whether dashboard 'cpu' exists")
 		empty(t, fake.dashboards)
-		equal(t, 0, fake.requests["POST /api/v1/projects/myproject/dashboards"])
+		equal(t, 0, fake.Count(http.MethodPost, "/api/v1/projects/myproject/dashboards"))
 	})
 	t.Run("conflict", func(t *testing.T) {
 		fake := newFakePerses()
@@ -373,7 +342,7 @@ func TestCreate(t *testing.T) {
 		text = mustFail(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": asObject, "dry_run": true})
 		contains(t, text, "already exists")
 		contains(t, text, "perses_update_dashboard")
-		equal(t, 2, fake.requests["POST /api/v1/projects/myproject/dashboards"], "the dry run must not save")
+		equal(t, 2, fake.Count(http.MethodPost, "/api/v1/projects/myproject/dashboards"), "the dry run must not save")
 	})
 	t.Run("validation error is the error of the Perses client", func(t *testing.T) {
 		fake := newFakePerses()
@@ -385,7 +354,7 @@ func TestCreate(t *testing.T) {
 			contains(t, text, "invalid panel p2: spec.calculation: conflicting values \"mean\" and \"average\"")
 			contains(t, text, "StatusCode: 400")
 		}
-		equal(t, 1, fake.requests["POST /api/validate/dashboards"], "only the dry run calls the validation API")
+		equal(t, 1, fake.Count(http.MethodPost, "/api/validate/dashboards"), "only the dry run calls the validation API")
 		empty(t, fake.dashboards)
 	})
 	t.Run("decode error is the message of the Perses model", func(t *testing.T) {
@@ -394,7 +363,7 @@ func TestCreate(t *testing.T) {
 		wrongKind := strings.Replace(validDashboard, `"kind": "Dashboard"`, `"kind": "Datasource"`, 1)
 		text := mustFail(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": object(t, wrongKind)})
 		equal(t, `invalid kind: "Datasource" for a Dashboard type`, text)
-		equal(t, 0, fake.requests["POST /api/validate/dashboards"])
+		equal(t, 0, fake.Count(http.MethodPost, "/api/validate/dashboards"))
 	})
 }
 
@@ -419,20 +388,20 @@ func TestUpdate(t *testing.T) {
 			equal(t, "dashboard 'other' does not exist in project 'myproject'", text, "%v", extra)
 		}
 		notContains(t, fake.dashboards, "other")
-		equal(t, 1, fake.requests["PUT /api/v1/projects/myproject/dashboards/other"], "without a version check, the PUT reports the missing dashboard")
+		equal(t, 1, fake.Count(http.MethodPut, "/api/v1/projects/myproject/dashboards/other"), "without a version check, the PUT reports the missing dashboard")
 	})
 	t.Run("update without expected version does not read", func(t *testing.T) {
 		fake, session := setup(t)
-		before := fake.requests["GET /api/v1/projects/myproject/dashboards/cpu"]
+		before := fake.Count(http.MethodGet, "/api/v1/projects/myproject/dashboards/cpu")
 		result := mustCall(t, session, "perses_update_dashboard", map[string]any{"project": "myproject", "dashboard": object(t, validDashboard)})
 		equal(t, "updated", result["action"])
-		equal(t, before, fake.requests["GET /api/v1/projects/myproject/dashboards/cpu"], "an update-only role must be able to update")
+		equal(t, before, fake.Count(http.MethodGet, "/api/v1/projects/myproject/dashboards/cpu"), "an update-only role must be able to update")
 	})
 	t.Run("version mismatch", func(t *testing.T) {
 		fake, session := setup(t)
 		text := mustFail(t, session, "perses_update_dashboard", map[string]any{"project": "myproject", "dashboard": object(t, validDashboard), "expected_version": 7})
 		contains(t, text, "is at version 0, not 7")
-		equal(t, 0, fake.requests["PUT /api/v1/projects/myproject/dashboards/cpu"])
+		equal(t, 0, fake.Count(http.MethodPut, "/api/v1/projects/myproject/dashboards/cpu"))
 	})
 	t.Run("validation error is the error of the Perses client", func(t *testing.T) {
 		fake, session := setup(t)
@@ -443,8 +412,8 @@ func TestUpdate(t *testing.T) {
 			contains(t, text, "invalid panel p2: spec.calculation: conflicting values \"mean\" and \"average\"")
 			contains(t, text, "StatusCode: 400")
 		}
-		equal(t, 1, fake.requests["POST /api/validate/dashboards"], "only the dry run calls the validation API")
-		equal(t, 1, fake.requests["PUT /api/v1/projects/myproject/dashboards/cpu"])
+		equal(t, 1, fake.Count(http.MethodPost, "/api/validate/dashboards"), "only the dry run calls the validation API")
+		equal(t, 1, fake.Count(http.MethodPut, "/api/v1/projects/myproject/dashboards/cpu"))
 		equal(t, float64(0), fake.dashboards["cpu"]["metadata"].(map[string]any)["version"], "the rejected update saves nothing")
 	})
 	t.Run("update", func(t *testing.T) {
@@ -456,10 +425,10 @@ func TestUpdate(t *testing.T) {
 	t.Run("project mismatch", func(t *testing.T) {
 		fake, session := setup(t)
 		other := strings.Replace(validDashboard, `"name": "cpu"`, `"name": "cpu", "project": "other"`, 1)
-		before := fake.requests["POST /api/validate/dashboards"]
+		before := fake.Count(http.MethodPost, "/api/validate/dashboards")
 		text := mustFail(t, session, "perses_update_dashboard", map[string]any{"project": "myproject", "dashboard": object(t, other), "dry_run": true})
 		equal(t, "project parameter value 'myproject' does not match provided metadata value 'other'", text)
-		equal(t, before, fake.requests["POST /api/validate/dashboards"])
+		equal(t, before, fake.Count(http.MethodPost, "/api/validate/dashboards"))
 	})
 	t.Run("dry run includes the dashboard that would be saved", func(t *testing.T) {
 		fake, session := setup(t)
@@ -468,7 +437,7 @@ func TestUpdate(t *testing.T) {
 			t.Fatalf("unexpected nil")
 		}
 		equal(t, "myproject", result["dashboard"].(map[string]any)["metadata"].(map[string]any)["project"])
-		equal(t, 0, fake.requests["PUT /api/v1/projects/myproject/dashboards/cpu"])
+		equal(t, 0, fake.Count(http.MethodPut, "/api/v1/projects/myproject/dashboards/cpu"))
 	})
 	t.Run("dry run saves nothing", func(t *testing.T) {
 		fake := newFakePerses()
@@ -483,7 +452,7 @@ func TestUpdate(t *testing.T) {
 		result := mustCall(t, session, "perses_update_dashboard", map[string]any{"project": "myproject", "dashboard": object(t, renamed), "dry_run": true, "expected_version": 0})
 		equal(t, "would_update", result["action"])
 		equal(t, true, result["dryRun"])
-		equal(t, 0, fake.requests["PUT /api/v1/projects/myproject/dashboards/cpu"])
+		equal(t, 0, fake.Count(http.MethodPut, "/api/v1/projects/myproject/dashboards/cpu"))
 		after, err := json.Marshal(fake.dashboards["cpu"])
 		if err != nil {
 			t.Fatal(err)
@@ -563,7 +532,7 @@ func TestDashboardLinksOmitCredentials(t *testing.T) {
 	t.Cleanup(srv.Close)
 	base := common.MustParseURL(strings.Replace(srv.URL, "://", "://user:secret@", 1))
 	client := apiClient.NewWithClient(&perseshttp.RESTClient{BaseURL: base, Client: srv.Client()})
-	session := connect(t, client)
+	session := tooltest.Connect(t, New(client).GetTools())
 
 	created := mustCall(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": object(t, validDashboard)})
 	outline := mustCall(t, session, "perses_get_dashboard_by_name", map[string]any{"project": "myproject", "name": "cpu"})
