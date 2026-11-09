@@ -134,7 +134,11 @@ func (d *dashboard) SetPanels() *tools.Tool {
 		}
 		return d.edit(input.request(), func(dash *v1.Dashboard) ([]string, error) {
 			changes := removePanels(dash, input.Remove)
-			return append(changes, setPanels(dash, panels, input.Group)...), nil
+			set, err := setPanels(dash, panels, input.Group)
+			if err != nil {
+				return nil, err
+			}
+			return append(changes, set...), nil
 		})
 	}
 
@@ -148,7 +152,7 @@ func (d *dashboard) SetPanels() *tools.Tool {
 
 // setPanels adds or replaces the panels. Replaced panels keep their layout items; the others are appended to the
 // group, which is laid out again.
-func setPanels(dash *v1.Dashboard, panels map[string]*dashboardSpec.Panel, group string) []string {
+func setPanels(dash *v1.Dashboard, panels map[string]*dashboardSpec.Panel, group string) ([]string, error) {
 	if dash.Spec.Panels == nil {
 		dash.Spec.Panels = map[string]*dashboardSpec.Panel{}
 	}
@@ -171,9 +175,12 @@ func setPanels(dash *v1.Dashboard, panels map[string]*dashboardSpec.Panel, group
 		}
 	}
 	if len(appended) == 0 {
-		return changes
+		return changes, nil
 	}
-	index := findGroup(dash.Spec.Layouts, group)
+	index, err := findGroup(dash.Spec.Layouts, group)
+	if err != nil {
+		return nil, err
+	}
 	if index < 0 {
 		spec := &dashboardSpec.GridLayoutSpec{}
 		if group != "" {
@@ -187,7 +194,7 @@ func setPanels(dash *v1.Dashboard, panels map[string]*dashboardSpec.Panel, group
 	items := gridItems(append(keys, appended...), perLine, height)
 	keepRepeats(items, dash.Spec.Layouts[index:index+1])
 	grid.Items = items
-	return append(changes, describeGroup(index, dash.Spec.Layouts[index]))
+	return append(changes, describeGroup(index, dash.Spec.Layouts[index])), nil
 }
 
 // describeGroup reports the layout of a group, e.g. `group 1 "CPU": a x=0 y=0, b x=12 y=0 (w=12 h=8)`.
@@ -267,17 +274,23 @@ func (d *dashboard) SetVariables() *tools.Tool {
 		for _, name := range input.Remove {
 			removed[name] = true
 		}
+		seen := make(map[string]bool, len(variables))
 		for _, variable := range variables {
-			if variable.Spec != nil && removed[variable.Spec.GetName()] {
-				return nil, nil, fmt.Errorf("remove: variable %q is also given in variables; a name can be either removed or set", variable.Spec.GetName())
+			if variable.Spec == nil {
+				return nil, nil, fmt.Errorf("a variable has no spec")
 			}
+			name := variable.Spec.GetName()
+			if removed[name] {
+				return nil, nil, fmt.Errorf("remove: variable %q is also given in variables; a name can be either removed or set", name)
+			}
+			if seen[name] {
+				return nil, nil, fmt.Errorf("variables: %q is given twice", name)
+			}
+			seen[name] = true
 		}
 		return d.edit(input.request(), func(dash *v1.Dashboard) ([]string, error) {
 			changes := removeVariables(dash, input.Remove)
 			for _, variable := range variables {
-				if variable.Spec == nil {
-					return nil, fmt.Errorf("a variable has no spec")
-				}
 				name := variable.Spec.GetName()
 				if index := variableIndex(dash, name); index >= 0 {
 					dash.Spec.Variables[index] = variable
@@ -346,7 +359,7 @@ func (d *dashboard) SetLayout() *tools.Tool {
 			Properties: editProperties(map[string]*jsonschema.Schema{
 				"title": {
 					Type:        tools.SchemaTypeString,
-					Description: "Title of the group; an existing Grid group with this title (ignoring case) is replaced, otherwise one is appended.",
+					Description: "Title of the group; an existing Grid group with this title (exact, else ignoring case) is replaced, otherwise one is appended.",
 					MinLength:   new(1),
 				},
 				"panels": {
@@ -372,7 +385,7 @@ func (d *dashboard) SetLayout() *tools.Tool {
 				},
 				"remove": {
 					Type:        tools.SchemaTypeBoolean,
-					Description: "Remove the group instead of setting it.",
+					Description: "Remove the group instead of setting it; no other group option may be given.",
 					Default:     json.RawMessage("false"),
 				},
 			}),
@@ -384,6 +397,9 @@ func (d *dashboard) SetLayout() *tools.Tool {
 	handler := func(_ context.Context, _ *mcp.CallToolRequest, input SetLayoutInput) (*mcp.CallToolResult, any, error) { //nolint:unparam
 		if len(input.Panels) == 0 && !input.Remove {
 			return nil, nil, fmt.Errorf("panels is required unless remove=true")
+		}
+		if input.Remove && (len(input.Panels) > 0 || input.PanelsPerLine > 0 || input.PanelHeight > 0 || input.Collapsed != nil) {
+			return nil, nil, fmt.Errorf("remove=true deletes the group: panels, panels_per_line, panel_height and collapsed cannot be given with it")
 		}
 		return d.edit(input.request(), func(dash *v1.Dashboard) ([]string, error) {
 			return setLayout(dash, input)
@@ -399,13 +415,19 @@ func (d *dashboard) SetLayout() *tools.Tool {
 }
 
 func setLayout(dash *v1.Dashboard, input SetLayoutInput) ([]string, error) {
-	index := findGroup(dash.Spec.Layouts, input.Title)
+	index, err := findGroup(dash.Spec.Layouts, input.Title)
+	if err != nil {
+		return nil, err
+	}
 	if input.Remove {
 		if index < 0 {
 			return nil, fmt.Errorf("no Grid group is titled %q", input.Title)
 		}
+		removed := dash.Spec.Layouts[index]
+		previous, _, _ := groupPanels(removed.Spec.(*dashboardSpec.GridLayoutSpec))
 		dash.Spec.Layouts = slices.Delete(dash.Spec.Layouts, index, index+1)
-		return []string{fmt.Sprintf("removed group %d %q", index, input.Title)}, nil
+		changes := []string{fmt.Sprintf("removed group %d %q", index, layoutTitle(removed))}
+		return append(changes, hiddenPanels(dash, previous, nil)...), nil
 	}
 	for _, key := range input.Panels {
 		if dash.Spec.Panels[key] == nil {
@@ -456,14 +478,19 @@ func setLayout(dash *v1.Dashboard, input SetLayoutInput) ([]string, error) {
 		dash.Spec.Layouts[index] = layout
 	}
 	changes = append(changes, describeGroup(index, layout))
+	return append(changes, hiddenPanels(dash, previous, listed)...), nil
+}
+
+// hiddenPanels reports the panels of a group, except the listed ones, that no layout item displays anymore.
+func hiddenPanels(dash *v1.Dashboard, previous []string, listed map[string]bool) []string {
 	var hidden []string
 	for _, key := range previous {
 		if !listed[key] && !isPlaced(dash.Spec.Layouts, key) {
 			hidden = append(hidden, key)
 		}
 	}
-	if len(hidden) > 0 {
-		changes = append(changes, fmt.Sprintf("panels no longer displayed: %s", strings.Join(hidden, ", ")))
+	if len(hidden) == 0 {
+		return nil
 	}
-	return changes, nil
+	return []string{fmt.Sprintf("panels no longer displayed: %s", strings.Join(hidden, ", "))}
 }

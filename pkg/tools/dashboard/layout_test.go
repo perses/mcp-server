@@ -37,6 +37,29 @@ func TestGridItems(t *testing.T) {
 	equal(t, "#/spec/panels/f", items[5].Content.Ref)
 }
 
+func TestFindGroup(t *testing.T) {
+	grid := func(title string) dashboardSpec.Layout {
+		return dashboardSpec.Layout{Kind: dashboardSpec.KindGridLayout, Spec: &dashboardSpec.GridLayoutSpec{Display: &dashboardSpec.GridLayoutDisplay{Title: title}}}
+	}
+	layouts := []dashboardSpec.Layout{grid("R"), grid("r"), grid("Ab"), grid("aB")}
+	for title, expected := range map[string]int{"R": 0, "r": 1, "": 3, "Ab": 2, "x": -1} {
+		index, err := findGroup(layouts, title)
+		if err != nil {
+			t.Fatalf("%v: %v", title, err)
+		}
+		equal(t, expected, index, title)
+	}
+	_, err := findGroup(layouts, "AB")
+	if err == nil || err.Error() != `no Grid group is titled exactly "AB" and several match ignoring case ("Ab", "aB"): give the exact title` {
+		t.Errorf("expected error %q, got %v", `no Grid group is titled exactly "AB" and several match ignoring case ("Ab", "aB"): give the exact title`, err)
+	}
+	index, err := findGroup(layouts[2:3], "AB")
+	if err != nil {
+		t.Fatal(err)
+	}
+	equal(t, 0, index, "a single case-insensitive match is accepted")
+}
+
 func TestGroupPanels(t *testing.T) {
 	keys, perLine, height := groupPanels(&dashboardSpec.GridLayoutSpec{})
 	empty(t, keys)

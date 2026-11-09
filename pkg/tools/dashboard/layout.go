@@ -14,6 +14,7 @@
 package dashboard
 
 import (
+	"fmt"
 	"slices"
 	"sort"
 	"strings"
@@ -86,15 +87,34 @@ func keepRepeats(items []dashboardSpec.GridItem, layouts []dashboardSpec.Layout)
 	}
 }
 
-// findGroup returns the index of the Grid layout with the given title (ignoring case), or -1. An empty title
-// designates the last Grid layout.
-func findGroup(layouts []dashboardSpec.Layout, title string) int {
+// findGroup returns the index of the Grid layout with the given title, or -1. An exact title match is preferred;
+// otherwise the case is ignored, and several groups matching that way are an error. An empty title designates the
+// last Grid layout.
+func findGroup(layouts []dashboardSpec.Layout, title string) (int, error) {
+	var folded []int
 	for i := len(layouts) - 1; i >= 0; i-- {
-		if _, ok := layouts[i].Spec.(*dashboardSpec.GridLayoutSpec); ok && (title == "" || strings.EqualFold(layoutTitle(layouts[i]), title)) {
-			return i
+		if _, ok := layouts[i].Spec.(*dashboardSpec.GridLayoutSpec); !ok {
+			continue
+		}
+		current := layoutTitle(layouts[i])
+		if title == "" || current == title {
+			return i, nil
+		}
+		if strings.EqualFold(current, title) {
+			folded = append(folded, i)
 		}
 	}
-	return -1
+	switch len(folded) {
+	case 0:
+		return -1, nil
+	case 1:
+		return folded[0], nil
+	}
+	titles := make([]string, 0, len(folded))
+	for _, i := range slices.Backward(folded) {
+		titles = append(titles, fmt.Sprintf("%q", layoutTitle(layouts[i])))
+	}
+	return -1, fmt.Errorf("no Grid group is titled exactly %q and several match ignoring case (%s): give the exact title", title, strings.Join(titles, ", "))
 }
 
 // itemGroups returns the lists of grid items of a layout: a grid layout has one, a tabs layout has one per tab.

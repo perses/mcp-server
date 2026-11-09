@@ -5,8 +5,8 @@ This page lists the tools provided by the Perses MCP Server. The tools are group
 
 > [!NOTE]
 > In [read-only mode](./configuration.md#definition) (`read_only: true`), the tools creating, updating or deleting
-> resources (`perses_create_*`, `perses_update_*`, `perses_delete_*`, `perses_set_*` and `perses_remove_*`) are not
-> registered. Read and validation tools stay available.
+> resources (`perses_create_*`, `perses_update_*`, `perses_delete_*` and `perses_set_*`) are not registered. Read and
+> validation tools stay available.
 
 Whatever the tools registered, they can only do what the identity configured in the MCP server is allowed to do in
 Perses (see [Permissions](./overview.md#permissions)).
@@ -58,10 +58,11 @@ group has the same size, `width = 24 / panels_per_line` (rounded down) and `pane
 panels are laid out in order: panel `i` is at `x = width * (i % panels_per_line)`, `y = panel_height * (i / panels_per_line)`.
 For example, 4 panels with `panels_per_line: 3` and `panel_height: 6` are placed at `(0,0)`, `(8,0)`, `(16,0)` and `(0,6)`.
 
-- `perses_set_dashboard_layout` defines or replaces the Grid group with the given `title` (ignoring case) from an
-  ordered list of existing `panels`. `panels_per_line`, `panel_height` and `collapsed` default to those of the
-  replaced group, else 2 panels per line, height 8, not collapsible. Listed panels move out of other Grid groups;
-  panels left out are reported as no longer displayed. `remove: true` deletes the group and keeps its panels.
+- `perses_set_dashboard_layout` defines or replaces the Grid group with the given `title` (an exact match, else
+  ignoring case if only one group matches) from an ordered list of existing `panels`. `panels_per_line`,
+  `panel_height` and `collapsed` default to those of the replaced group, else 2 panels per line, height 8, not
+  collapsible. Listed panels move out of other Grid groups; panels left out are reported as no longer displayed.
+  `remove: true` deletes the group and keeps its panels, reported as no longer displayed; it takes no other option.
 - `perses_set_dashboard_panels` keeps the layout item of a replaced panel. New panels are appended, in key order, to
   the Grid group titled `group` (the last group by default, created if missing), and that group is laid out again:
   its panels per line and height come from its first panel (`24 / width`), so custom positions in that group are

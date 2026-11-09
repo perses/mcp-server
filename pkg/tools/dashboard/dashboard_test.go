@@ -718,6 +718,11 @@ func TestVariables(t *testing.T) {
 	contains(t, text, "at least one variable")
 	text = mustFail(t, session, "perses_set_dashboard_variables", map[string]any{"project": "myproject", "name": "cpu", "variables": []any{}})
 	contains(t, text, "at least one variable")
+	text = mustFail(t, session, "perses_set_dashboard_variables", map[string]any{"project": "myproject", "name": "cpu", "variables": []any{
+		object(t, `{"kind": "TextVariable", "spec": {"name": "dup", "value": "a"}}`),
+		object(t, `{"kind": "TextVariable", "spec": {"name": "dup", "value": "b"}}`),
+	}})
+	equal(t, `variables: "dup" is given twice`, text)
 	equal(t, stored, fake.stored(t), "a rejected variable edit must not change the dashboard")
 
 	result = mustCall(t, session, "perses_set_dashboard_variables", map[string]any{"project": "myproject", "name": "cpu", "variables": []any{}, "remove": []string{"environment"}, "dry_run": true})
@@ -764,10 +769,21 @@ func TestSetLayout(t *testing.T) {
 		"panels is required":            {"title": "Row"},
 		`no Grid group is titled`:       {"title": "Details", "remove": true},
 		`missing properties: ["title"]`: {"panels": []string{"p1"}},
+		"cannot be given with it":       {"title": "row", "remove": true, "panels": []string{"p2"}},
+		"cannot be given with":          {"title": "row", "remove": true, "panel_height": 3},
 	} {
 		args["project"], args["name"] = "myproject", "cpu"
 		contains(t, mustFail(t, session, "perses_set_dashboard_layout", args), message)
 	}
+}
+
+func TestSetLayoutRemoveReportsHiddenPanels(t *testing.T) {
+	fake := newFakePerses()
+	session := newSession(t, fake)
+	mustCall(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": object(t, validDashboard)})
+	result := mustCall(t, session, "perses_set_dashboard_layout", map[string]any{"project": "myproject", "name": "cpu", "title": "row", "remove": true})
+	equal(t, []any{`removed group 0 "Row"`, "panels no longer displayed: p1"}, result["changes"])
+	equal(t, float64(1), result["panels"])
 }
 
 func TestSetLayoutLeavesTabsUntouched(t *testing.T) {
