@@ -118,7 +118,7 @@ func expectedVersionSchema() *jsonschema.Schema {
 func includeDashboardSchema() *jsonschema.Schema {
 	return &jsonschema.Schema{
 		Type:        tools.SchemaTypeBoolean,
-		Description: "Also return the complete saved dashboard (off by default).",
+		Description: "Also return the complete saved dashboard, or with dry_run the dashboard that would be saved (off by default).",
 		Default:     json.RawMessage("false"),
 	}
 }
@@ -131,7 +131,7 @@ type writeResult struct {
 	Summary
 	// Changes describes what the incremental tools did, e.g. the layout items added.
 	Changes []string `json:"changes,omitempty"`
-	// Dashboard is the saved dashboard, when requested.
+	// Dashboard is the saved dashboard, or for a dry run the dashboard that would be saved, when requested.
 	Dashboard *v1.Dashboard `json:"dashboard,omitempty"`
 }
 

@@ -52,10 +52,14 @@ func layoutTitle(layout dashboardSpec.Layout) string {
 	return ""
 }
 
-// panelKeyOf returns the panel key referenced by a layout item, or an empty string.
+// panelKeyOf returns the panel key referenced by a layout item, or an empty string. The parsed path of the reference
+// is used when available, as the "#" prefix of the reference is optional.
 func panelKeyOf(item dashboardSpec.GridItem) string {
 	if item.Content == nil {
 		return ""
+	}
+	if path := item.Content.Path; len(path) == 3 && path[0] == "spec" && path[1] == "panels" {
+		return path[2]
 	}
 	return strings.TrimPrefix(item.Content.Ref, panelRefPrefix)
 }

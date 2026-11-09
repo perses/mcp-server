@@ -15,9 +15,11 @@ package dashboard
 import (
 	"encoding/json"
 	"net/url"
+	"strings"
 	"testing"
 
 	v1 "github.com/perses/perses/pkg/model/api/v1"
+	dashboardSpec "github.com/perses/spec/go/dashboard"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -57,6 +59,14 @@ func TestSummarize(t *testing.T) {
 	assert.Empty(t, outline.PanelList[1].Placement)
 	assert.Equal(t, "inst", outline.VariableList[0].Name)
 	assert.Equal(t, "Row", outline.LayoutList[0].Title)
+}
+
+func TestPanelRefWithoutHash(t *testing.T) {
+	d := &v1.Dashboard{}
+	require.NoError(t, json.Unmarshal([]byte(strings.Replace(sampleDashboard, `"#/spec/panels/p1"`, `"/spec/panels/p1"`, 1)), d))
+	assert.Equal(t, "p1", panelKeyOf(d.Spec.Layouts[0].Spec.(*dashboardSpec.GridLayoutSpec).Items[0]))
+	outline := OutlineOf(d, nil)
+	assert.Equal(t, []string{"layout 0: x=0 y=0 w=12 h=6"}, outline.PanelList[0].Placement)
 }
 
 func TestDashboardURLDropsCredentials(t *testing.T) {

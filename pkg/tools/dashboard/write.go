@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -44,7 +45,7 @@ func (d *dashboard) Create() *tools.Tool {
 		InputSchema: &jsonschema.Schema{
 			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
-				string(tools.ProjectResource): projectSchema("Project to create the dashboard in; Perses fills metadata.project from it when omitted."),
+				string(tools.ProjectResource): projectSchema("Project to create the dashboard in; fills metadata.project when omitted, must match it otherwise."),
 				"dashboard":                   dashboardSchema("The dashboard: {kind: Dashboard, metadata: {name}, spec: {display, variables, panels, layouts, duration}}."),
 				dryRunProperty:                dryRunSchema(),
 				includeDashboardProp:          includeDashboardSchema(),
@@ -65,6 +66,9 @@ func (d *dashboard) Create() *tools.Tool {
 		if err := json.Unmarshal(input.Dashboard, dash); err != nil {
 			return nil, nil, err
 		}
+		if err := setProject(dash, input.Project); err != nil {
+			return nil, nil, err
+		}
 		if err := d.client.Validate().Dashboard(dash); err != nil {
 			return nil, nil, err
 		}
@@ -81,6 +85,9 @@ func (d *dashboard) Create() *tools.Tool {
 				return nil, nil, fmt.Errorf("error checking whether dashboard '%s' exists in project '%s': %w", dash.Metadata.Name, input.Project, err)
 			}
 			result.Summary = Summarize(dash, input.Project, d.baseURL())
+			if input.IncludeDashboard {
+				result.Dashboard = dash
+			}
 			return jsonResult(result)
 		}
 
@@ -101,6 +108,21 @@ func (d *dashboard) Create() *tools.Tool {
 		ResourceType: tools.DashboardResource,
 		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, tool, handler) },
 	}
+}
+
+// setProject fills an empty metadata.project from the project argument, as the Perses server does when saving, so
+// that the validation resolves the project variables. A different project is rejected, as the Perses server does.
+// The comparison ignores case like a Perses server with the default case_sensitive: false; a case-sensitive server
+// still rejects a case-only difference on the real write.
+func setProject(dash *v1.Dashboard, project string) error {
+	switch {
+	case dash.Metadata.Project == "":
+		dash.Metadata.Project = project
+	case strings.EqualFold(dash.Metadata.Project, project):
+	default:
+		return fmt.Errorf("project parameter value '%s' does not match provided metadata value '%s'", project, dash.Metadata.Project)
+	}
+	return nil
 }
 
 func alreadyExistsError(name, project string) error {
@@ -132,7 +154,7 @@ func (d *dashboard) Update() *tools.Tool {
 		InputSchema: &jsonschema.Schema{
 			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
-				string(tools.ProjectResource): projectSchema("Project of the dashboard"),
+				string(tools.ProjectResource): projectSchema("Project of the dashboard; fills metadata.project when omitted, must match it otherwise."),
 				"dashboard":                   dashboardSchema("The complete dashboard; metadata.name identifies the dashboard to replace."),
 				expectedVersionProperty:       expectedVersionSchema(),
 				dryRunProperty:                dryRunSchema(),
@@ -152,6 +174,9 @@ func (d *dashboard) Update() *tools.Tool {
 	handler := func(_ context.Context, _ *mcp.CallToolRequest, input UpdateDashboardInput) (*mcp.CallToolResult, any, error) { //nolint:unparam
 		dash := &v1.Dashboard{}
 		if err := json.Unmarshal(input.Dashboard, dash); err != nil {
+			return nil, nil, err
+		}
+		if err := setProject(dash, input.Project); err != nil {
 			return nil, nil, err
 		}
 		// Perses checks the read and update permissions independently: read the dashboard only when needed, so that
@@ -208,6 +233,9 @@ func (d *dashboard) save(req editRequest, dash *v1.Dashboard, changes []string) 
 	if req.dryRun {
 		result.Action = "would_update"
 		result.Summary = Summarize(dash, req.project, d.baseURL())
+		if req.include {
+			result.Dashboard = dash
+		}
 		return jsonResult(result)
 	}
 	saved, err := d.api(req.project).Update(dash)

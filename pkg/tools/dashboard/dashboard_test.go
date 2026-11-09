@@ -50,6 +50,8 @@ type fakePerses struct {
 	mu         sync.Mutex
 	dashboards map[string]map[string]any
 	getStatus  int
+	// validated is the last dashboard sent to the validation endpoint.
+	validated map[string]any
 	// requests counts the requests per "METHOD path".
 	requests map[string]int
 }
@@ -65,6 +67,7 @@ func (f *fakePerses) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	body, _ := io.ReadAll(r.Body)
 
 	if r.Method == http.MethodPost && r.URL.Path == "/api/validate/dashboards" {
+		f.validated = decode(body)
 		if strings.Contains(string(body), `"average"`) {
 			f.writeMessage(w, http.StatusBadRequest, "bad request: bad request: invalid panel p2: spec.calculation: conflicting values \"mean\" and \"average\":\n    1:1\n")
 			return
@@ -146,7 +149,6 @@ func (f *fakePerses) writeMessage(w http.ResponseWriter, status int, message str
 	f.writeJSON(w, status, map[string]string{"message": message})
 }
 
-// stored returns the stored dashboard re-encoded as JSON, for assertions.
 func newSession(t *testing.T, fake *fakePerses) *mcp.ClientSession {
 	t.Helper()
 	srv := httptest.NewServer(fake)
@@ -253,6 +255,39 @@ func TestCreate(t *testing.T) {
 		result := mustCall(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": asObject, "include_dashboard": true})
 		assert.NotNil(t, result["dashboard"])
 	})
+	t.Run("empty metadata.project is filled before validation", func(t *testing.T) {
+		fake := newFakePerses()
+		session := newSession(t, fake)
+		mustCall(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": asObject, "dry_run": true})
+		assert.Equal(t, "myproject", fake.validated["metadata"].(map[string]any)["project"], "project variables are only resolved with metadata.project")
+	})
+	t.Run("project mismatch", func(t *testing.T) {
+		fake := newFakePerses()
+		session := newSession(t, fake)
+		other := strings.Replace(validDashboard, `"name": "cpu"`, `"name": "cpu", "project": "other"`, 1)
+		for _, dryRun := range []bool{false, true} {
+			text := mustFail(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": object(t, other), "dry_run": dryRun})
+			assert.Equal(t, "project parameter value 'myproject' does not match provided metadata value 'other'", text)
+		}
+		assert.Zero(t, fake.requests["POST /api/validate/dashboards"])
+		assert.Empty(t, fake.dashboards)
+	})
+	t.Run("project differing only by case is accepted", func(t *testing.T) {
+		fake := newFakePerses()
+		session := newSession(t, fake)
+		upper := strings.Replace(validDashboard, `"name": "cpu"`, `"name": "cpu", "project": "MyProject"`, 1)
+		result := mustCall(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": object(t, upper), "dry_run": true})
+		assert.Equal(t, "would_create", result["action"])
+		assert.Equal(t, "MyProject", fake.validated["metadata"].(map[string]any)["project"])
+	})
+	t.Run("dry run includes the dashboard that would be saved", func(t *testing.T) {
+		fake := newFakePerses()
+		session := newSession(t, fake)
+		result := mustCall(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": asObject, "dry_run": true, "include_dashboard": true})
+		require.NotNil(t, result["dashboard"])
+		assert.Equal(t, "myproject", result["dashboard"].(map[string]any)["metadata"].(map[string]any)["project"])
+		assert.Empty(t, fake.dashboards)
+	})
 	t.Run("dry run saves nothing", func(t *testing.T) {
 		fake := newFakePerses()
 		session := newSession(t, fake)
@@ -319,11 +354,16 @@ func TestCreate(t *testing.T) {
 }
 
 func TestUpdate(t *testing.T) {
-	fake := newFakePerses()
-	session := newSession(t, fake)
-	mustCall(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": object(t, validDashboard)})
+	// setup returns a fake Perses storing the dashboard cpu at version 0.
+	setup := func(t *testing.T) (*fakePerses, *mcp.ClientSession) {
+		fake := newFakePerses()
+		session := newSession(t, fake)
+		mustCall(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": object(t, validDashboard)})
+		return fake, session
+	}
 
 	t.Run("missing dashboard", func(t *testing.T) {
+		fake, session := setup(t)
 		missing := strings.Replace(validDashboard, `"cpu"`, `"other"`, 1)
 		for _, extra := range []map[string]any{{}, {"expected_version": 0}, {"dry_run": true}} {
 			args := map[string]any{"project": "myproject", "dashboard": object(t, missing)}
@@ -337,19 +377,38 @@ func TestUpdate(t *testing.T) {
 		assert.Equal(t, 1, fake.requests["PUT /api/v1/projects/myproject/dashboards/other"], "without a version check, the PUT reports the missing dashboard")
 	})
 	t.Run("update without expected version does not read", func(t *testing.T) {
+		fake, session := setup(t)
 		before := fake.requests["GET /api/v1/projects/myproject/dashboards/cpu"]
 		result := mustCall(t, session, "perses_update_dashboard", map[string]any{"project": "myproject", "dashboard": object(t, validDashboard)})
 		assert.Equal(t, "updated", result["action"])
 		assert.Equal(t, before, fake.requests["GET /api/v1/projects/myproject/dashboards/cpu"], "an update-only role must be able to update")
 	})
 	t.Run("version mismatch", func(t *testing.T) {
+		fake, session := setup(t)
 		text := mustFail(t, session, "perses_update_dashboard", map[string]any{"project": "myproject", "dashboard": object(t, validDashboard), "expected_version": 7})
-		assert.Contains(t, text, "is at version 1, not 7")
+		assert.Contains(t, text, "is at version 0, not 7")
+		assert.Zero(t, fake.requests["PUT /api/v1/projects/myproject/dashboards/cpu"])
 	})
 	t.Run("update", func(t *testing.T) {
-		result := mustCall(t, session, "perses_update_dashboard", map[string]any{"project": "myproject", "dashboard": object(t, validDashboard), "expected_version": 1})
+		_, session := setup(t)
+		result := mustCall(t, session, "perses_update_dashboard", map[string]any{"project": "myproject", "dashboard": object(t, validDashboard), "expected_version": 0})
 		assert.Equal(t, "updated", result["action"])
-		assert.Equal(t, float64(2), result["version"])
+		assert.Equal(t, float64(1), result["version"])
+	})
+	t.Run("project mismatch", func(t *testing.T) {
+		fake, session := setup(t)
+		other := strings.Replace(validDashboard, `"name": "cpu"`, `"name": "cpu", "project": "other"`, 1)
+		before := fake.requests["POST /api/validate/dashboards"]
+		text := mustFail(t, session, "perses_update_dashboard", map[string]any{"project": "myproject", "dashboard": object(t, other), "dry_run": true})
+		assert.Equal(t, "project parameter value 'myproject' does not match provided metadata value 'other'", text)
+		assert.Equal(t, before, fake.requests["POST /api/validate/dashboards"])
+	})
+	t.Run("dry run includes the dashboard that would be saved", func(t *testing.T) {
+		fake, session := setup(t)
+		result := mustCall(t, session, "perses_update_dashboard", map[string]any{"project": "myproject", "dashboard": object(t, validDashboard), "dry_run": true, "include_dashboard": true})
+		require.NotNil(t, result["dashboard"])
+		assert.Equal(t, "myproject", result["dashboard"].(map[string]any)["metadata"].(map[string]any)["project"])
+		assert.Zero(t, fake.requests["PUT /api/v1/projects/myproject/dashboards/cpu"])
 	})
 	t.Run("dry run saves nothing", func(t *testing.T) {
 		fake := newFakePerses()
@@ -441,7 +500,9 @@ func TestDashboardLinksOmitCredentials(t *testing.T) {
 }
 
 func TestToolDescriptionsStayCompact(t *testing.T) {
-	// Shared model/workflow guidance belongs in server instructions, not repeated tool descriptions.
+	// Every tool description is sent to the model with each tools/list, so the write tools must stay short and leave
+	// the dashboard model to perses_get_plugin_schema and the Perses docs. The 1100-character budget is about twice the
+	// longest current description: room to grow, but not to turn a description into a manual.
 	for _, tool := range New(nil).GetTools() {
 		schema, ok := tool.MCPTool.InputSchema.(*jsonschema.Schema)
 		require.True(t, ok, "expected a JSON Schema for %s", tool.MCPTool.Name)
