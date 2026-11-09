@@ -86,7 +86,7 @@ func (s *schema) Get() *tools.Tool {
 		Name: "perses_get_plugin_schema",
 		Description: "Returns the CUE schema of one installed plugin kind, e.g. StatChart (panel) or " +
 			"PrometheusLabelValuesVariable (variable). Useful when writing or fixing a plugin spec. " +
-			"Find installed kinds with perses_list_plugins. Requires Perses v0.55 or later.",
+			"Kind names are the spec.plugins[].spec.name values from perses_list_plugins. Requires Perses v0.55 or later.",
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Gets the CUE schema of a plugin in Perses",
 			ReadOnlyHint:    true,
