@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"time"
 
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -128,7 +129,7 @@ type writeResult struct {
 	// Action is what happened: created, updated, or for a dry run would_create, would_update.
 	Action string `json:"action"`
 	DryRun bool   `json:"dryRun,omitempty"`
-	Summary
+	summary
 	// Changes describes what the incremental tools did, e.g. the layout items added.
 	Changes []string `json:"changes,omitempty"`
 	// Dashboard is the saved dashboard, or for a dry run the dashboard that would be saved, when requested.
@@ -211,7 +212,7 @@ func (d *dashboard) List() *tools.Tool {
 				item.Display = dash.Spec.Display.Name
 			}
 			if !dash.Metadata.UpdatedAt.IsZero() {
-				item.UpdatedAt = dash.Metadata.UpdatedAt.UTC().Format("2006-01-02T15:04:05Z")
+				item.UpdatedAt = dash.Metadata.UpdatedAt.UTC().Format(time.RFC3339)
 			}
 			listed = append(listed, item)
 		}
@@ -235,7 +236,7 @@ type GetDashboardByNameInput struct {
 
 // panelsResult is the response of the get tool restricted to some panels.
 type panelsResult struct {
-	Summary
+	summary
 	Panels  map[string]*dashboardSpec.Panel `json:"panels"`
 	Missing []string                        `json:"missing,omitempty"`
 	// Available maps every panel key to its display name, only when some keys are missing, so the caller can retry.
@@ -285,7 +286,7 @@ func (d *dashboard) Get() *tools.Tool {
 		}
 		switch {
 		case len(input.Panels) > 0:
-			result := panelsResult{Summary: Summarize(dash, dash.Metadata.Project, d.baseURL()), Panels: map[string]*dashboardSpec.Panel{}}
+			result := panelsResult{summary: summarize(dash, dash.Metadata.Project, d.baseURL()), Panels: map[string]*dashboardSpec.Panel{}}
 			for _, key := range input.Panels {
 				if panel, ok := dash.Spec.Panels[key]; ok {
 					result.Panels[key] = panel
@@ -298,7 +299,7 @@ func (d *dashboard) Get() *tools.Tool {
 			}
 			return jsonResult(result)
 		case input.Summary == nil || *input.Summary:
-			return jsonResult(OutlineOf(dash, d.baseURL()))
+			return jsonResult(outlineOf(dash, d.baseURL()))
 		default:
 			return jsonResult(dash)
 		}

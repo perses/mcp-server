@@ -17,14 +17,13 @@ import (
 	"fmt"
 	"net/url"
 	"sort"
-	"strings"
 
 	v1 "github.com/perses/perses/pkg/model/api/v1"
 	dashboardSpec "github.com/perses/spec/go/dashboard"
 )
 
-// Summary is the compact description of a dashboard returned by the write tools instead of the whole dashboard.
-type Summary struct {
+// summary is the compact description of a dashboard returned by the write tools instead of the whole dashboard.
+type summary struct {
 	Project string `json:"project"`
 	Name    string `json:"name"`
 	Display string `json:"display,omitempty"`
@@ -36,20 +35,20 @@ type Summary struct {
 	Layouts   int    `json:"layouts"`
 }
 
-// Outline describes the structure of a dashboard without its plugin specs: enough to decide which panel, variable
+// outline describes the structure of a dashboard without its plugin specs: enough to decide which panel, variable
 // or layout to change next.
-type Outline struct {
-	Summary
+type outline struct {
+	summary
 	Duration        string            `json:"duration,omitempty"`
 	RefreshInterval string            `json:"refreshInterval,omitempty"`
 	Datasources     []string          `json:"datasources,omitempty"`
-	VariableList    []VariableOutline `json:"variableList,omitempty"`
-	PanelList       []PanelOutline    `json:"panelList,omitempty"`
-	LayoutList      []LayoutOutline   `json:"layoutList,omitempty"`
+	VariableList    []variableOutline `json:"variableList,omitempty"`
+	PanelList       []panelOutline    `json:"panelList,omitempty"`
+	LayoutList      []layoutOutline   `json:"layoutList,omitempty"`
 }
 
-// PanelOutline describes a panel and where it is displayed.
-type PanelOutline struct {
+// panelOutline describes a panel and where it is displayed.
+type panelOutline struct {
 	Key     string `json:"key"`
 	Name    string `json:"name,omitempty"`
 	Plugin  string `json:"plugin"`
@@ -58,15 +57,15 @@ type PanelOutline struct {
 	Placement []string `json:"placement,omitempty"`
 }
 
-// VariableOutline describes a variable.
-type VariableOutline struct {
+// variableOutline describes a variable.
+type variableOutline struct {
 	Name   string `json:"name"`
 	Kind   string `json:"kind"`
 	Plugin string `json:"plugin,omitempty"`
 }
 
-// LayoutOutline describes a layout group.
-type LayoutOutline struct {
+// layoutOutline describes a layout group.
+type layoutOutline struct {
 	Index  int      `json:"index"`
 	Kind   string   `json:"kind"`
 	Title  string   `json:"title,omitempty"`
@@ -74,64 +73,63 @@ type LayoutOutline struct {
 	Panels []string `json:"panels,omitempty"`
 }
 
-// DashboardURL returns the page of the dashboard in the Perses UI served at the base URL. Credentials embedded in
+// dashboardURL returns the page of the dashboard in the Perses UI served at the base URL. Credentials embedded in
 // the base URL are dropped so links shown to clients never expose them; base itself is left unchanged.
-func DashboardURL(base *url.URL, project, name string) string {
+func dashboardURL(base *url.URL, project, name string) string {
 	if base == nil {
 		return ""
 	}
-	page := *base
+	page := base.JoinPath("projects", project, "dashboards", name)
 	page.User = nil
-	page.Path = strings.TrimRight(page.Path, "/") + "/projects/" + url.PathEscape(project) + "/dashboards/" + url.PathEscape(name)
 	page.RawQuery = ""
 	page.Fragment = ""
 	return page.String()
 }
 
-// Summarize builds the summary of a dashboard of the project. The project is passed explicitly because the
+// summarize builds the summary of a dashboard of the project. The project is passed explicitly because the
 // metadata.project of a dashboard not saved yet can be empty.
-func Summarize(d *v1.Dashboard, project string, base *url.URL) Summary {
-	summary := Summary{
+func summarize(d *v1.Dashboard, project string, base *url.URL) summary {
+	result := summary{
 		Project:   project,
 		Name:      d.Metadata.Name,
 		Version:   d.Metadata.Version,
-		URL:       DashboardURL(base, project, d.Metadata.Name),
+		URL:       dashboardURL(base, project, d.Metadata.Name),
 		Panels:    len(d.Spec.Panels),
 		Variables: len(d.Spec.Variables),
 		Layouts:   len(d.Spec.Layouts),
 	}
 	if d.Spec.Display != nil {
-		summary.Display = d.Spec.Display.Name
+		result.Display = d.Spec.Display.Name
 	}
-	return summary
+	return result
 }
 
-// OutlineOf builds the outline of a saved dashboard.
-func OutlineOf(d *v1.Dashboard, base *url.URL) Outline {
-	outline := Outline{
-		Summary:         Summarize(d, d.Metadata.Project, base),
+// outlineOf builds the outline of a saved dashboard.
+func outlineOf(d *v1.Dashboard, base *url.URL) outline {
+	result := outline{
+		summary:         summarize(d, d.Metadata.Project, base),
 		Duration:        string(d.Spec.Duration),
 		RefreshInterval: string(d.Spec.RefreshInterval),
 	}
 	for name := range d.Spec.Datasources {
-		outline.Datasources = append(outline.Datasources, name)
+		result.Datasources = append(result.Datasources, name)
 	}
-	sort.Strings(outline.Datasources)
+	sort.Strings(result.Datasources)
 
 	for _, variable := range d.Spec.Variables {
-		item := VariableOutline{Kind: string(variable.Kind)}
+		item := variableOutline{Kind: string(variable.Kind)}
 		if variable.Spec != nil {
 			item.Name = variable.Spec.GetName()
 		}
 		if spec, ok := variable.Spec.(*dashboardSpec.ListVariableSpec); ok {
 			item.Plugin = spec.Plugin.Kind
 		}
-		outline.VariableList = append(outline.VariableList, item)
+		result.VariableList = append(result.VariableList, item)
 	}
 
 	placements := map[string][]string{}
 	for i, layout := range d.Spec.Layouts {
-		group := LayoutOutline{Index: i, Kind: string(layout.Kind), Title: layoutTitle(layout)}
+		group := layoutOutline{Index: i, Kind: string(layout.Kind), Title: layoutTitle(layout)}
 		for _, items := range itemGroups(layout) {
 			for _, item := range items {
 				group.Items++
@@ -143,18 +141,18 @@ func OutlineOf(d *v1.Dashboard, base *url.URL) Outline {
 				placements[key] = append(placements[key], fmt.Sprintf("layout %d: x=%d y=%d w=%d h=%d", i, item.X, item.Y, item.Width, item.Height))
 			}
 		}
-		outline.LayoutList = append(outline.LayoutList, group)
+		result.LayoutList = append(result.LayoutList, group)
 	}
 
 	for _, key := range sortedPanelKeys(d) {
 		panel := d.Spec.Panels[key]
-		item := PanelOutline{Key: key, Plugin: panel.Spec.Plugin.Kind, Queries: len(panel.Spec.Queries), Placement: placements[key]}
+		item := panelOutline{Key: key, Plugin: panel.Spec.Plugin.Kind, Queries: len(panel.Spec.Queries), Placement: placements[key]}
 		if panel.Spec.Display != nil {
 			item.Name = panel.Spec.Display.Name
 		}
-		outline.PanelList = append(outline.PanelList, item)
+		result.PanelList = append(result.PanelList, item)
 	}
-	return outline
+	return result
 }
 
 func sortedPanelKeys(d *v1.Dashboard) []string {

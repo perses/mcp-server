@@ -20,8 +20,6 @@ import (
 
 	v1 "github.com/perses/perses/pkg/model/api/v1"
 	dashboardSpec "github.com/perses/spec/go/dashboard"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 const sampleDashboard = `{
@@ -47,31 +45,47 @@ const sampleDashboard = `{
 
 func TestSummarize(t *testing.T) {
 	d := &v1.Dashboard{}
-	require.NoError(t, json.Unmarshal([]byte(sampleDashboard), d))
+	if err := json.Unmarshal([]byte(sampleDashboard), d); err != nil {
+		t.Fatal(err)
+	}
 	base, _ := url.Parse("http://perses.example/")
-	summary := Summarize(d, "proj", base)
-	assert.Equal(t, "http://perses.example/projects/proj/dashboards/sample", summary.URL)
-	assert.Equal(t, 2, summary.Panels)
+	summary := summarize(d, "proj", base)
+	equal(t, "http://perses.example/projects/proj/dashboards/sample", summary.URL)
+	equal(t, 2, summary.Panels)
 
-	outline := OutlineOf(d, base)
-	require.Len(t, outline.PanelList, 2)
-	assert.Equal(t, []string{"layout 0: x=0 y=0 w=12 h=6"}, outline.PanelList[0].Placement)
-	assert.Empty(t, outline.PanelList[1].Placement)
-	assert.Equal(t, "inst", outline.VariableList[0].Name)
-	assert.Equal(t, "Row", outline.LayoutList[0].Title)
+	outline := outlineOf(d, base)
+	if !hasLen(t, outline.PanelList, 2) {
+		t.FailNow()
+	}
+	equal(t, []string{"layout 0: x=0 y=0 w=12 h=6"}, outline.PanelList[0].Placement)
+	empty(t, outline.PanelList[1].Placement)
+	equal(t, "inst", outline.VariableList[0].Name)
+	equal(t, "Row", outline.LayoutList[0].Title)
 }
 
 func TestPanelRefWithoutHash(t *testing.T) {
 	d := &v1.Dashboard{}
-	require.NoError(t, json.Unmarshal([]byte(strings.Replace(sampleDashboard, `"#/spec/panels/p1"`, `"/spec/panels/p1"`, 1)), d))
-	assert.Equal(t, "p1", panelKeyOf(d.Spec.Layouts[0].Spec.(*dashboardSpec.GridLayoutSpec).Items[0]))
-	outline := OutlineOf(d, nil)
-	assert.Equal(t, []string{"layout 0: x=0 y=0 w=12 h=6"}, outline.PanelList[0].Placement)
+	if err := json.Unmarshal([]byte(strings.Replace(sampleDashboard, `"#/spec/panels/p1"`, `"/spec/panels/p1"`, 1)), d); err != nil {
+		t.Fatal(err)
+	}
+	equal(t, "p1", panelKeyOf(d.Spec.Layouts[0].Spec.(*dashboardSpec.GridLayoutSpec).Items[0]))
+	outline := outlineOf(d, nil)
+	equal(t, []string{"layout 0: x=0 y=0 w=12 h=6"}, outline.PanelList[0].Placement)
 }
 
 func TestDashboardURLDropsCredentials(t *testing.T) {
 	base, err := url.Parse("https://user:secret@perses.example/perses/")
-	require.NoError(t, err)
-	assert.Equal(t, "https://perses.example/perses/projects/proj/dashboards/sample", DashboardURL(base, "proj", "sample"))
-	assert.Equal(t, "https://user:secret@perses.example/perses/", base.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	equal(t, "https://perses.example/perses/projects/proj/dashboards/sample", dashboardURL(base, "proj", "sample"))
+	equal(t, "https://user:secret@perses.example/perses/", base.String())
+}
+
+func TestDashboardURLEscapesNamesOnce(t *testing.T) {
+	base, err := url.Parse("https://perses.example/perses?tab=1#top")
+	if err != nil {
+		t.Fatal(err)
+	}
+	equal(t, "https://perses.example/perses/projects/my%20proj/dashboards/a%20b", dashboardURL(base, "my proj", "a b"))
 }

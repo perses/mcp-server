@@ -351,9 +351,10 @@ perses-mcp-server --config /path/to/config.yaml
 | `perses_update_dashboard`      | Replace an existing dashboard; options `expected_version`, `dry_run`, `include_dashboard`                       | `project`, `dashboard` |
 | `perses_delete_dashboard`      | Delete a dashboard from a project                                                                               | `project`, `name`      |
 
-The write tools validate the dashboard against the Perses schemas before saving it and return a short summary
-(`project`, `name`, `version`, `url`, counts) instead of echoing the whole dashboard.
-Validation failures are returned as a tool error with the error of the Perses client, unchanged.
+Perses validates the dashboard against its schemas when the write tools save it (with `dry_run: true`, through its
+validation API without saving). The tools return a short summary (`project`, `name`, `version`, `url`, counts) instead
+of echoing the whole dashboard. Validation failures are returned as a tool error with the error of the Perses client,
+unchanged.
 Pass `expected_version` to `perses_update_dashboard` to reject a dashboard whose version has changed since you
 read it. This is a client-side preflight check, not an atomic server-side lock; a concurrent write after the
 check can still race. Only `expected_version` and `dry_run` read the dashboard first, so a plain update needs only the

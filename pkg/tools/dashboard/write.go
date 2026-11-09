@@ -37,8 +37,8 @@ type CreateDashboardInput struct {
 func (d *dashboard) Create() *tools.Tool {
 	tool := &mcp.Tool{
 		Name: "perses_create_dashboard",
-		Description: "Create a dashboard in a project from its complete JSON definition. The dashboard is validated " +
-			"by the Perses server first; on failure the error of the Perses server is returned. " +
+		Description: "Create a dashboard in a project from its complete JSON definition. The Perses server " +
+			"validates the dashboard when saving it; on failure its error is returned. " +
 			"Returns a short summary (name, version, counts, URL), not the dashboard. " +
 			"Fails if a dashboard with the same name exists; use perses_update_dashboard to change it. " +
 			"Set dry_run=true to only validate.",
@@ -69,13 +69,13 @@ func (d *dashboard) Create() *tools.Tool {
 		if err := setProject(dash, input.Project); err != nil {
 			return nil, nil, err
 		}
-		if err := d.client.Validate().Dashboard(dash); err != nil {
-			return nil, nil, err
-		}
 
 		result := writeResult{Action: "created", DryRun: input.DryRun}
 		if input.DryRun {
 			result.Action = "would_create"
+			if err := d.client.Validate().Dashboard(dash); err != nil {
+				return nil, nil, err
+			}
 			_, err := d.api(input.Project).Get(dash.Metadata.Name)
 			switch {
 			case err == nil:
@@ -84,7 +84,7 @@ func (d *dashboard) Create() *tools.Tool {
 			default:
 				return nil, nil, fmt.Errorf("error checking whether dashboard '%s' exists in project '%s': %w", dash.Metadata.Name, input.Project, err)
 			}
-			result.Summary = Summarize(dash, input.Project, d.baseURL())
+			result.summary = summarize(dash, input.Project, d.baseURL())
 			if input.IncludeDashboard {
 				result.Dashboard = dash
 			}
@@ -131,7 +131,7 @@ func alreadyExistsError(name, project string) error {
 
 // saved completes the result with the summary of the dashboard returned by the server.
 func (d *dashboard) saved(result writeResult, saved *v1.Dashboard, include bool) (*mcp.CallToolResult, any, error) {
-	result.Summary = Summarize(saved, saved.Metadata.Project, d.baseURL())
+	result.summary = summarize(saved, saved.Metadata.Project, d.baseURL())
 	if include {
 		result.Dashboard = saved
 	}
@@ -224,15 +224,15 @@ type editRequest struct {
 	include bool
 }
 
-// save validates the modified dashboard then updates it, unless this is a dry run.
+// save updates the modified dashboard, which Perses validates before saving. A dry run only validates it.
 func (d *dashboard) save(req editRequest, dash *v1.Dashboard, changes []string) (*mcp.CallToolResult, any, error) {
-	if err := d.client.Validate().Dashboard(dash); err != nil {
-		return nil, nil, err
-	}
 	result := writeResult{Action: "updated", DryRun: req.dryRun, Changes: changes}
 	if req.dryRun {
 		result.Action = "would_update"
-		result.Summary = Summarize(dash, req.project, d.baseURL())
+		if err := d.client.Validate().Dashboard(dash); err != nil {
+			return nil, nil, err
+		}
+		result.summary = summarize(dash, req.project, d.baseURL())
 		if req.include {
 			result.Dashboard = dash
 		}
