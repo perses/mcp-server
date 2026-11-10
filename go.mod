@@ -5,7 +5,7 @@ go 1.27.3
 require (
 	github.com/google/jsonschema-go v0.4.3
 	github.com/modelcontextprotocol/go-sdk v1.8.0
-	github.com/perses/common v0.31.2
+	github.com/perses/common v0.32.0
 	github.com/perses/perses v0.55.1-0.20261026072743-c4a2e03ca959
 	github.com/perses/spec v0.3.0
 	github.com/sirupsen/logrus v1.10.2
@@ -41,7 +41,7 @@ require (
 	github.com/cyphar/filepath-securejoin v0.6.1 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/emirpasic/gods v1.18.1 // indirect
-	github.com/flc1125/go-cron/v4 v4.10.0 // indirect
+	github.com/flc1125/go-cron/v4 v4.14.0 // indirect
 	github.com/fsnotify/fsnotify v1.10.1 // indirect
 	github.com/fxamacker/cbor/v2 v2.9.1 // indirect
 	github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 // indirect
@@ -66,7 +66,7 @@ require (
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/kevinburke/ssh_config v1.2.0 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
-	github.com/labstack/echo/v4 v4.16.0 // indirect
+	github.com/labstack/echo/v4 v4.16.2 // indirect
 	github.com/labstack/gommon v0.5.0 // indirect
 	github.com/lucasb-eyer/go-colorful v1.4.1 // indirect
 	github.com/mattn/go-colorable v0.1.15 // indirect
@@ -105,10 +105,11 @@ require (
 	github.com/zitadel/schema v1.3.2 // indirect
 	gitlab.com/digitalxero/go-conventional-commit v1.0.7 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
-	go.opentelemetry.io/otel v1.46.0 // indirect
-	go.opentelemetry.io/otel/metric v1.46.0 // indirect
-	go.opentelemetry.io/otel/sdk v1.46.0 // indirect
-	go.opentelemetry.io/otel/trace v1.46.0 // indirect
+	go.opentelemetry.io/otel v1.47.0 // indirect
+	go.opentelemetry.io/otel/log v1.47.0 // indirect
+	go.opentelemetry.io/otel/metric v1.47.0 // indirect
+	go.opentelemetry.io/otel/sdk v1.47.0 // indirect
+	go.opentelemetry.io/otel/trace v1.47.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	go.yaml.in/yaml/v4 v4.0.0-rc.6 // indirect
