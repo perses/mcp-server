@@ -95,17 +95,13 @@ func (s *server) Execute(ctx context.Context, cancelFunc context.CancelFunc) err
 
 	s.registerTools()
 	// start server
-	serverCtx, serverCancelFunc := context.WithCancel(ctx)
+	// The channel is buffered, so the go routine is not blocked when the transport stops after the end of this method.
+	transportErr := make(chan error, 1)
 	go func() {
-		defer serverCancelFunc()
 		if s.cfg.Transport == HTTPTransport {
-			if err := s.runHTTPTransport(); err != nil {
-				logrus.WithError(err).Info("http server stopped")
-			}
+			transportErr <- s.runHTTPTransport()
 		} else {
-			if err := s.runStdioTransport(ctx); err != nil {
-				logrus.WithError(err).Info("stdio server stopped")
-			}
+			transportErr <- s.runStdioTransport(ctx)
 		}
 	}()
 
@@ -113,14 +109,17 @@ func (s *server) Execute(ctx context.Context, cancelFunc context.CancelFunc) err
 
 	// Wait for the end of the task or cancellation
 	select {
-	case <-serverCtx.Done():
-		// Server ended unexpectedly
-		// In our ecosystem, as we are producing each time an HTTP API, if the HTTP api stopped, we want to stop the whole application.
-		// That's why we are calling the parent cancelFunc
+	case err := <-transportErr:
+		// The transport stopped by itself (for example, the HTTP address is already in use, or the stdio client closed the connection).
+		// If the MCP server stopped, we want to stop the whole application.
+		// That's why we are calling the parent cancelFunc.
+		// It cancels ctx, so ctx is checked before: when the application is already stopping, the error is caused by the cancellation.
+		stopping := ctx.Err() != nil
 		cancelFunc()
-		// as it is possible that the serverCtx.Done() is closed because the main cancelFunc() has been called by another go routing,
-		// we should try to close properly the http server
-		// Note: that's why we don't return any error here.
+		if err != nil && !stopping {
+			// The application exits with the status code 1 when the task stopping it returns an error.
+			return fmt.Errorf("%s transport stopped unexpectedly: %w", s.cfg.Transport, err)
+		}
 	case <-ctx.Done():
 		// Cancellation requested by the parent context
 		logrus.Debug("server cancellation requested")
