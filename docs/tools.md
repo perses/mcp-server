@@ -5,8 +5,8 @@ This page lists the tools provided by the Perses MCP Server. The tools are group
 
 > [!NOTE]
 > In [read-only mode](./configuration.md#definition) (`read_only: true`), the tools creating, updating or deleting
-> resources (`perses_create_*`, `perses_update_*` and `perses_delete_*`) are not registered. All the other tools stay
-> available.
+> resources (`perses_create_*`, `perses_update_*` and `perses_delete_*`) are not registered. Read and validation
+> tools stay available.
 
 Whatever the tools registered, they can only do what the identity configured in the MCP server is allowed to do in
 Perses (see [Permissions](./overview.md#permissions)).
@@ -55,6 +55,10 @@ dashboard to answer a question, without cluttering the project.
 
 The parameter `dashboard` is an ephemeral dashboard in the
 [Perses format](https://perses.dev/docs/perses/latest/api/ephemeral-dashboard/).
+
+To check an ephemeral dashboard without saving it, pass `perses_validate_dashboard` a copy with kind `Dashboard` and
+`spec.ttl` omitted (TTL is not validated).
+`perses_get_plugin_schema` provides plugin field definitions.
 
 ## Datasources
 
@@ -209,6 +213,24 @@ These read-only tools return raw [CUE](https://cuelang.org/) source from Perses 
 | `perses_get_plugin_schema` | Get the latest installed schema of one plugin kind | `kind` |
 
 Prefer the single-plugin tool when working on one panel, query, variable, annotation or datasource.
+
+## Validation
+
+Resource: `validate`
+
+These tools validate resources without creating or modifying anything, and stay available in read-only mode.
+They take resources as JSON objects and return `{valid: true}`, or `{valid: false, error}` when the resource is
+invalid: `error` is the message of the Perses model when the resource cannot be decoded, or the message of the Perses
+server when it rejects the resource (HTTP 400). When the resource could not be validated, e.g. because Perses is
+unreachable or returns a server error, the tool returns the error of the Perses client unchanged as a tool error.
+
+| Tool                        | Description                           | Required parameters |
+|-----------------------------|---------------------------------------|---------------------|
+| `perses_validate_dashboard` | Validate a dashboard                  | `dashboard`         |
+| `perses_validate_variable`  | Validate a project or global variable | `variable`          |
+
+`kind` is required on a variable and tells whether it is a project or a global one: `Variable` or `GlobalVariable`
+(case-insensitive). Any other or missing kind returns `{valid: false, error}` without calling Perses.
 
 ## Grafana dashboards migration
 
