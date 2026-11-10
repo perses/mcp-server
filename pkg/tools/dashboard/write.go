@@ -25,6 +25,7 @@ import (
 	"github.com/perses/mcp-server/pkg/tools"
 	"github.com/perses/perses/pkg/client/perseshttp"
 	v1 "github.com/perses/perses/pkg/model/api/v1"
+	"github.com/perses/spec/go/common"
 )
 
 type CreateDashboardInput struct {
@@ -62,11 +63,8 @@ func (d *dashboard) Create() *tools.Tool {
 	}
 
 	handler := func(_ context.Context, _ *mcp.CallToolRequest, input CreateDashboardInput) (*mcp.CallToolResult, any, error) { //nolint:unparam
-		dash := &v1.Dashboard{}
-		if err := json.Unmarshal(input.Dashboard, dash); err != nil {
-			return nil, nil, err
-		}
-		if err := setProject(dash, input.Project); err != nil {
+		dash, err := decodeDashboard(input.Dashboard, input.Project)
+		if err != nil {
 			return nil, nil, err
 		}
 
@@ -108,6 +106,22 @@ func (d *dashboard) Create() *tools.Tool {
 		ResourceType: tools.DashboardResource,
 		RegisterWith: func(server *mcp.Server) { mcp.AddTool(server, tool, handler) },
 	}
+}
+
+// decodeDashboard decodes a complete dashboard and checks its name, which the Perses model leaves unchecked when the
+// metadata key is absent: an empty name would otherwise reach the URL of the update requests.
+func decodeDashboard(raw json.RawMessage, project string) (*v1.Dashboard, error) {
+	dash := &v1.Dashboard{}
+	if err := json.Unmarshal(raw, dash); err != nil {
+		return nil, err
+	}
+	if err := common.ValidateID(dash.Metadata.Name); err != nil {
+		return nil, err
+	}
+	if err := setProject(dash, project); err != nil {
+		return nil, err
+	}
+	return dash, nil
 }
 
 // setProject fills an empty metadata.project from the project argument, as the Perses server does when saving, so
@@ -172,11 +186,8 @@ func (d *dashboard) Update() *tools.Tool {
 	}
 
 	handler := func(_ context.Context, _ *mcp.CallToolRequest, input UpdateDashboardInput) (*mcp.CallToolResult, any, error) { //nolint:unparam
-		dash := &v1.Dashboard{}
-		if err := json.Unmarshal(input.Dashboard, dash); err != nil {
-			return nil, nil, err
-		}
-		if err := setProject(dash, input.Project); err != nil {
+		dash, err := decodeDashboard(input.Dashboard, input.Project)
+		if err != nil {
 			return nil, nil, err
 		}
 		// Perses checks the read and update permissions independently: read the dashboard only when needed, so that

@@ -43,6 +43,14 @@ const validDashboard = `{
 	}
 }`
 
+// withoutMetadata returns the valid dashboard without its metadata key.
+func withoutMetadata(t *testing.T) map[string]any {
+	t.Helper()
+	dash := object(t, validDashboard)
+	delete(dash, "metadata")
+	return dash
+}
+
 // fakePerses is an in-memory Perses API storing dashboards as raw JSON documents. Like the real server, it validates
 // dashboards on the validation endpoint and when creating or updating them, rejecting the calculation "average".
 // The embedded tooltest.Perses records the requests.
@@ -322,6 +330,15 @@ func TestCreate(t *testing.T) {
 		contains(t, text, `invalid kind: "" for a Dashboard type`)
 		empty(t, fake.dashboards)
 	})
+	t.Run("missing metadata is rejected before any request", func(t *testing.T) {
+		fake := newFakePerses()
+		session := newSession(t, fake)
+		for _, dryRun := range []bool{false, true} {
+			text := mustFail(t, session, "perses_create_dashboard", map[string]any{"project": "myproject", "dashboard": withoutMetadata(t), "dry_run": dryRun})
+			equal(t, "name cannot be empty", text, "dry_run=%v", dryRun)
+		}
+		empty(t, fake.Received())
+	})
 	t.Run("dry run reports dashboard lookup failures", func(t *testing.T) {
 		fake := newFakePerses()
 		fake.getStatus = http.StatusInternalServerError
@@ -389,6 +406,19 @@ func TestUpdate(t *testing.T) {
 		}
 		notContains(t, fake.dashboards, "other")
 		equal(t, 1, fake.Count(http.MethodPut, "/api/v1/projects/myproject/dashboards/other"), "without a version check, the PUT reports the missing dashboard")
+	})
+	t.Run("missing metadata is rejected before any request", func(t *testing.T) {
+		fake, session := setup(t)
+		before := len(fake.Received())
+		for _, extra := range []map[string]any{{}, {"expected_version": 0}, {"dry_run": true}, {"dry_run": true, "expected_version": 0}} {
+			args := map[string]any{"project": "myproject", "dashboard": withoutMetadata(t)}
+			for key, value := range extra {
+				args[key] = value
+			}
+			text := mustFail(t, session, "perses_update_dashboard", args)
+			equal(t, "name cannot be empty", text, "%v", extra)
+		}
+		equal(t, before, len(fake.Received()), "the empty name must not reach the URL of a request")
 	})
 	t.Run("update without expected version does not read", func(t *testing.T) {
 		fake, session := setup(t)
