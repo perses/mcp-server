@@ -20,6 +20,8 @@ import (
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/perses/perses/pkg/client/config"
+	"github.com/perses/spec/go/common"
 )
 
 // toolResultText returns the text of a tool result with a single text content, and whether it is an error.
@@ -83,11 +85,18 @@ type panicInput struct {
 	Panic bool `json:"panic"`
 }
 
-// TestRecoverPanics checks end to end that a panicking tool fails as a tool error and the server keeps serving.
+// TestRecoverPanics checks end to end, on the server built by New, that a panicking tool fails as a tool error and the
+// server keeps serving.
 func TestRecoverPanics(t *testing.T) {
-	server := mcp.NewServer(&mcp.Implementation{Name: "perses-mcp-server-test"}, nil)
-	server.AddReceivingMiddleware(recoverPanics)
-	mcp.AddTool(server, &mcp.Tool{Name: "maybe_panic"}, func(_ context.Context, _ *mcp.CallToolRequest, input panicInput) (*mcp.CallToolResult, any, error) {
+	task, err := New(Config{PersesServer: config.RestConfigClient{URL: common.MustParseURL("http://localhost:8080")}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, ok := task.(*server)
+	if !ok {
+		t.Fatalf("expected a *server, got %T", task)
+	}
+	mcp.AddTool(s.mcpServer, &mcp.Tool{Name: "maybe_panic"}, func(_ context.Context, _ *mcp.CallToolRequest, input panicInput) (*mcp.CallToolResult, any, error) {
 		if input.Panic {
 			panic("boom")
 		}
@@ -96,7 +105,7 @@ func TestRecoverPanics(t *testing.T) {
 
 	ctx := t.Context()
 	serverTransport, clientTransport := mcp.NewInMemoryTransports()
-	serverSession, err := server.Connect(ctx, serverTransport, nil)
+	serverSession, err := s.mcpServer.Connect(ctx, serverTransport, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

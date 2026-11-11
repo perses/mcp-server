@@ -32,11 +32,11 @@ func recoverPanics(next mcp.MethodHandler) mcp.MethodHandler {
 			if r == nil {
 				return
 			}
-			logrus.WithFields(logrus.Fields{
-				"method": method,
-				"panic":  r,
-				"stack":  string(debug.Stack()),
-			}).Error("recovered from a panic while handling a request")
+			fields := logrus.Fields{"method": method, "panic": r, "stack": string(debug.Stack())}
+			if call, ok := req.(*mcp.CallToolRequest); ok && call.Params != nil {
+				fields["tool"] = call.Params.Name
+			}
+			logrus.WithFields(fields).Error("recovered from a panic while handling a request")
 			panicErr := fmt.Errorf("internal error: %v", r)
 			if method == "tools/call" {
 				toolResult := &mcp.CallToolResult{}
