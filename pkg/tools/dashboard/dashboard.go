@@ -13,8 +13,9 @@
 
 // Package dashboard provides the MCP tools managing Perses dashboards.
 //
-// Besides the usual list/get/create/update/delete tools, it returns compact summaries instead of whole
-// dashboards. Validation is done by the Perses server, whose errors are returned unchanged.
+// Besides the usual list/get/create/update/delete tools, it provides incremental tools (set panels,
+// variables and panel groups) so that a dashboard can be built step by step without re-sending the whole document.
+// Validation is done by the Perses server, whose errors are returned unchanged.
 package dashboard
 
 import (
@@ -23,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"sync"
 	"time"
 
 	"github.com/google/jsonschema-go/jsonschema"
@@ -44,6 +46,10 @@ const (
 
 type dashboard struct {
 	client apiClient.ClientInterface
+	// edits serializes the read-modify-write cycle of the set_* tools: tool calls run concurrently and Perses
+	// does not check the version on update, so two interleaved edits would silently lose one of them.
+	// perses_update_dashboard takes it too, so that an update does not land between the read and the write of an edit.
+	edits sync.Mutex
 }
 
 // New returns the dashboard tools. The client must be the top-level Perses client: the tools use the v1 API and
@@ -61,6 +67,9 @@ func (d *dashboard) GetTools() []*tools.Tool {
 		d.Create(),
 		d.Update(),
 		d.Delete(),
+		d.SetPanels(),
+		d.SetVariables(),
+		d.SetLayout(),
 	}
 }
 

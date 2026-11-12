@@ -343,22 +343,40 @@ perses-mcp-server --config /path/to/config.yaml
 
 ### Dashboards
 
-| Tool                           | Description                                                                                                     | Required Parameters    |
-| ------------------------------ | --------------------------------------------------------------------------------------------------------------- | ---------------------- |
-| `perses_list_dashboards`       | List the dashboards of a project (name, display name, version, panel count)                                     | `project`              |
-| `perses_get_dashboard_by_name` | Get an outline by default; `summary: false` returns complete JSON for read-modify-write, `panels: [keys]` returns those full panels regardless of `summary` (unknown keys come back in `missing` with the `available` keys) | `project`, `name` |
-| `perses_create_dashboard`      | Create a dashboard (JSON object); fails if it exists; options `dry_run`, `include_dashboard`                      | `project`, `dashboard` |
-| `perses_update_dashboard`      | Replace an existing dashboard; options `expected_version`, `dry_run`, `include_dashboard`                       | `project`, `dashboard` |
-| `perses_delete_dashboard`      | Delete a dashboard from a project                                                                               | `project`, `name`      |
+| Tool                                | Description                                                                                                     | Required Parameters          |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------------- | ---------------------------- |
+| `perses_list_dashboards`            | List the dashboards of a project (name, display name, version, panel count)                                     | `project`                    |
+| `perses_get_dashboard_by_name`      | Get an outline by default; `summary: false` returns complete JSON for read-modify-write, `panels: [keys]` returns those full panels regardless of `summary` (unknown keys come back in `missing` with the `available` keys) | `project`, `name` |
+| `perses_create_dashboard`           | Create a dashboard (JSON object); fails if it exists; options `dry_run`, `include_dashboard`                      | `project`, `dashboard`       |
+| `perses_update_dashboard`           | Replace an existing dashboard; options `expected_version`, `dry_run`, `include_dashboard`                       | `project`, `dashboard`       |
+| `perses_delete_dashboard`           | Delete a dashboard from a project                                                                               | `project`, `name`            |
+| `perses_set_dashboard_panels`       | Add, replace or `remove` panels; new panels are appended to a panel `group`                                    | `project`, `name`; at least one entry in `panels` or `remove` |
+| `perses_set_dashboard_variables`    | Add, replace (matched by `spec.name`) or `remove` dashboard variables                                         | `project`, `name`; at least one entry in `variables` or `remove` |
+| `perses_set_dashboard_layout`       | Define, replace or `remove` a panel group (`panels`, `panels_per_line`, `panel_height`, `collapsed`)            | `project`, `name`, `title`   |
 
 Perses validates the dashboard against its schemas when the write tools save it (with `dry_run: true`, through its
-validation API without saving). The tools return a short summary (`project`, `name`, `version`, `url`, counts) instead
-of echoing the whole dashboard. Validation failures are returned as a tool error with the error of the Perses client,
-unchanged.
-Pass `expected_version` to `perses_update_dashboard` to reject a dashboard whose version has changed since you
-read it. This is a client-side preflight check, not an atomic server-side lock; a concurrent write after the
-check can still race. Only `expected_version` and `dry_run` read the dashboard first, so a plain update needs only the
-update permission.
+validation API without saving). The tools return a short summary (`project`, `name`, `version`, `url`, counts,
+`changes`) instead of echoing the whole dashboard. Validation failures are returned as a tool error with the error of
+the Perses client, unchanged.
+The incremental `set_*` tools read the dashboard, modify it in memory and write it back; pass
+`expected_version` to reject a dashboard whose version has changed before editing. This is a client-side
+preflight check, not an atomic server-side lock; a concurrent write after the check can still race. The edits made
+through one MCP server, `perses_update_dashboard` included, are serialized, so parallel tool calls do not lose each
+other's changes. Errors in `panels` or `variables` name the element (`panels."<key>": `, `variables[<index>]: `).
+
+Grid layouts are edited as panel groups, like the Perses SDKs build them: every panel of a group has the same
+size, `24 / panels_per_line` columns wide and `panel_height` rows high, and panels fill the rows in order.
+`perses_set_dashboard_layout` defines a group from an ordered list of panel keys, moving them out of other Grid
+groups. Groups match by exact title, else ignoring case; several matching groups are an error.
+`perses_set_dashboard_panels` keeps the position of a replaced panel and appends new panels to `group`
+(the last group by default, created with 2 panels per line and height 8 if missing, titled `Panel Group` when no
+`group` is given) with the size of its first panel: a group laid out like the SDKs is laid out again, while a group
+arranged by hand keeps its positions and gets the new panels below its lowest one. When panels are removed or moved
+to another group, the groups laid out like the SDKs are laid out again to close the gaps. Tabs layouts are left
+untouched; `perses_set_dashboard_layout` reports a listed panel that a tab also displays. Custom positions need `perses_update_dashboard`.
+
+`perses_update_dashboard` reads the dashboard first only for `expected_version` or `dry_run`, so a plain
+update needs only the update permission.
 
 `perses_validate_dashboard` checks the JSON against installed plugin CUE schemas without saving it.
 `perses_get_plugin_schema` provides plugin field definitions.
