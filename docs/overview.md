@@ -72,6 +72,16 @@ On top of that, you can restrict the tools exposed to the LLM:
 > Give the identity of the MCP server the smallest set of permissions it needs, and enable the read-only mode unless you
 > want the LLM to modify your resources.
 
+### Server instructions
+
+When an LLM host connects, the MCP server sends it [instructions](https://modelcontextprotocol.io/specification/2025-06-18/basic/lifecycle#initialization)
+that most hosts add to the context of the LLM: what Perses is, and how to answer questions about the monitored
+systems with the [Prometheus tools](./tools.md#prometheus) (use the same datasource for all the calls, check the
+metric and label names before writing PromQL, query with `perses_query_prometheus` rather than the raw datasource
+proxy tools). The instructions only give the order and the choice of the tools; the tool descriptions document each
+tool. They are built from the registered tools: with `read_only` or `resources`, they never mention a tool that is not
+available.
+
 ## Features
 
 ### Manage the Perses resources

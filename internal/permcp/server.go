@@ -54,20 +54,28 @@ func New(cfg Config) (async.SimpleTask, error) {
 
 	logrus.WithField("url", cfg.PersesServer.URL).Info("Perses client initialized")
 
+	// The tools are selected first: the instructions are built from them, so that they never mention a missing tool.
+	selection := selectTools(buildTools(persesClient), cfg)
+
 	mcpServer := mcp.NewServer(&mcp.Implementation{
 		Name:  "perses-mcp-server",
 		Title: "Perses MCP Server"},
 		&mcp.ServerOptions{
+			Instructions: buildInstructions(selection.selected),
 			Capabilities: &mcp.ServerCapabilities{
 				Tools: &mcp.ToolCapabilities{ListChanged: false},
 			},
 		})
 	mcpServer.AddReceivingMiddleware(recoverPanics)
 
+	for _, tool := range selection.selected {
+		tool.RegisterWith(mcpServer)
+	}
+
 	return &server{
-		cfg:          cfg,
-		persesClient: persesClient,
-		mcpServer:    mcpServer,
+		cfg:       cfg,
+		mcpServer: mcpServer,
+		tools:     selection,
 	}, nil
 }
 
@@ -84,10 +92,10 @@ type server struct {
 	async.SimpleTask
 	// cfg contains the server configuration settings
 	cfg Config
-	// persesClient is the client interface for interacting with the Perses API
-	persesClient apiclient.ClientInterface
 	// mcpServer is the Model Context Protocol server instance
 	mcpServer *mcp.Server
+	// tools are the registered and the skipped tools, logged when the server starts
+	tools toolSelection
 }
 
 func (s *server) Execute(ctx context.Context, cancelFunc context.CancelFunc) error {
@@ -96,7 +104,8 @@ func (s *server) Execute(ctx context.Context, cancelFunc context.CancelFunc) err
 		"transport": s.cfg.Transport,
 	}).Info("Starting Perses MCP Server")
 
-	s.registerTools()
+	// The tools are registered by New, before the application configures the logs: they are logged here.
+	s.tools.log()
 	// start server
 	// The channel is buffered, so the go routine is not blocked when the transport stops after the end of this method.
 	transportErr := make(chan error, 1)
@@ -130,11 +139,12 @@ func (s *server) Execute(ctx context.Context, cancelFunc context.CancelFunc) err
 	return nil
 }
 
-func (s *server) registerTools() {
-	v1Client := s.persesClient.V1()
+// buildTools returns the tools of all the resources.
+func buildTools(persesClient apiclient.ClientInterface) []*tools.Tool {
+	v1Client := persesClient.V1()
 	resources := []resource.Resource{
 		project.New(v1Client),
-		dashboard.New(s.persesClient),
+		dashboard.New(persesClient),
 		ephemeraldashboard.New(v1Client),
 		datasource.New(v1Client),
 		globaldatasource.New(v1Client),
@@ -146,8 +156,8 @@ func (s *server) registerTools() {
 		globalvariable.New(v1Client),
 		plugin.New(v1Client),
 		schema.New(v1Client),
-		validate.New(s.persesClient),
-		migrate.New(s.persesClient),
+		validate.New(persesClient),
+		migrate.New(persesClient),
 		prometheus.New(v1Client),
 	}
 
@@ -155,42 +165,54 @@ func (s *server) registerTools() {
 	for _, r := range resources {
 		allTools = append(allTools, r.GetTools()...)
 	}
+	return allTools
+}
 
+// toolSelection is the result of the read_only and resources filtering of the tools.
+type toolSelection struct {
+	selected        []*tools.Tool
+	skippedResource []*tools.Tool
+	skippedReadOnly []*tools.Tool
+}
+
+// selectTools returns the tools to register: the tools of the allowed resources (all when none is configured),
+// without the write tools in read-only mode.
+func selectTools(allTools []*tools.Tool, cfg Config) toolSelection {
 	// Build allowed resources set for filtering
-	allowedResources := set.New(s.cfg.AllowedResources...)
-	filterByResource := len(s.cfg.AllowedResources) > 0
+	allowedResources := set.New(cfg.AllowedResources...)
+	filterByResource := len(cfg.AllowedResources) > 0
 
-	registeredCount := 0
-	skippedReadOnly := 0
-	skippedResource := 0
-
+	var selection toolSelection
 	for _, tool := range allTools {
+		switch {
 		// Skip tools not in allowed resources (if filtering is enabled)
-		if filterByResource && !allowedResources.Contains(string(tool.ResourceType)) {
-			logrus.WithFields(logrus.Fields{
-				"tool":         tool.MCPTool.Name,
-				"resourceType": tool.ResourceType,
-			}).Debug("Skipping tool which is not in allowed resources")
-			skippedResource++
-			continue
-		}
-
+		case filterByResource && !allowedResources.Contains(string(tool.ResourceType)):
+			selection.skippedResource = append(selection.skippedResource, tool)
 		// Skip write tools in read-only mode
-		if s.cfg.ReadOnly && tool.IsWriteTool {
-			logrus.WithField("tool", tool.MCPTool.Name).Debug("Skipping write tool in read-only mode")
-			skippedReadOnly++
-			continue
+		case cfg.ReadOnly && tool.IsWriteTool:
+			selection.skippedReadOnly = append(selection.skippedReadOnly, tool)
+		default:
+			selection.selected = append(selection.selected, tool)
 		}
-
-		tool.RegisterWith(s.mcpServer)
-		registeredCount++
 	}
+	return selection
+}
 
+func (t toolSelection) log() {
+	for _, tool := range t.skippedResource {
+		logrus.WithFields(logrus.Fields{
+			"tool":         tool.MCPTool.Name,
+			"resourceType": tool.ResourceType,
+		}).Debug("Skipping tool which is not in allowed resources")
+	}
+	for _, tool := range t.skippedReadOnly {
+		logrus.WithField("tool", tool.MCPTool.Name).Debug("Skipping write tool in read-only mode")
+	}
 	logrus.WithFields(logrus.Fields{
-		"registered":       registeredCount,
-		"skipped_readonly": skippedReadOnly,
-		"skipped_resource": skippedResource,
-		"total":            len(allTools),
+		"registered":       len(t.selected),
+		"skipped_readonly": len(t.skippedReadOnly),
+		"skipped_resource": len(t.skippedResource),
+		"total":            len(t.selected) + len(t.skippedReadOnly) + len(t.skippedResource),
 	}).Info("Tools registered successfully")
 }
 
