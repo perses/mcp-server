@@ -42,7 +42,8 @@ func (d *dashboard) Create() *tools.Tool {
 			"validates the dashboard when saving it; on failure its error is returned. " +
 			"Returns a short summary (name, version, counts, URL), not the dashboard. " +
 			"Fails if a dashboard with the same name exists; use perses_update_dashboard to change it. " +
-			"Set dry_run=true to only validate.",
+			"Set dry_run=true to only validate. For large dashboards prefer creating a skeleton and adding panels with " +
+			"perses_set_dashboard_panels.",
 		InputSchema: &jsonschema.Schema{
 			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
@@ -164,7 +165,9 @@ func (d *dashboard) Update() *tools.Tool {
 	tool := &mcp.Tool{
 		Name: "perses_update_dashboard",
 		Description: "Replace an existing dashboard with its complete JSON definition (the dashboard must exist). " +
-			"Validation errors are the messages of the Perses server; the response is a short summary.",
+			"Validation errors are the messages of the Perses server; the response is a short summary. To change a " +
+			"few panels, variables or layouts without re-sending the whole dashboard, use perses_set_dashboard_panels, " +
+			"perses_set_dashboard_variables or perses_set_dashboard_layout instead.",
 		InputSchema: &jsonschema.Schema{
 			Type: tools.SchemaTypeObject,
 			Properties: map[string]*jsonschema.Schema{
@@ -190,6 +193,8 @@ func (d *dashboard) Update() *tools.Tool {
 		if err != nil {
 			return nil, nil, err
 		}
+		d.edits.Lock()
+		defer d.edits.Unlock()
 		// Perses checks the read and update permissions independently: read the dashboard only when needed, so that
 		// an update-only role can still update. Without the read, the PUT itself rejects a missing dashboard.
 		if input.DryRun || input.ExpectedVersion != nil {
@@ -229,10 +234,11 @@ func checkVersion(current *v1.Dashboard, expected *uint64) error {
 
 // editRequest carries the common parameters of the tools modifying an existing dashboard.
 type editRequest struct {
-	project string
-	name    string
-	dryRun  bool
-	include bool
+	project         string
+	name            string
+	expectedVersion *uint64
+	dryRun          bool
+	include         bool
 }
 
 // save updates the modified dashboard, which Perses validates before saving. A dry run only validates it.
@@ -257,4 +263,23 @@ func (d *dashboard) save(req editRequest, dash *v1.Dashboard, changes []string) 
 		return nil, nil, fmt.Errorf("error updating dashboard '%s' in project '%s': %w", req.name, req.project, err)
 	}
 	return d.saved(result, saved, req.include)
+}
+
+// edit fetches the dashboard, applies the mutation and saves the result. The edits made through this server are
+// serialized; writers outside it are only detected by expected_version.
+func (d *dashboard) edit(req editRequest, mutate func(dash *v1.Dashboard) ([]string, error)) (*mcp.CallToolResult, any, error) {
+	d.edits.Lock()
+	defer d.edits.Unlock()
+	dash, err := d.get(req.project, req.name)
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := checkVersion(dash, req.expectedVersion); err != nil {
+		return nil, nil, err
+	}
+	changes, err := mutate(dash)
+	if err != nil {
+		return nil, nil, err
+	}
+	return d.save(req, dash, changes)
 }
