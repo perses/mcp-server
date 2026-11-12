@@ -17,11 +17,15 @@ import (
 	"context"
 	"errors"
 	"net"
+	"slices"
 	"testing"
 
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/perses/common/async"
 	"github.com/perses/perses/pkg/client/config"
 	"github.com/perses/spec/go/common"
+
+	"github.com/perses/mcp-server/pkg/tools"
 )
 
 // newServerWithBusyAddress returns an MCP server whose HTTP transport fails to start, because its address is already in use.
@@ -67,4 +71,68 @@ func TestServer_Execute(t *testing.T) {
 			t.Errorf("Execute() error = %v, want nil", err)
 		}
 	})
+}
+
+func TestSelectTools(t *testing.T) {
+	tool := func(name string, resource tools.Resource, write bool) *tools.Tool {
+		return &tools.Tool{MCPTool: &mcp.Tool{Name: name}, ResourceType: resource, IsWriteTool: write}
+	}
+	all := []*tools.Tool{
+		tool("list_dashboards", tools.DashboardResource, false),
+		tool("create_dashboard", tools.DashboardResource, true),
+		tool("list_projects", tools.ProjectResource, false),
+		tool("create_project", tools.ProjectResource, true),
+	}
+	tests := []struct {
+		name                string
+		tools               []*tools.Tool
+		cfg                 Config
+		wantSelected        []string
+		wantSkippedResource []string
+		wantSkippedReadOnly []string
+	}{
+		{name: "no filter", tools: all, wantSelected: []string{"list_dashboards", "create_dashboard", "list_projects", "create_project"}},
+		{
+			name:                "resources",
+			tools:               all,
+			cfg:                 Config{AllowedResources: []string{"dashboard"}},
+			wantSelected:        []string{"list_dashboards", "create_dashboard"},
+			wantSkippedResource: []string{"list_projects", "create_project"},
+		},
+		{
+			name:                "read-only",
+			tools:               all,
+			cfg:                 Config{ReadOnly: true},
+			wantSelected:        []string{"list_dashboards", "list_projects"},
+			wantSkippedReadOnly: []string{"create_dashboard", "create_project"},
+		},
+		{
+			// A write tool of a resource that is not allowed is skipped for its resource.
+			name:                "resources and read-only",
+			tools:               all,
+			cfg:                 Config{ReadOnly: true, AllowedResources: []string{"dashboard"}},
+			wantSelected:        []string{"list_dashboards"},
+			wantSkippedResource: []string{"list_projects", "create_project"},
+			wantSkippedReadOnly: []string{"create_dashboard"},
+		},
+		{name: "no tools", cfg: Config{ReadOnly: true}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			selection := selectTools(tt.tools, tt.cfg)
+			for _, check := range []struct {
+				kind string
+				got  []*tools.Tool
+				want []string
+			}{
+				{"selected", selection.selected, tt.wantSelected},
+				{"skipped for their resource", selection.skippedResource, tt.wantSkippedResource},
+				{"skipped in read-only mode", selection.skippedReadOnly, tt.wantSkippedReadOnly},
+			} {
+				if got := toolNames(check.got); !slices.Equal(got, check.want) {
+					t.Errorf("%s = %v, want %v", check.kind, got, check.want)
+				}
+			}
+		})
+	}
 }
