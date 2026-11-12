@@ -92,6 +92,7 @@ The `resources` field accepts the following resource names (case-insensitive, co
 | `migrate` | Grafana → Perses dashboard migration tool |
 | `schema` | Plugin schema tools (requires Perses v0.55+) |
 | `validate` | Dashboard and variable validation tools |
+| `prometheus` | Prometheus metric discovery and query tools |
 
 #### Environment Variables
 
@@ -463,6 +464,24 @@ For ephemeral dashboard configuration, see [Perses EphemeralDashboard](https://g
   }
 }
 ```
+
+### Prometheus
+
+Resource: `prometheus`
+
+These read-only tools discover and query the metrics of Prometheus datasources through the Perses proxy and return
+compact JSON: range queries return statistics per series (min, max, avg, last) instead of raw points. `datasource` is
+optional: the default Prometheus datasource is used when it is omitted.
+
+| Tool                                    | Description                                    | Required Parameters |
+|-----------------------------------------|------------------------------------------------|---------------------|
+| `perses_list_prometheus_metric_names`   | List metric names                              | -                   |
+| `perses_list_prometheus_label_names`    | List label names                               | -                   |
+| `perses_list_prometheus_label_values`   | List the values of a label                     | `label`             |
+| `perses_get_prometheus_metric_metadata` | Get the type, help and unit of metrics         | `metrics`           |
+| `perses_query_prometheus`               | Run a PromQL query and get a compact result    | `query`             |
+
+See [Prometheus tools](./docs/tools.md#prometheus) for details.
 
 ### Roles
 

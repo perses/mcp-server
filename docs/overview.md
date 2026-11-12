@@ -101,6 +101,10 @@ datasource or a LogQL query on a Loki datasource. The requests go through the
 
 See [Querying datasources](./tools.md#querying-datasources) for more details.
 
+For Prometheus datasources, [dedicated tools](./tools.md#prometheus) list the metric names, labels and label values,
+get the metadata of metrics and run PromQL queries. They return compact results, for example statistics per series
+instead of raw points for range queries, and use the default Prometheus datasource when none is given.
+
 ### Migrate Grafana dashboards
 
 The tool `perses_migrate_dashboard` converts a Grafana dashboard into a Perses dashboard, using the

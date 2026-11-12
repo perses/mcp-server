@@ -8,6 +8,8 @@ require (
 	github.com/perses/common v0.33.0
 	github.com/perses/perses v0.55.1-0.20261026072743-c4a2e03ca959
 	github.com/perses/spec v0.3.0
+	github.com/prometheus/client_golang v1.25.0
+	github.com/prometheus/common v0.73.1
 	github.com/sirupsen/logrus v1.10.2
 )
 
@@ -85,9 +87,7 @@ require (
 	github.com/pandatix/go-abnf v0.5.3 // indirect
 	github.com/pb33f/ordered-map/v2 v2.3.1 // indirect
 	github.com/pjbgf/sha1cd v0.6.0 // indirect
-	github.com/prometheus/client_golang v1.25.0 // indirect
 	github.com/prometheus/client_model v0.6.3 // indirect
-	github.com/prometheus/common v0.73.1 // indirect
 	github.com/prometheus/procfs v0.22.0 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/segmentio/asm v1.1.3 // indirect
