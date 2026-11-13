@@ -27,8 +27,11 @@ import (
 // timeLayout formats minAt and maxAt, e.g. "2 Jan 2026, 14:05".
 const timeLayout = "2 Jan 2006, 15:04"
 
+// errNativeHistograms shows how to query native histograms: unlike the classic ones, they have no _bucket series or le
+// label.
 var errNativeHistograms = errors.New("the query returns native histograms, which this tool does not summarize: " +
-	"use histogram_quantile(), histogram_count() or histogram_sum() to get numbers")
+	"use histogram_quantile(), histogram_count() or histogram_sum() to get numbers, without _bucket or le, e.g. " +
+	"histogram_quantile(0.99, sum(rate(x[5m])))")
 
 // stats are the statistics of a series of a range query. Min, max and avg leave out NaN and infinite samples.
 type stats struct {

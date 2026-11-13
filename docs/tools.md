@@ -246,8 +246,9 @@ datasource; see [Datasource settings](#datasource-settings)). It returns:
 
 The labels shared by all returned series are returned once in `commonLabels`. The values keep 4 significant digits,
 and all the digits of their integer part, so that timestamps and large counters are not rounded (e.g. `12.35`,
-`123457`, `1767355200`); NaN and infinities are returned as strings. Native histograms are not summarized: the tool returns an error that
-asks to use `histogram_quantile()`, `histogram_count()` or `histogram_sum()`. The `warnings` and `infos` of
+`123457`, `1767355200`); NaN and infinities are returned as strings. Native histograms are not summarized: the tool
+returns an error that asks to use `histogram_quantile()`, `histogram_count()` or `histogram_sum()`, without `_bucket`
+or `le`, e.g. `histogram_quantile(0.99, sum(rate(x[5m])))`. The `warnings` and `infos` of
 Prometheus are passed through. The errors of Prometheus are returned unchanged as tool errors, e.g. `bad_data: invalid
 parameter "query": 1:9: parse error: ...`; the other HTTP errors, e.g. of Perses, with their status and message. A
 response over 1 MiB is an error that asks to aggregate the query. `time` applies to instant queries only, `time_range`
