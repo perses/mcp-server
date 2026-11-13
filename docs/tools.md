@@ -216,7 +216,8 @@ The parameters are:
 - `search`: a case-insensitive substring filter, applied by the MCP server to the list returned by Prometheus. It
   doesn't make Prometheus return less: to narrow a large list, use `match`, e.g. `{__name__=~".*memory.*"}`.
 - `time_range`: `{past_duration}` (e.g. `"6h"`, `"7d"`), or `{start, end}` in RFC 3339 (`end` defaults to now).
-  The past hour by default, so that the list tools only return current series.
+  The past hour by default. Prometheus applies it approximately (by storage block): the lists may include series
+  without samples in it, e.g. series that stopped a few hours ago.
 - `limit`: the maximum number of returned items. Defaults: 200 metric names (50 with `include_metadata`, max 200), 200
   label names, 100 label values (max 1000), 20 series (max 100).
 
