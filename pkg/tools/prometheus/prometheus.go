@@ -193,8 +193,9 @@ func (p *prometheus) Query() *tools.Tool {
 			"time":       {Type: tools.SchemaTypeString, Description: "Instant queries only: evaluation time (RFC 3339). Defaults to now."},
 			"time_range": timeRangeSchema("Range queries only: time range of the statistics. Defaults to the past hour."),
 			"step": {
-				Type:        tools.SchemaTypeString,
-				Description: "Range queries only: resolution, e.g. \"1m\". Defaults to about 500 points (at least 15s).",
+				Type: tools.SchemaTypeString,
+				Description: "Range queries only: resolution, e.g. \"1m\". Defaults to about 500 points, at least the scrape " +
+					"interval of the datasource (1m when not set). Raised if needed to stay under 11000 points.",
 			},
 			"limit": limitSchema(fmt.Sprintf("Maximum number of series returned, highest values first (default %d, max %d).",
 				defaultSeriesLimit, maxSeriesLimit), maxSeriesLimit),

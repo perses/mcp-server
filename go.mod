@@ -7,6 +7,7 @@ require (
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 	github.com/perses/common v0.33.0
 	github.com/perses/perses v0.55.1-0.20261026072743-c4a2e03ca959
+	github.com/perses/plugins/prometheus v0.59.1
 	github.com/perses/spec v0.3.0
 	github.com/prometheus/client_golang v1.25.0
 	github.com/prometheus/common v0.73.1
