@@ -99,7 +99,7 @@ func (p *prometheus) query(ctx context.Context, input QueryInput) (*queryOutput,
 				return nil, err
 			}
 		}
-		output.Time = at.UTC().Format(time.RFC3339)
+		output.Time = formatTimestamp(at)
 	default:
 		return nil, fmt.Errorf("invalid type '%s': use '%s' or '%s'", input.Type, instantQuery, rangeQuery)
 	}

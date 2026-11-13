@@ -156,6 +156,12 @@ func TestResolveTimeRange(t *testing.T) {
 			wantStart: time.Date(2026, 1, 2, 11, 0, 0, 0, time.UTC), wantEnd: testNow,
 			wantRange: timeRangeOutput{Start: "2026-01-02T11:00:00Z", End: "2026-01-02T12:00:00Z"},
 		},
+		{
+			name:      "fractional seconds are kept",
+			input:     &TimeRangeInput{Start: "2026-01-02T10:00:00.100Z", End: "2026-01-02T10:00:00.900Z"},
+			wantStart: time.Date(2026, 1, 2, 10, 0, 0, 100_000_000, time.UTC), wantEnd: time.Date(2026, 1, 2, 10, 0, 0, 900_000_000, time.UTC),
+			wantRange: timeRangeOutput{Start: "2026-01-02T10:00:00.1Z", End: "2026-01-02T10:00:00.9Z"},
+		},
 		{name: "invalid past duration", input: &TimeRangeInput{PastDuration: "an hour"}, wantErr: "invalid time_range.past_duration 'an hour'"},
 		{name: "zero past duration", input: &TimeRangeInput{PastDuration: "0m"}, wantErr: "must be positive"},
 		{name: "invalid start", input: &TimeRangeInput{Start: "2026-01-02"}, wantErr: "invalid time_range.start '2026-01-02'"},

@@ -50,8 +50,14 @@ func (p *prometheus) newAPI(datasource resolvedDatasource) (v1.API, error) {
 	if ref.Project != "" {
 		path = proxy.ProjectDatasourceProxyPath(ref.Project, ref.Name, "")
 	}
+	// The proxy path is appended to the path of the base URL, which may have a query string.
+	address, err := url.Parse(restClient.BaseURL.String())
+	if err != nil {
+		return nil, fmt.Errorf("invalid Perses base URL: %w", err)
+	}
+	address.Path = strings.TrimRight(address.Path, "/") + path
 	client, err := api.NewClient(api.Config{
-		Address: strings.TrimRight(restClient.BaseURL.String(), "/") + path,
+		Address: address.String(),
 		Client: &http.Client{Transport: &persesTransport{
 			client: restClient.Client, headers: restClient.Headers, queryParams: datasource.queryParams,
 		}},
