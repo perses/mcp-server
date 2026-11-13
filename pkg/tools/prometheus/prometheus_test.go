@@ -14,12 +14,15 @@
 package prometheus
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
 	"reflect"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/perses/mcp-server/pkg/tools"
 	"github.com/perses/mcp-server/pkg/tools/internal/tooltest"
@@ -176,16 +179,16 @@ func TestGetMetricMetadata(t *testing.T) {
 		t.Errorf("missing = %v", output["missing"])
 	}
 	// A metric with metadata under its own name is looked up once.
-	if count := countRequests(perses, globalProxy+"/api/v1/metadata", "metric", "queue_count") + countRequests(perses, globalProxy+"/api/v1/metadata", "metric", "queue"); count != 1 {
+	if count := countMetadataRequests(perses, "queue_count") + countMetadataRequests(perses, "queue"); count != 1 {
 		t.Errorf("%d metadata requests for queue_count, want 1", count)
 	}
 }
 
-// countRequests returns the number of requests of path with the query parameter key set to value.
-func countRequests(perses *fakePerses, path, key, value string) int {
+// countMetadataRequests returns the number of metadata requests of the global datasource for metric.
+func countMetadataRequests(perses *fakePerses, metric string) int {
 	count := 0
 	for _, request := range perses.Received() {
-		if params, err := url.ParseQuery(request.RawQuery); err == nil && request.Path == path && params.Get(key) == value {
+		if params, err := url.ParseQuery(request.RawQuery); err == nil && request.Path == globalProxy+"/api/v1/metadata" && params.Get("metric") == metric {
 			count++
 		}
 	}
@@ -500,6 +503,44 @@ func TestListTooLarge(t *testing.T) {
 	}
 }
 
+func TestListMetricNamesWithTooMuchMetadata(t *testing.T) {
+	perses := newFakePerses(t, map[string]answer{
+		globalProxy + "/api/v1/label/__name__/values": ok(`["go_goroutines","http_requests_total","up"]`),
+	})
+	perses.metadata = map[string][]v1.Metadata{
+		"go_goroutines": {{Type: v1.MetricTypeGauge, Help: "Number of goroutines."}},
+		"http_requests": {{Type: v1.MetricTypeCounter, Help: "Requests."}},
+	}
+	perses.bulkMetadataTooLarge = true
+	output := decode(t, call(t, connect(t, perses), ListMetricNamesToolName, map[string]any{"include_metadata": true, "limit": 2}, false))
+	want := []any{
+		map[string]any{"name": "go_goroutines", "type": "gauge", "help": "Number of goroutines."},
+		map[string]any{"name": "http_requests_total", "type": "counter", "help": "Requests."},
+	}
+	if !reflect.DeepEqual(output["metrics"], want) || output["warnings"] != nil {
+		t.Errorf("output = %v", output)
+	}
+	// Only the returned metrics are looked up, after the request of all the metadata.
+	for _, metric := range []string{"", "go_goroutines", "http_requests_total", "http_requests"} {
+		if got := countMetadataRequests(perses, metric); got != 1 {
+			t.Errorf("%d metadata requests for metric %q, want 1", got, metric)
+		}
+	}
+	if got := countMetadataRequests(perses, "up"); got != 0 {
+		t.Errorf("%d metadata requests for up, which isn't returned", got)
+	}
+}
+
+func TestGetMetricMetadataError(t *testing.T) {
+	perses := newFakePerses(t, map[string]answer{
+		globalProxy + "/api/v1/metadata": {status: http.StatusBadGateway, body: "upstream down"},
+	})
+	text := call(t, connect(t, perses), GetMetricMetadataToolName, map[string]any{"metrics": []any{"a", "b", "c"}}, true)
+	if !strings.Contains(text, "HTTP 502 Bad Gateway: upstream down") {
+		t.Errorf("error = %s, want the error of the lookup", text)
+	}
+}
+
 func TestQueryParamsDontOverrideTheRequestParameters(t *testing.T) {
 	labels := globalProxy + "/api/v1/labels"
 	for _, fallback := range []bool{false, true} {
@@ -565,4 +606,42 @@ func effectiveParams(t *testing.T, perses *fakePerses, method, path string) url.
 	}
 	t.Fatalf("no request %s %s", method, path)
 	return nil
+}
+
+func TestMetadataLookupsAreBounded(t *testing.T) {
+	names := make([]string, 250)
+	for i := range names {
+		names[i] = fmt.Sprintf("metric_%03d", i)
+	}
+	list, err := json.Marshal(names)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var inFlight, maxInFlight, lookups atomic.Int32
+	perses := newFakePerses(t, map[string]answer{globalProxy + "/api/v1/label/__name__/values": ok(string(list))})
+	perses.answer = func(r *http.Request) *answer {
+		if r.URL.Path != globalProxy+"/api/v1/metadata" {
+			return nil
+		}
+		if r.URL.Query().Get("metric") == "" {
+			return &answer{status: http.StatusOK, body: tooLarge("{}")}
+		}
+		lookups.Add(1)
+		current := inFlight.Add(1)
+		defer inFlight.Add(-1)
+		for previous := maxInFlight.Load(); current > previous && !maxInFlight.CompareAndSwap(previous, current); previous = maxInFlight.Load() {
+		}
+		time.Sleep(2 * time.Millisecond)
+		return new(ok("{}"))
+	}
+	output := decode(t, call(t, connect(t, perses), ListMetricNamesToolName, map[string]any{"include_metadata": true, "limit": 1000}, false))
+	if output["returned"] != float64(maxMetadataMetricsLimit) || output["truncated"] != true {
+		t.Errorf("returned = %v, truncated = %v, want %d and true", output["returned"], output["truncated"], maxMetadataMetricsLimit)
+	}
+	if got := lookups.Load(); got != maxMetadataMetricsLimit {
+		t.Errorf("%d metadata lookups, want %d", got, maxMetadataMetricsLimit)
+	}
+	if got := maxInFlight.Load(); got > metadataConcurrency {
+		t.Errorf("%d concurrent lookups, want at most %d", got, metadataConcurrency)
+	}
 }

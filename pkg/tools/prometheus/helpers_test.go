@@ -73,6 +73,8 @@ type fakePerses struct {
 	answers     map[string]answer
 	// metadata, when set, is the metadata catalog served on /api/v1/metadata, filtered by the parameter metric.
 	metadata map[string][]v1.Metadata
+	// bulkMetadataTooLarge makes the metadata of all the metrics (no parameter metric) larger than maxBodyBytes.
+	bulkMetadataTooLarge bool
 	// answer, when set, answers the proxy requests first: its answer is used unless it returns nil.
 	answer func(r *http.Request) *answer
 	// forbidGlobalList makes the list of the global datasources fail with 403.
@@ -117,6 +119,11 @@ func (f *fakePerses) serve(w http.ResponseWriter, r *http.Request) {
 }
 
 func (f *fakePerses) serveMetadata(w http.ResponseWriter, metric string) {
+	if metric == "" && f.bulkMetadataTooLarge {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(tooLarge("{}")))
+		return
+	}
 	metadata := f.metadata
 	if metric != "" {
 		metadata = map[string][]v1.Metadata{}

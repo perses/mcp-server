@@ -22,20 +22,24 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"sync"
 
 	v1 "github.com/prometheus/client_golang/api/prometheus/v1"
 	"github.com/prometheus/common/model"
+	"golang.org/x/sync/errgroup"
 )
 
 const (
 	defaultMetricsLimit = 200
 	// defaultMetadataMetricsLimit is the default limit of metric names listed with their metadata, which are larger.
 	defaultMetadataMetricsLimit = 50
-	defaultLabelsLimit          = 200
-	defaultValuesLimit          = 100
-	maxListLimit                = 1000
-	maxMetadataMetrics          = 20
+	// maxMetadataMetricsLimit caps the metric names listed with their metadata, which may be looked up one by one.
+	maxMetadataMetricsLimit = 200
+	defaultLabelsLimit      = 200
+	defaultValuesLimit      = 100
+	maxListLimit            = 1000
+	maxMetadataMetrics      = 20
+	// metadataConcurrency is the number of metadata requests sent at the same time.
+	metadataConcurrency = 8
 	// maxHelpLength caps the help of metrics listed with their metadata.
 	maxHelpLength = 80
 )
@@ -226,17 +230,24 @@ func (p *prometheus) listMetricNames(ctx context.Context, input ListMetricNamesI
 	if err != nil {
 		return nil, err
 	}
-	defaultLimit := defaultMetricsLimit
+	limit, defaultLimit := input.Limit, defaultMetricsLimit
 	if input.IncludeMetadata {
 		defaultLimit = defaultMetadataMetricsLimit
+		if limit > maxMetadataMetricsLimit {
+			limit = maxMetadataMetricsLimit
+		}
 	}
-	returned, namesPage := firstPage(names.values, input.Limit, defaultLimit)
+	returned, namesPage := firstPage(names.values, limit, defaultLimit)
 	output := &metricNamesOutput{Datasource: names.datasource.ref, page: namesPage, Metrics: returned, Warnings: names.warnings}
 	if input.IncludeMetadata {
 		var metadata map[string][]v1.Metadata
 		var metadataErr error
 		if len(returned) > 0 {
 			metadata, metadataErr = p.metadata(ctx, names.datasource, "")
+			if errors.Is(metadataErr, errTooMuchData) {
+				// The metadata of all the metrics is too large: only the returned metrics are looked up.
+				metadata, metadataErr = p.lookupMetadata(ctx, names.datasource, returned)
+			}
 		}
 		if metadataErr != nil {
 			output.Warnings = append(output.Warnings, fmt.Sprintf("metadata unavailable (%s): use %s for specific metrics",
@@ -356,6 +367,32 @@ func (p *prometheus) metricMetadata(ctx context.Context, datasource resolvedData
 	return findMetadata(metadata, metric), nil
 }
 
+// lookupMetadata looks up the metadata of each metric (metricMetadata), metadataConcurrency at a time, and returns
+// the metadata found by metric name. The first error cancels the lookups in progress and is returned.
+func (p *prometheus) lookupMetadata(ctx context.Context, datasource resolvedDatasource, metrics []string) (map[string][]v1.Metadata, error) {
+	results := make([][]v1.Metadata, len(metrics))
+	group, ctx := errgroup.WithContext(ctx)
+	group.SetLimit(metadataConcurrency)
+	for i, metric := range metrics {
+		group.Go(func() error {
+			var err error
+			results[i], err = p.metricMetadata(ctx, datasource, metric)
+			return err
+		})
+	}
+	// The lookups write results from their goroutines: it can only be read once all of them have returned.
+	if err := group.Wait(); err != nil {
+		return nil, err
+	}
+	metadata := make(map[string][]v1.Metadata, len(metrics))
+	for i, metric := range metrics {
+		if len(results[i]) > 0 {
+			metadata[metric] = results[i]
+		}
+	}
+	return metadata, nil
+}
+
 func (p *prometheus) getMetricMetadata(ctx context.Context, input GetMetricMetadataInput) (*metricMetadataOutput, error) {
 	if len(input.Metrics) > maxMetadataMetrics {
 		return nil, fmt.Errorf("too many metrics: at most %d per call", maxMetadataMetrics)
@@ -364,25 +401,15 @@ func (p *prometheus) getMetricMetadata(ctx context.Context, input GetMetricMetad
 	if err != nil {
 		return nil, err
 	}
-	results := make([][]v1.Metadata, len(input.Metrics))
-	errs := make([]error, len(input.Metrics))
-	var wg sync.WaitGroup
-	for i, metric := range input.Metrics {
-		wg.Go(func() {
-			results[i], errs[i] = p.metricMetadata(ctx, datasource, metric)
-		})
+	metadata, err := p.lookupMetadata(ctx, datasource, input.Metrics)
+	if err != nil {
+		return nil, err
 	}
-	wg.Wait()
-	output := &metricMetadataOutput{Datasource: datasource.ref, Metadata: map[string][]v1.Metadata{}, Missing: []string{}, Warnings: datasource.warnings()}
-	for i, metric := range input.Metrics {
-		if errs[i] != nil {
-			return nil, errs[i]
-		}
-		if len(results[i]) == 0 {
+	output := &metricMetadataOutput{Datasource: datasource.ref, Metadata: metadata, Missing: []string{}, Warnings: datasource.warnings()}
+	for _, metric := range input.Metrics {
+		if _, found := metadata[metric]; !found {
 			output.Missing = append(output.Missing, metric)
-			continue
 		}
-		output.Metadata[metric] = results[i]
 	}
 	return output, nil
 }
