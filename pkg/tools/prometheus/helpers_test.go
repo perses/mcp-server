@@ -73,6 +73,8 @@ type fakePerses struct {
 	answers     map[string]answer
 	// metadata, when set, is the metadata catalog served on /api/v1/metadata, filtered by the parameter metric.
 	metadata map[string][]v1.Metadata
+	// answer, when set, answers the proxy requests first: its answer is used unless it returns nil.
+	answer func(r *http.Request) *answer
 	// forbidGlobalList makes the list of the global datasources fail with 403.
 	forbidGlobalList bool
 }
@@ -87,6 +89,14 @@ func (f *fakePerses) serve(w http.ResponseWriter, r *http.Request) {
 	if strings.HasPrefix(r.URL.Path, "/api/v1/") {
 		f.serveDatasources(w, r)
 		return
+	}
+	if f.answer != nil {
+		if a := f.answer(r); a != nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(a.status)
+			_, _ = w.Write([]byte(a.body))
+			return
+		}
 	}
 	if f.metadata != nil && strings.HasSuffix(r.URL.Path, "/api/v1/metadata") {
 		f.serveMetadata(w, r.URL.Query().Get("metric"))
@@ -193,6 +203,11 @@ func (f *fakePerses) serveDatasources(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_ = json.NewEncoder(w).Encode(found[0])
+}
+
+// tooLarge returns a successful Prometheus response with data, padded over maxBodyBytes.
+func tooLarge(data string) string {
+	return `{"status":"success","data":` + data + strings.Repeat(" ", maxBodyBytes) + `}`
 }
 
 func encodeDatasource(ds testDatasource) map[string]any {

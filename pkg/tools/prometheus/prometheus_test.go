@@ -467,6 +467,39 @@ func TestDatasourceSettingsApplyToEveryRequest(t *testing.T) {
 	}
 }
 
+func TestListTooLarge(t *testing.T) {
+	path := globalProxy + "/api/v1/label/__name__/values"
+	perses := newFakePerses(t, nil)
+	perses.answer = func(r *http.Request) *answer {
+		if r.URL.Path != path {
+			return nil
+		}
+		// Prometheus filters the names when the search is sent as a matcher.
+		if r.URL.Query().Get("match[]") == `{__name__=~"(?is).*MEMORY.*"}` {
+			return new(ok(`["process_resident_memory_bytes","up_memory"]`))
+		}
+		return &answer{status: http.StatusOK, body: tooLarge(`[]`)}
+	}
+	session := connect(t, perses)
+
+	// With search and without match, the list is requested again with search as a matcher.
+	output := decode(t, call(t, session, ListMetricNamesToolName, map[string]any{"search": "MEMORY"}, false))
+	if !reflect.DeepEqual(output["metrics"], []any{"process_resident_memory_bytes", "up_memory"}) {
+		t.Errorf("metrics = %v", output["metrics"])
+	}
+	if got := perses.Count(http.MethodGet, path); got != 2 {
+		t.Errorf("%d requests, want 2", got)
+	}
+
+	// Otherwise, the error tells how to narrow the list, not how to aggregate a query.
+	for _, arguments := range []map[string]any{nil, {"search": "memory", "match": "up"}} {
+		text := call(t, session, ListMetricNamesToolName, arguments, true)
+		if !strings.Contains(text, errListTooLarge.Error()) {
+			t.Errorf("error = %s, want %s", text, errListTooLarge)
+		}
+	}
+}
+
 func TestQueryParamsDontOverrideTheRequestParameters(t *testing.T) {
 	labels := globalProxy + "/api/v1/labels"
 	for _, fallback := range []bool{false, true} {

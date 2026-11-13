@@ -16,8 +16,11 @@ package prometheus
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -139,6 +142,10 @@ type listing struct {
 
 // list resolves the time range and the datasource, then lists the label names (label empty) or the values of a
 // label, filtered by search (case-insensitive).
+//
+// When the list is too large and search is set without match, it is requested again with search as a regular
+// expression matcher on the label, so that Prometheus filters it: the filter isn't sent from the start as it may cost
+// Prometheus more than a plain listing.
 func (p *prometheus) list(ctx context.Context, datasourceInput *DatasourceRef, label string, match Selectors, timeRange *TimeRangeInput, search string) (*listing, error) {
 	start, end, _, err := resolveTimeRange(timeRange, p.now())
 	if err != nil {
@@ -152,34 +159,57 @@ func (p *prometheus) list(ctx context.Context, datasourceInput *DatasourceRef, l
 	if err != nil {
 		return nil, err
 	}
-	var values []string
-	var warnings v1.Warnings
-	var infos v1.Infos
-	if label == "" {
-		var names model.LabelNames
-		names, warnings, infos, err = promAPI.LabelNames(ctx, match, start, end)
-		for _, name := range names {
-			values = append(values, string(name))
+	fetch := func(match Selectors) ([]string, v1.Warnings, v1.Infos, error) {
+		var values []string
+		if label == "" {
+			names, warnings, infos, fetchErr := promAPI.LabelNames(ctx, match, start, end)
+			for _, name := range names {
+				values = append(values, string(name))
+			}
+			return values, warnings, infos, fetchErr
 		}
-	} else {
-		var labelValues model.LabelValues
-		labelValues, warnings, infos, err = promAPI.LabelValues(ctx, label, match, start, end)
+		labelValues, warnings, infos, fetchErr := promAPI.LabelValues(ctx, label, match, start, end)
 		for _, value := range labelValues {
 			values = append(values, string(value))
 		}
+		return values, warnings, infos, fetchErr
+	}
+	values, warnings, infos, err := fetch(match)
+	if errors.Is(err, errTooMuchData) && search != "" && label != "" && len(match) == 0 {
+		values, warnings, infos, err = fetch(Selectors{searchSelector(label, search)})
+	}
+	if errors.Is(err, errTooMuchData) {
+		return nil, errListTooLarge
 	}
 	if err != nil {
 		return nil, apiError(datasource.ref, err)
 	}
 	if search != "" {
-		needle := strings.ToLower(search)
-		values = slices.DeleteFunc(values, func(value string) bool { return !strings.Contains(strings.ToLower(value), needle) })
+		// The same matching as searchSelector, so that a list filtered by Prometheus has the same values.
+		matcher := regexp.MustCompile(searchPattern(search))
+		values = slices.DeleteFunc(values, func(value string) bool { return !matcher.MatchString(value) })
 	}
 	if values == nil {
 		values = []string{}
 	}
 	allWarnings := append(datasource.warnings(), warnings...)
 	return &listing{datasource: datasource, values: values, warnings: append(allWarnings, infos...)}, nil
+}
+
+var errListTooLarge = errors.New("the list is too large (over 1 MiB): narrow it with match (e.g. {job=\"node\"}), " +
+	"search or a shorter time_range")
+
+// searchPattern returns the regular expression of the values that contain search, ignoring case. Prometheus uses the
+// regular expressions of Go (RE2) for its matchers, so the values match the same way here and in Prometheus.
+func searchPattern(search string) string {
+	return "(?i)" + regexp.QuoteMeta(search)
+}
+
+// searchSelector returns a series selector of the values of label that contain search, ignoring case. Prometheus
+// anchors the regular expressions of matchers, hence the surrounding ".*", which also matches newlines with the
+// flag s (the default since Prometheus 3 only).
+func searchSelector(label, search string) string {
+	return fmt.Sprintf("{%s=~%s}", label, strconv.Quote("(?is).*"+regexp.QuoteMeta(search)+".*"))
 }
 
 // firstPage returns the first limit values (defaultLimit when limit is not set) and the page they form.

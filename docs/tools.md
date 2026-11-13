@@ -219,9 +219,10 @@ The parameters are:
 - `limit`: the maximum number of returned items. Defaults: 200 metric names (50 with `include_metadata`), 200 label
   names, 100 label values (max 1000), 20 series (max 100).
 
-The list tools return `{datasource, total, returned, truncated, ...}`. With `include_metadata: true`, each metric
-name comes with its type and help, shortened to 80 characters. The metadata of all the metrics is fetched in one
-request: when it is unavailable (e.g. over 1 MiB), the metrics are returned without it, with a warning.
+The list tools return `{datasource, total, returned, truncated, ...}`. A list over 1 MiB is an error that asks to
+narrow it with `match`, `search` or `time_range`. With `include_metadata: true`, each metric name comes with its type
+and help, shortened to 80 characters. The metadata of all the metrics is fetched in one request: when it is
+unavailable (e.g. over 1 MiB), the metrics are returned without it, with a warning.
 
 `perses_get_prometheus_metric_metadata` looks up each metric under its own name, then under the name of its family
 when the family has series with this suffix: `_bucket`, `_count`, `_sum` and `_created` of histograms and summaries,

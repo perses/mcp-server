@@ -16,6 +16,8 @@ package prometheus
 import (
 	"math"
 	"reflect"
+	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -206,6 +208,12 @@ func TestResolveStep(t *testing.T) {
 	}
 }
 
+func TestSearchSelector(t *testing.T) {
+	if got, want := searchSelector("__name__", `mem.x"y`), `{__name__=~"(?is).*mem\\.x\"y.*"}`; got != want {
+		t.Errorf("searchSelector() = %s, want %s", got, want)
+	}
+}
+
 func TestSeriesStats(t *testing.T) {
 	samples := []model.SamplePair{
 		{Timestamp: 1767355200000, Value: 2},
@@ -320,5 +328,25 @@ func TestResolveCacheRefreshesTheSettings(t *testing.T) {
 	}
 	if refreshed.scrapeInterval != 2*time.Minute || refreshed.queryParams["dedup"] != "false" {
 		t.Errorf("refreshed = %+v, want the new settings", refreshed)
+	}
+}
+
+func TestSearchMatchesLikePrometheus(t *testing.T) {
+	values := []string{"İstanbul", "ISTANBUL", "istanbul", "Kelvin", "\u212aelvin", "Straße", "STRASSE", "line\nmemory", "MEMORY", "x.y", "xay"}
+	for _, search := range []string{"istanbul", "k", "ss", "memory", "x.y"} {
+		local := regexp.MustCompile(searchPattern(search))
+		selector := searchSelector("label", search)
+		quoted, found := strings.CutPrefix(selector, "{label=~")
+		pattern, err := strconv.Unquote(strings.TrimSuffix(quoted, "}"))
+		if !found || err != nil {
+			t.Fatalf("searchSelector(%q) = %s: %v", search, selector, err)
+		}
+		// Prometheus anchors the regular expressions of matchers.
+		remote := regexp.MustCompile("^(?:" + pattern + ")$")
+		for _, value := range values {
+			if local.MatchString(value) != remote.MatchString(value) {
+				t.Errorf("search %q, value %q: local match %v, Prometheus match %v", search, value, local.MatchString(value), remote.MatchString(value))
+			}
+		}
 	}
 }
