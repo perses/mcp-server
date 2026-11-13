@@ -39,6 +39,12 @@ type testDatasource struct {
 	Project string
 	Kind    string
 	Default bool
+	// DirectURL makes a datasource reachable by the browser only, without proxy.
+	DirectURL      bool
+	ScrapeInterval string
+	QueryParams    map[string]string
+	// PluginSpec, when set, is the plugin spec served as is, e.g. with an empty scrape interval.
+	PluginSpec map[string]any
 }
 
 // defaultDatasources are a global default Prometheus datasource "prom", a project Prometheus datasource "prom" in
@@ -67,6 +73,8 @@ type fakePerses struct {
 	answers     map[string]answer
 	// metadata, when set, is the metadata catalog served on /api/v1/metadata, filtered by the parameter metric.
 	metadata map[string][]v1.Metadata
+	// forbidGlobalList makes the list of the global datasources fail with 403.
+	forbidGlobalList bool
 }
 
 func newFakePerses(t *testing.T, answers map[string]answer) *fakePerses {
@@ -153,6 +161,10 @@ func (f *fakePerses) serveDatasources(w http.ResponseWriter, r *http.Request) {
 	case len(parts) >= 3 && len(parts) <= 4 && parts[2] == "globaldatasources":
 		if len(parts) == 4 {
 			name = parts[3]
+		} else if f.forbidGlobalList {
+			w.WriteHeader(http.StatusForbidden)
+			_, _ = w.Write([]byte(`{"message":"forbidden"}`))
+			return
 		}
 	case len(parts) >= 5 && len(parts) <= 6 && parts[2] == "projects" && parts[4] == "datasources":
 		project = parts[3]
@@ -184,6 +196,23 @@ func (f *fakePerses) serveDatasources(w http.ResponseWriter, r *http.Request) {
 }
 
 func encodeDatasource(ds testDatasource) map[string]any {
+	pluginSpec := map[string]any{}
+	if ds.Kind == prometheusDatasourceKind {
+		if ds.DirectURL {
+			pluginSpec["directUrl"] = "http://prometheus.example.com"
+		} else {
+			pluginSpec["proxy"] = map[string]any{"kind": "HTTPProxy", "spec": map[string]any{"url": "http://prometheus.example.com"}}
+		}
+		if ds.ScrapeInterval != "" {
+			pluginSpec["scrapeInterval"] = ds.ScrapeInterval
+		}
+		if ds.QueryParams != nil {
+			pluginSpec["queryParams"] = ds.QueryParams
+		}
+	}
+	if ds.PluginSpec != nil {
+		pluginSpec = ds.PluginSpec
+	}
 	kind := "GlobalDatasource"
 	metadata := map[string]any{"name": ds.Name}
 	if ds.Project != "" {
@@ -195,7 +224,7 @@ func encodeDatasource(ds testDatasource) map[string]any {
 		"metadata": metadata,
 		"spec": map[string]any{
 			"default": ds.Default,
-			"plugin":  map[string]any{"kind": ds.Kind, "spec": map[string]any{}},
+			"plugin":  map[string]any{"kind": ds.Kind, "spec": pluginSpec},
 		},
 	}
 }

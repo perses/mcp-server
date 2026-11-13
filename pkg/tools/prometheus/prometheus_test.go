@@ -14,6 +14,7 @@
 package prometheus
 
 import (
+	"fmt"
 	"net/http"
 	"net/url"
 	"reflect"
@@ -235,10 +236,11 @@ func TestQueryRange(t *testing.T) {
 		"query": "up", "type": "range", "time_range": map[string]any{"past_duration": "6h"}, "time_zone": "Europe/Berlin",
 	}, false))
 	want := map[string]any{
-		"datasource":  map[string]any{"name": "prom"},
-		"resultType":  "matrix",
-		"timeRange":   map[string]any{"pastDuration": "6h"},
-		"step":        "44s",
+		"datasource": map[string]any{"name": "prom"},
+		"resultType": "matrix",
+		"timeRange":  map[string]any{"pastDuration": "6h"},
+		// The datasource sets no scrape interval: the step is at least 1m, its default in the Perses UI.
+		"step":        "1m",
 		"seriesCount": 3.0,
 		"returned":    2.0,
 		"series": []any{
@@ -251,7 +253,7 @@ func TestQueryRange(t *testing.T) {
 		t.Errorf("output =\n%v\nwant\n%v", output, want)
 	}
 	params := perses.paramsOf(globalProxy + "/api/v1/query_range")
-	if params.Get("step") != "44" || params.Get("start") != "1767333600" || params.Get("end") != "1767355200" {
+	if params.Get("step") != "60" || params.Get("start") != "1767333600" || params.Get("end") != "1767355200" {
 		t.Errorf("params = %v", params)
 	}
 
@@ -408,4 +410,126 @@ func TestQueryRangeKeepsTheHighestSeries(t *testing.T) {
 
 func TestQueryInvalidTypeIsRejected(t *testing.T) {
 	call(t, connect(t, newFakePerses(t, nil)), QueryToolName, map[string]any{"query": "up", "type": "bogus"}, true)
+}
+
+func TestDatasourceSettingsApplyToEveryRequest(t *testing.T) {
+	perses := newFakePerses(t, map[string]answer{
+		globalProxy + "/api/v1/labels":                ok(`["job"]`),
+		globalProxy + "/api/v1/label/job/values":      ok(`["node"]`),
+		globalProxy + "/api/v1/label/__name__/values": ok(`["up"]`),
+		globalProxy + "/api/v1/query":                 ok(`{"resultType":"vector","result":[]}`),
+		globalProxy + "/api/v1/query_range":           ok(`{"resultType":"matrix","result":[]}`),
+	})
+	perses.metadata = map[string][]v1.Metadata{"up": {{Type: v1.MetricTypeGauge}}}
+	perses.datasources = []testDatasource{{
+		Name: "prom", Kind: prometheusDatasourceKind, Default: true, ScrapeInterval: "30s",
+		QueryParams: map[string]string{"dedup": "true", "start": "0", "tenant": "$tenant"},
+	}}
+	session := connect(t, perses)
+	calls := []struct {
+		tool      string
+		arguments map[string]any
+	}{
+		{ListLabelNamesToolName, nil},
+		{ListLabelValuesToolName, map[string]any{"label": "job"}},
+		{ListMetricNamesToolName, map[string]any{"include_metadata": true}},
+		{GetMetricMetadataToolName, map[string]any{"metrics": []any{"up"}}},
+		{QueryToolName, map[string]any{"query": "up"}},
+		{QueryToolName, map[string]any{"query": "up", "type": "range"}},
+	}
+	for _, c := range calls {
+		output := decode(t, call(t, session, c.tool, c.arguments, false))
+		// The parameter with a variable can't be resolved: the result says so.
+		warnings, _ := output["warnings"].([]any)
+		if len(warnings) == 0 || !strings.Contains(warnings[0].(string), "the query parameter 'tenant'") {
+			t.Errorf("%s: warnings = %v", c.tool, output["warnings"])
+		}
+	}
+	for _, request := range perses.Received() {
+		if !strings.HasPrefix(request.Path, "/proxy/") {
+			continue
+		}
+		query, err := url.ParseQuery(request.RawQuery)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if query.Get("dedup") != "true" || query.Get("tenant") != "$tenant" {
+			t.Errorf("%s %s: query = %v, want the query parameters of the datasource", request.Method, request.Path, query)
+		}
+	}
+	// A parameter set by the request is kept: the GET request of the label values has its own start.
+	if got := perses.paramsOf(globalProxy + "/api/v1/label/job/values")["start"]; !reflect.DeepEqual(got, []string{"1767351600"}) {
+		t.Errorf("start = %v, want the start of the request only", got)
+	}
+	// The default step of a range query is at least the scrape interval of the datasource (1h / 500 < 30s).
+	if got := perses.paramsOf(globalProxy + "/api/v1/query_range").Get("step"); got != "30" {
+		t.Errorf("step = %s, want 30", got)
+	}
+}
+
+func TestQueryParamsDontOverrideTheRequestParameters(t *testing.T) {
+	labels := globalProxy + "/api/v1/labels"
+	for _, fallback := range []bool{false, true} {
+		t.Run(fmt.Sprintf("GET fallback %v", fallback), func(t *testing.T) {
+			answers := map[string]answer{labels: ok(`["job"]`), globalProxy + "/api/v1/query_range": ok(`{"resultType":"matrix","result":[]}`)}
+			if fallback {
+				answers["POST "+labels] = answer{status: http.StatusMethodNotAllowed}
+			}
+			perses := newFakePerses(t, answers)
+			perses.datasources = []testDatasource{{
+				Name: "prom", Kind: prometheusDatasourceKind, Default: true,
+				QueryParams: map[string]string{"match[]": "up", "start": "0", "dedup": "true"},
+			}}
+			session := connect(t, perses)
+			call(t, session, ListLabelNamesToolName, map[string]any{"match": `{job="node"}`}, false)
+			call(t, session, QueryToolName, map[string]any{"query": "up", "type": "range"}, false)
+
+			// Prometheus merges a repeated parameter from the URL and the form body: the request has its own match[].
+			method := http.MethodPost
+			if fallback {
+				method = http.MethodGet
+			}
+			params := effectiveParams(t, perses, method, labels)
+			if !reflect.DeepEqual(params["match[]"], []string{`{job="node"}`}) {
+				t.Errorf("match[] = %v, want the matcher of the request only", params["match[]"])
+			}
+			if params.Get("dedup") != "true" {
+				t.Errorf("dedup = %q, want the query parameter of the datasource", params.Get("dedup"))
+			}
+			if got := effectiveParams(t, perses, http.MethodPost, globalProxy+"/api/v1/query_range")["start"]; !reflect.DeepEqual(got, []string{"1767351600"}) {
+				t.Errorf("start = %v, want the start of the request only", got)
+			}
+		})
+	}
+}
+
+// effectiveParams returns the parameters that Prometheus reads from the last request of method and path: the form
+// body first, then the URL, as with http.Request.ParseForm.
+func effectiveParams(t *testing.T, perses *fakePerses, method, path string) url.Values {
+	t.Helper()
+	received := perses.Received()
+	for i := len(received) - 1; i >= 0; i-- {
+		request := received[i]
+		if request.Method != method || request.Path != path {
+			continue
+		}
+		params := url.Values{}
+		if request.ContentType == "application/x-www-form-urlencoded" {
+			form, err := url.ParseQuery(request.Body)
+			if err != nil {
+				t.Fatal(err)
+			}
+			params = form
+		}
+		query, err := url.ParseQuery(request.RawQuery)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for key, values := range query {
+			params[key] = append(params[key], values...)
+		}
+		return params
+	}
+	t.Fatalf("no request %s %s", method, path)
+	return nil
 }

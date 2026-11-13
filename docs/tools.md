@@ -228,7 +228,8 @@ when the family has series with this suffix: `_bucket`, `_count`, `_sum` and `_c
 `_total` of counters (e.g. `http_requests_total` of the counter `http_requests`).
 
 `perses_query_prometheus` runs an instant query (`type: "instant"`, default) at `time` (default now), or a range query
-(`type: "range"`) over `time_range` with `step` (default about 500 points, at least 15s). It returns:
+(`type: "range"`) over `time_range` with `step` (default about 500 points, at least the scrape interval of the
+datasource; see [Datasource settings](#datasource-settings)). It returns:
 
 - for an instant query, the value of each series, highest first: `{resultType: "vector", time, seriesCount, returned,
   commonLabels, series: [{labels, value}]}`;
@@ -257,8 +258,24 @@ The parameter `datasource` of the Prometheus tools is resolved as follows:
 - `{project}`: the Prometheus datasource of the project marked as default (`spec.default: true`), else the global one.
 - omitted: the global Prometheus datasource marked as default.
 
-When no Prometheus datasource is marked as default but there is exactly one, it is used. Otherwise the tool returns an
-error that lists the available Prometheus datasources. The resolved datasources are cached for 30 seconds.
+When no Prometheus datasource is marked as default but there is exactly one that the Perses proxy can query, it is
+used. Otherwise the tool returns an error that lists the available Prometheus datasources. The resolved datasources
+are cached for 30 seconds.
+
+The tools query the datasources through the Perses proxy: a datasource with a `directUrl`, which only the browser can
+reach, is an error, also when it is the default one.
+
+### Datasource settings
+
+Like the Perses UI, the tools apply two settings of the Prometheus datasource, which the Perses proxy doesn't:
+
+- `queryParams` are added to every request, unless the request sets the same parameter, e.g. `dedup` or
+  `partial_response` for Thanos. A value with a dashboard variable (`$`) can't be resolved: it is sent as is, with a
+  warning.
+- `scrapeInterval` (default `1m`) is the minimum default `step` of range queries. An explicit `step` isn't raised to
+  the scrape interval, but like the default one it is raised if needed to stay under the Prometheus limit of 11000
+  points per series. Before, the minimum default step was 15s: range statistics are now computed over fewer points
+  unless `step` is set.
 
 ## Variables
 

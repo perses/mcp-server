@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/perses/mcp-server/pkg/tools/internal/proxy"
@@ -37,22 +38,26 @@ const (
 var errTooMuchData = errors.New("the query returns too much data (over 1 MiB): aggregate it (sum by, topk) or narrow the label matchers")
 
 // newAPI returns a client of the Prometheus HTTP API that sends its requests through the Perses proxy of the
-// datasource, with the HTTP client and the default headers (credentials) of the Perses client.
-func (p *prometheus) newAPI(datasource DatasourceRef) (v1.API, error) {
+// datasource, with the HTTP client and the default headers (credentials) of the Perses client, and the query
+// parameters of the datasource.
+func (p *prometheus) newAPI(datasource resolvedDatasource) (v1.API, error) {
 	restClient := p.client.RESTClient()
 	if restClient == nil || restClient.Client == nil || restClient.BaseURL == nil {
 		return nil, errors.New("perses REST client is not configured")
 	}
-	path := proxy.GlobalDatasourceProxyPath(datasource.Name, "")
-	if datasource.Project != "" {
-		path = proxy.ProjectDatasourceProxyPath(datasource.Project, datasource.Name, "")
+	ref := datasource.ref
+	path := proxy.GlobalDatasourceProxyPath(ref.Name, "")
+	if ref.Project != "" {
+		path = proxy.ProjectDatasourceProxyPath(ref.Project, ref.Name, "")
 	}
 	client, err := api.NewClient(api.Config{
 		Address: strings.TrimRight(restClient.BaseURL.String(), "/") + path,
-		Client:  &http.Client{Transport: &persesTransport{client: restClient.Client, headers: restClient.Headers}},
+		Client: &http.Client{Transport: &persesTransport{
+			client: restClient.Client, headers: restClient.Headers, queryParams: datasource.queryParams,
+		}},
 	})
 	if err != nil {
-		return nil, fmt.Errorf("error creating the Prometheus client of %s: %w", datasource, err)
+		return nil, fmt.Errorf("error creating the Prometheus client of %s: %w", ref, err)
 	}
 	return v1.NewAPI(client), nil
 }
@@ -62,9 +67,14 @@ func (p *prometheus) newAPI(datasource DatasourceRef) (v1.API, error) {
 // The Prometheus client only keeps the body of the errors in the Prometheus format: the other error responses (e.g.
 // a Perses error or the error page of a proxy) are turned into a statusError that keeps their message. The responses
 // with which the Prometheus client retries a POST request with GET (403, 405 and 501) are passed through.
+//
+// Like the Perses UI, it adds the query parameters of the datasource to the URL of every request, unless the request
+// already has the parameter, in its URL or in its form body (POST): Prometheus merges the values of a repeated
+// parameter such as match[] from both.
 type persesTransport struct {
-	client  *http.Client
-	headers map[string]string
+	client      *http.Client
+	headers     map[string]string
+	queryParams map[string]string
 }
 
 func (t *persesTransport) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -73,6 +83,19 @@ func (t *persesTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 		if req.Header.Get(key) == "" {
 			req.Header.Set(key, value)
 		}
+	}
+	if len(t.queryParams) > 0 {
+		form, err := formOf(req)
+		if err != nil {
+			return nil, err
+		}
+		query := req.URL.Query()
+		for key, value := range t.queryParams {
+			if !query.Has(key) && !form.Has(key) {
+				query.Set(key, value)
+			}
+		}
+		req.URL.RawQuery = query.Encode()
 	}
 	// #nosec G704 -- the URL is built from the configured Perses base URL and the datasource proxy path.
 	resp, err := t.client.Do(req)
@@ -93,6 +116,23 @@ func (t *persesTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 		return resp, nil
 	}
 	return nil, &statusError{status: resp.Status, message: errorMessage(body)}
+}
+
+// formOf returns the parameters of the form body of a request, read from a copy of the body.
+func formOf(req *http.Request) (url.Values, error) {
+	if req.GetBody == nil || req.Header.Get("Content-Type") != "application/x-www-form-urlencoded" {
+		return url.Values{}, nil
+	}
+	body, err := req.GetBody()
+	if err != nil {
+		return nil, fmt.Errorf("error reading the request body: %w", err)
+	}
+	defer func() { _ = body.Close() }()
+	data, err := io.ReadAll(body)
+	if err != nil {
+		return nil, fmt.Errorf("error reading the request body: %w", err)
+	}
+	return url.ParseQuery(string(data))
 }
 
 // isGetFallbackStatus reports whether the Prometheus client retries a POST request with GET after this status.

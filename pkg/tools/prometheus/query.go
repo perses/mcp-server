@@ -81,13 +81,14 @@ func (p *prometheus) query(ctx context.Context, input QueryInput) (*queryOutput,
 		if rangeErr != nil {
 			return nil, rangeErr
 		}
-		step, stepErr := resolveStep(input.Step, start, end)
-		if stepErr != nil {
-			return nil, stepErr
+		if input.Step != "" {
+			if _, stepErr := parseStep(input.Step); stepErr != nil {
+				return nil, stepErr
+			}
 		}
-		queryRange = v1.Range{Start: start, End: end, Step: step}
+		// The step is set once the datasource, and so its scrape interval, is known.
+		queryRange = v1.Range{Start: start, End: end}
 		output.TimeRange = &timeRange
-		output.Step = model.Duration(step).String()
 	case instantQuery, "":
 		if input.TimeRange != nil || input.Step != "" {
 			return nil, errors.New("time_range and step apply to range queries: set type to 'range', or use time for an instant query")
@@ -107,7 +108,13 @@ func (p *prometheus) query(ctx context.Context, input QueryInput) (*queryOutput,
 	if err != nil {
 		return nil, err
 	}
-	output.Datasource = datasource
+	output.Datasource = datasource.ref
+	if input.Type == rangeQuery {
+		if queryRange.Step, err = resolveStep(input.Step, queryRange.Start, queryRange.End, datasource.scrapeInterval); err != nil {
+			return nil, err
+		}
+		output.Step = model.Duration(queryRange.Step).String()
+	}
 	promAPI, err := p.newAPI(datasource)
 	if err != nil {
 		return nil, err
@@ -121,9 +128,9 @@ func (p *prometheus) query(ctx context.Context, input QueryInput) (*queryOutput,
 		value, warnings, infos, err = promAPI.Query(ctx, input.Query, at)
 	}
 	if err != nil {
-		return nil, apiError(datasource, err)
+		return nil, apiError(datasource.ref, err)
 	}
-	output.Warnings = append([]string(nil), warnings...)
+	output.Warnings = append(datasource.warnings(), warnings...)
 	output.Infos = infos
 
 	var all []series
@@ -153,7 +160,7 @@ func (p *prometheus) query(ctx context.Context, input QueryInput) (*queryOutput,
 		output.Value = result.Value
 		return output, nil
 	default:
-		return nil, fmt.Errorf("unexpected result type '%s' from %s", value.Type(), datasource)
+		return nil, fmt.Errorf("unexpected result type '%s' from %s", value.Type(), datasource.ref)
 	}
 	output.Series, output.CommonLabels = keepTopSeries(all, limit)
 	output.Returned = new(len(output.Series))

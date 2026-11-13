@@ -127,11 +127,12 @@ type metricMetadataOutput struct {
 	Datasource DatasourceRef            `json:"datasource"`
 	Metadata   map[string][]v1.Metadata `json:"metadata"`
 	Missing    []string                 `json:"missing"`
+	Warnings   []string                 `json:"warnings,omitempty"`
 }
 
 // listing is the result of a label names or label values request.
 type listing struct {
-	datasource DatasourceRef
+	datasource resolvedDatasource
 	values     []string
 	warnings   []string
 }
@@ -168,7 +169,7 @@ func (p *prometheus) list(ctx context.Context, datasourceInput *DatasourceRef, l
 		}
 	}
 	if err != nil {
-		return nil, apiError(datasource, err)
+		return nil, apiError(datasource.ref, err)
 	}
 	if search != "" {
 		needle := strings.ToLower(search)
@@ -177,7 +178,8 @@ func (p *prometheus) list(ctx context.Context, datasourceInput *DatasourceRef, l
 	if values == nil {
 		values = []string{}
 	}
-	return &listing{datasource: datasource, values: values, warnings: append(warnings, infos...)}, nil
+	allWarnings := append(datasource.warnings(), warnings...)
+	return &listing{datasource: datasource, values: values, warnings: append(allWarnings, infos...)}, nil
 }
 
 // firstPage returns the first limit values (defaultLimit when limit is not set) and the page they form.
@@ -199,7 +201,7 @@ func (p *prometheus) listMetricNames(ctx context.Context, input ListMetricNamesI
 		defaultLimit = defaultMetadataMetricsLimit
 	}
 	returned, namesPage := firstPage(names.values, input.Limit, defaultLimit)
-	output := &metricNamesOutput{Datasource: names.datasource, page: namesPage, Metrics: returned, Warnings: names.warnings}
+	output := &metricNamesOutput{Datasource: names.datasource.ref, page: namesPage, Metrics: returned, Warnings: names.warnings}
 	if input.IncludeMetadata {
 		var metadata map[string][]v1.Metadata
 		var metadataErr error
@@ -230,7 +232,7 @@ func (p *prometheus) listLabelNames(ctx context.Context, input ListLabelNamesInp
 		return nil, err
 	}
 	returned, labelsPage := firstPage(labels.values, input.Limit, defaultLabelsLimit)
-	return &labelNamesOutput{Datasource: labels.datasource, page: labelsPage, Labels: returned, Warnings: labels.warnings}, nil
+	return &labelNamesOutput{Datasource: labels.datasource.ref, page: labelsPage, Labels: returned, Warnings: labels.warnings}, nil
 }
 
 func (p *prometheus) listLabelValues(ctx context.Context, input ListLabelValuesInput) (*labelValuesOutput, error) {
@@ -239,7 +241,7 @@ func (p *prometheus) listLabelValues(ctx context.Context, input ListLabelValuesI
 		return nil, err
 	}
 	returned, valuesPage := firstPage(values.values, input.Limit, defaultValuesLimit)
-	return &labelValuesOutput{Datasource: values.datasource, Label: input.Label, page: valuesPage, Values: returned, Warnings: values.warnings}, nil
+	return &labelValuesOutput{Datasource: values.datasource.ref, Label: input.Label, page: valuesPage, Values: returned, Warnings: values.warnings}, nil
 }
 
 // familySuffixes are the suffixes of the series of a metric family, with the types of the families that have them.
@@ -293,20 +295,20 @@ func shortenHelp(help string) string {
 }
 
 // metadata returns the metadata of a metric, or of all the metrics when metric is empty.
-func (p *prometheus) metadata(ctx context.Context, datasource DatasourceRef, metric string) (map[string][]v1.Metadata, error) {
+func (p *prometheus) metadata(ctx context.Context, datasource resolvedDatasource, metric string) (map[string][]v1.Metadata, error) {
 	promAPI, err := p.newAPI(datasource)
 	if err != nil {
 		return nil, err
 	}
 	metadata, err := promAPI.Metadata(ctx, metric, "")
 	if err != nil {
-		return nil, apiError(datasource, err)
+		return nil, apiError(datasource.ref, err)
 	}
 	return metadata, nil
 }
 
 // metricMetadata returns the metadata of a metric, looked up under its own name first, then under its family name.
-func (p *prometheus) metricMetadata(ctx context.Context, datasource DatasourceRef, metric string) ([]v1.Metadata, error) {
+func (p *prometheus) metricMetadata(ctx context.Context, datasource resolvedDatasource, metric string) ([]v1.Metadata, error) {
 	metadata, err := p.metadata(ctx, datasource, metric)
 	if err != nil {
 		return nil, err
@@ -341,7 +343,7 @@ func (p *prometheus) getMetricMetadata(ctx context.Context, input GetMetricMetad
 		})
 	}
 	wg.Wait()
-	output := &metricMetadataOutput{Datasource: datasource, Metadata: map[string][]v1.Metadata{}, Missing: []string{}}
+	output := &metricMetadataOutput{Datasource: datasource.ref, Metadata: map[string][]v1.Metadata{}, Missing: []string{}, Warnings: datasource.warnings()}
 	for i, metric := range input.Metrics {
 		if errs[i] != nil {
 			return nil, errs[i]

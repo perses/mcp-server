@@ -32,6 +32,8 @@ func TestResolve(t *testing.T) {
 		{Name: "c", Project: "demo", Kind: prometheusDatasourceKind},
 		{Name: "c2", Project: "demo", Kind: prometheusDatasourceKind},
 	}
+	direct := []testDatasource{{Name: "browser", Kind: prometheusDatasourceKind, DirectURL: true}, {Name: "proxied", Kind: prometheusDatasourceKind}}
+	directDefault := []testDatasource{{Name: "browser", Kind: prometheusDatasourceKind, DirectURL: true, Default: true}, {Name: "proxied", Kind: prometheusDatasourceKind}}
 	tests := []struct {
 		name        string
 		datasources []testDatasource
@@ -48,6 +50,10 @@ func TestResolve(t *testing.T) {
 		{name: "wrong kind", datasources: defaultDatasources, input: &DatasourceRef{Name: "logs"}, wantErr: []string{"global datasource 'logs' is a LokiDatasource, not a PrometheusDatasource"}},
 		{name: "not found", datasources: defaultDatasources, input: &DatasourceRef{Name: "nope"}, wantErr: []string{"error retrieving global datasource 'nope'", "datasource.project"}},
 		{name: "none", datasources: nil, wantErr: []string{"no Prometheus datasource found"}},
+		{name: "directUrl datasource", datasources: direct, input: &DatasourceRef{Name: "browser"}, wantErr: []string{"global datasource 'browser' uses a directUrl", "configure a proxy on it"}},
+		{name: "directUrl default datasource", datasources: directDefault, wantErr: []string{"the default Prometheus datasource can't be used: global datasource 'browser' uses a directUrl"}},
+		{name: "single proxied datasource besides a directUrl one", datasources: direct, want: DatasourceRef{Name: "proxied"}},
+		{name: "only directUrl datasources", datasources: direct[:1], wantErr: []string{"no Prometheus datasource can be used: global datasource 'browser' uses a directUrl"}},
 		{name: "no default among several", datasources: several, input: &DatasourceRef{Project: "demo"}, wantErr: []string{"no default Prometheus datasource", "c (project demo), c2 (project demo), a (global), b (global)"}},
 	}
 	for _, tt := range tests {
@@ -69,10 +75,37 @@ func TestResolve(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Resolve() error: %v", err)
 			}
-			if got != tt.want {
-				t.Errorf("Resolve() = %+v, want %+v", got, tt.want)
+			if got.ref != tt.want {
+				t.Errorf("Resolve() = %+v, want %+v", got.ref, tt.want)
 			}
 		})
+	}
+}
+
+func TestResolvePluginSpec(t *testing.T) {
+	perses := newFakePerses(t, nil)
+	perses.datasources = []testDatasource{
+		{Name: "set", Kind: prometheusDatasourceKind, ScrapeInterval: "30s", QueryParams: map[string]string{"dedup": "true", "tenant": "$tenant"}},
+		{Name: "unset", Kind: prometheusDatasourceKind},
+	}
+	resolver := newTestPrometheus(t, perses).resolver
+	set, err := resolver.resolve(&DatasourceRef{Name: "set"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if set.scrapeInterval != 30*time.Second || !reflect.DeepEqual(set.queryParams, map[string]string{"dedup": "true", "tenant": "$tenant"}) {
+		t.Errorf("resolved = %+v", set)
+	}
+	if warnings := set.warnings(); len(warnings) != 1 || !strings.Contains(warnings[0], "'tenant'") {
+		t.Errorf("warnings = %v, want one about tenant", warnings)
+	}
+	unset, err := resolver.resolve(&DatasourceRef{Name: "unset"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Like in the Perses UI, the scrape interval defaults to 1m.
+	if unset.scrapeInterval != time.Minute || unset.queryParams != nil || unset.warnings() != nil {
+		t.Errorf("resolved = %+v", unset)
 	}
 }
 
@@ -150,21 +183,25 @@ func TestResolveTimeRange(t *testing.T) {
 
 func TestResolveStep(t *testing.T) {
 	tests := []struct {
-		step string
-		span time.Duration
-		want time.Duration
+		step    string
+		span    time.Duration
+		minStep time.Duration
+		want    time.Duration
 	}{
-		{span: time.Hour, want: 15 * time.Second},
-		{span: 6 * time.Hour, want: 44 * time.Second},
-		{span: 7 * 24 * time.Hour, want: 1210 * time.Second},
-		{step: "1m", span: time.Hour, want: time.Minute},
+		{span: time.Hour, minStep: 15 * time.Second, want: 15 * time.Second},
+		// The default step is at least the scrape interval of the datasource.
+		{span: time.Hour, minStep: time.Minute, want: time.Minute},
+		{span: 6 * time.Hour, minStep: 15 * time.Second, want: 44 * time.Second},
+		{span: 7 * 24 * time.Hour, minStep: time.Minute, want: 1210 * time.Second},
+		// An explicit step is kept, even below the scrape interval.
+		{step: "1m", span: time.Hour, minStep: 5 * time.Minute, want: time.Minute},
 		// The step is raised to stay under the Prometheus limit of points.
-		{step: "1s", span: 7 * 24 * time.Hour, want: 55 * time.Second},
+		{step: "1s", span: 7 * 24 * time.Hour, minStep: time.Minute, want: 55 * time.Second},
 	}
 	for _, tt := range tests {
-		got, err := resolveStep(tt.step, testNow.Add(-tt.span), testNow)
+		got, err := resolveStep(tt.step, testNow.Add(-tt.span), testNow, tt.minStep)
 		if err != nil || got != tt.want {
-			t.Errorf("resolveStep(%q, %s) = %s, %v, want %s", tt.step, tt.span, got, err, tt.want)
+			t.Errorf("resolveStep(%q, %s, %s) = %s, %v, want %s", tt.step, tt.span, tt.minStep, got, err, tt.want)
 		}
 	}
 }
@@ -213,5 +250,75 @@ func TestKeepTopSeries(t *testing.T) {
 	_, common = keepTopSeries([]series{{Labels: map[string]string{"a": "1"}}, {Labels: map[string]string{}}}, 5)
 	if common != nil {
 		t.Errorf("common = %v, want none (a series has no labels)", common)
+	}
+}
+
+func TestResolveEmptyScrapeInterval(t *testing.T) {
+	proxySpec := map[string]any{"kind": "HTTPProxy", "spec": map[string]any{"url": "http://prometheus.example.com"}}
+	perses := newFakePerses(t, nil)
+	perses.datasources = []testDatasource{
+		// Perses accepts an empty scrape interval: the UI saves it when the field is cleared.
+		{Name: "cleared", Kind: prometheusDatasourceKind, PluginSpec: map[string]any{"proxy": proxySpec, "scrapeInterval": ""}},
+		{Name: "invalid", Kind: prometheusDatasourceKind, PluginSpec: map[string]any{"proxy": proxySpec, "scrapeInterval": "fast"}},
+	}
+	resolver := newTestPrometheus(t, perses).resolver
+	cleared, err := resolver.resolve(&DatasourceRef{Name: "cleared"})
+	if err != nil {
+		t.Fatalf("resolve() error: %v", err)
+	}
+	if cleared.scrapeInterval != defaultScrapeInterval {
+		t.Errorf("scrape interval = %s, want the default %s", cleared.scrapeInterval, defaultScrapeInterval)
+	}
+
+	// Without default, the error of a datasource that can't be used is its own, not a missing proxy.
+	perses.datasources = perses.datasources[1:]
+	_, err = resolver.resolve(nil)
+	if err == nil || !strings.Contains(err.Error(), "invalid plugin spec of global datasource 'invalid'") || strings.Contains(err.Error(), "proxy") {
+		t.Errorf("error = %v, want the invalid plugin spec", err)
+	}
+}
+
+func TestResolveProjectDefaultWithoutGlobalAccess(t *testing.T) {
+	perses := newFakePerses(t, nil)
+	perses.datasources = []testDatasource{{Name: "local", Project: "demo", Kind: prometheusDatasourceKind, Default: true}}
+	perses.forbidGlobalList = true
+	got, err := newTestPrometheus(t, perses).resolver.resolve(&DatasourceRef{Project: "demo"})
+	if err != nil {
+		t.Fatalf("resolve() error: %v", err)
+	}
+	if got.ref != (DatasourceRef{Name: "local", Project: "demo"}) {
+		t.Errorf("resolve() = %+v", got.ref)
+	}
+	for _, request := range perses.Received() {
+		if strings.Contains(request.Path, "globaldatasources") {
+			t.Errorf("request %s %s: the global datasources are listed although the project has a default", request.Method, request.Path)
+		}
+	}
+}
+
+func TestResolveCacheRefreshesTheSettings(t *testing.T) {
+	perses := newFakePerses(t, nil)
+	perses.datasources = []testDatasource{{Name: "prom", Kind: prometheusDatasourceKind, Default: true, ScrapeInterval: "30s", QueryParams: map[string]string{"dedup": "true"}}}
+	resolver := newTestPrometheus(t, perses).resolver
+	now := time.Now()
+	resolver.now = func() time.Time { return now }
+	if _, err := resolver.resolve(nil); err != nil {
+		t.Fatal(err)
+	}
+	perses.datasources = []testDatasource{{Name: "prom", Kind: prometheusDatasourceKind, Default: true, ScrapeInterval: "2m", QueryParams: map[string]string{"dedup": "false"}}}
+	cached, err := resolver.resolve(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cached.scrapeInterval != 30*time.Second || cached.queryParams["dedup"] != "true" {
+		t.Errorf("cached = %+v, want the settings of the first resolution", cached)
+	}
+	now = now.Add(cacheTTL + time.Second)
+	refreshed, err := resolver.resolve(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if refreshed.scrapeInterval != 2*time.Minute || refreshed.queryParams["dedup"] != "false" {
+		t.Errorf("refreshed = %+v, want the new settings", refreshed)
 	}
 }

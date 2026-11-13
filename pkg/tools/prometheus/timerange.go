@@ -26,8 +26,6 @@ const (
 	defaultPastDuration = "1h"
 	// statsPoints is the number of points requested by default for range queries.
 	statsPoints = 500
-	// minStep is the minimum default step of range queries.
-	minStep = 15 * time.Second
 	// maxPoints is the Prometheus limit of points per series of a range query.
 	maxPoints = 11000
 )
@@ -107,17 +105,26 @@ func parseTime(field, value string) (time.Time, error) {
 }
 
 // resolveStep returns the step of a range query: the given step, raised if needed to stay under the Prometheus
-// limit of points, or by default about statsPoints points and at least minStep.
-func resolveStep(step string, start, end time.Time) (time.Duration, error) {
+// limit of points, or by default about statsPoints points and at least minStep, the scrape interval of the datasource
+// (a smaller step only repeats the samples).
+func resolveStep(step string, start, end time.Time, minStep time.Duration) (time.Duration, error) {
 	span := end.Sub(start)
 	if step == "" {
 		return max(minStep, ceilSeconds(span/statsPoints)), nil
 	}
+	parsed, err := parseStep(step)
+	if err != nil {
+		return 0, err
+	}
+	return max(parsed, ceilSeconds(span/maxPoints)), nil
+}
+
+func parseStep(step string) (time.Duration, error) {
 	parsed, err := parseDuration(step)
 	if err != nil {
 		return 0, fmt.Errorf("invalid step '%s': %w", step, err)
 	}
-	return max(parsed, ceilSeconds(span/maxPoints)), nil
+	return parsed, nil
 }
 
 // ceilSeconds rounds a duration up to the second.
