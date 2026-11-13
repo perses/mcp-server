@@ -18,9 +18,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"regexp"
 	"slices"
-	"strconv"
 	"strings"
 
 	v1 "github.com/prometheus/client_golang/api/prometheus/v1"
@@ -145,11 +143,7 @@ type listing struct {
 }
 
 // list resolves the time range and the datasource, then lists the label names (label empty) or the values of a
-// label, filtered by search (case-insensitive).
-//
-// When the list is too large and search is set without match, it is requested again with search as a regular
-// expression matcher on the label, so that Prometheus filters it: the filter isn't sent from the start as it may cost
-// Prometheus more than a plain listing.
+// label, keeping the values that contain search (ignoring case) when it is set.
 func (p *prometheus) list(ctx context.Context, datasourceInput *DatasourceRef, label string, match Selectors, timeRange *TimeRangeInput, search string) (*listing, error) {
 	start, end, _, err := resolveTimeRange(timeRange, p.now())
 	if err != nil {
@@ -163,24 +157,21 @@ func (p *prometheus) list(ctx context.Context, datasourceInput *DatasourceRef, l
 	if err != nil {
 		return nil, err
 	}
-	fetch := func(match Selectors) ([]string, v1.Warnings, v1.Infos, error) {
-		var values []string
-		if label == "" {
-			names, warnings, infos, fetchErr := promAPI.LabelNames(ctx, match, start, end)
-			for _, name := range names {
-				values = append(values, string(name))
-			}
-			return values, warnings, infos, fetchErr
+	var values []string
+	var warnings v1.Warnings
+	var infos v1.Infos
+	if label == "" {
+		var names model.LabelNames
+		names, warnings, infos, err = promAPI.LabelNames(ctx, match, start, end)
+		for _, name := range names {
+			values = append(values, string(name))
 		}
-		labelValues, warnings, infos, fetchErr := promAPI.LabelValues(ctx, escapeLabelName(label), match, start, end)
+	} else {
+		var labelValues model.LabelValues
+		labelValues, warnings, infos, err = promAPI.LabelValues(ctx, escapeLabelName(label), match, start, end)
 		for _, value := range labelValues {
 			values = append(values, string(value))
 		}
-		return values, warnings, infos, fetchErr
-	}
-	values, warnings, infos, err := fetch(match)
-	if errors.Is(err, errTooMuchData) && search != "" && label != "" && len(match) == 0 {
-		values, warnings, infos, err = fetch(Selectors{searchSelector(label, search)})
 	}
 	if errors.Is(err, errTooMuchData) {
 		return nil, errListTooLarge
@@ -189,9 +180,8 @@ func (p *prometheus) list(ctx context.Context, datasourceInput *DatasourceRef, l
 		return nil, apiError(datasource.ref, err)
 	}
 	if search != "" {
-		// The same matching as searchSelector, so that a list filtered by Prometheus has the same values.
-		matcher := regexp.MustCompile(searchPattern(search))
-		values = slices.DeleteFunc(values, func(value string) bool { return !matcher.MatchString(value) })
+		search = strings.ToLower(search)
+		values = slices.DeleteFunc(values, func(value string) bool { return !strings.Contains(strings.ToLower(value), search) })
 	}
 	if values == nil {
 		values = []string{}
@@ -200,8 +190,10 @@ func (p *prometheus) list(ctx context.Context, datasourceInput *DatasourceRef, l
 	return &listing{datasource: datasource, values: values, warnings: append(allWarnings, infos...)}, nil
 }
 
-var errListTooLarge = errors.New("the list is too large (over 1 MiB): narrow it with match (e.g. {job=\"node\"}), " +
-	"search or a shorter time_range")
+// errListTooLarge asks to narrow a list that Prometheus returns over maxBodyBytes: search can't, as it filters the list
+// once received.
+var errListTooLarge = errors.New("the list is too large (over 1 MiB): narrow it with match, e.g. " +
+	"{__name__=~\".*memory.*\"} or {job=\"node\"}, or a shorter time_range")
 
 // escapeLabelName returns the name of a label in the path of the label values endpoint, where the Prometheus client
 // puts it as is. A UTF-8 name (e.g. http.method) is escaped as Prometheus documents it (U__http_2e_method), which is
@@ -213,24 +205,6 @@ func escapeLabelName(label string) string {
 		return "U__" + strings.ReplaceAll(label, "_", "__")
 	}
 	return model.EscapeName(label, model.ValueEncodingEscaping)
-}
-
-// searchPattern returns the regular expression of the values that contain search, ignoring case. Prometheus uses the
-// regular expressions of Go (RE2) for its matchers, so the values match the same way here and in Prometheus.
-func searchPattern(search string) string {
-	return "(?i)" + regexp.QuoteMeta(search)
-}
-
-// searchSelector returns a series selector of the values of label that contain search, ignoring case. Prometheus
-// anchors the regular expressions of matchers, hence the surrounding ".*", which also matches newlines with the
-// flag s (the default since Prometheus 3 only). A UTF-8 label name is quoted, as Prometheus 3 requires; other names are
-// not, so that the selector also works with older versions.
-func searchSelector(label, search string) string {
-	name := label
-	if !model.LegacyValidation.IsValidLabelName(label) {
-		name = strconv.Quote(label)
-	}
-	return fmt.Sprintf("{%s=~%s}", name, strconv.Quote("(?is).*"+regexp.QuoteMeta(search)+".*"))
 }
 
 // firstPage returns the first limit values (defaultLimit when limit is not set) and the page they form.
@@ -302,31 +276,33 @@ func (p *prometheus) listLabelValues(ctx context.Context, input ListLabelValuesI
 	return &labelValuesOutput{Datasource: values.datasource.ref, Label: input.Label, page: valuesPage, Values: returned, Warnings: values.warnings}, nil
 }
 
-// familySuffixes are the suffixes of the series of a metric family, with the types of the families that have them.
-// The metadata of these series may be under the family name, e.g. http_requests for http_requests_total. They are the
-// suffixes with which Prometheus matches metadata, plus _created (OpenMetrics), which gauge histograms don't have.
-var familySuffixes = []struct {
-	suffix string
-	types  []v1.MetricType
-}{
-	{"_bucket", []v1.MetricType{v1.MetricTypeHistogram, v1.MetricTypeGaugeHistogram}},
-	{"_count", []v1.MetricType{v1.MetricTypeHistogram, v1.MetricTypeGaugeHistogram, v1.MetricTypeSummary}},
-	{"_sum", []v1.MetricType{v1.MetricTypeHistogram, v1.MetricTypeGaugeHistogram, v1.MetricTypeSummary}},
-	{"_gcount", []v1.MetricType{v1.MetricTypeGaugeHistogram}},
-	{"_gsum", []v1.MetricType{v1.MetricTypeGaugeHistogram}},
-	{"_created", []v1.MetricType{v1.MetricTypeCounter, v1.MetricTypeHistogram, v1.MetricTypeSummary}},
-	{"_total", []v1.MetricType{v1.MetricTypeCounter}},
-	{"_info", []v1.MetricType{v1.MetricTypeInfo}},
+// suffixTypes are the suffixes of the series of a metric family, with the types of the families that have them, as
+// Prometheus matches metadata (metadataForMetric of its search API). A _created series isn't matched: it holds a
+// timestamp, not a value of the family type.
+var suffixTypes = map[string][]v1.MetricType{
+	"_total":  {v1.MetricTypeCounter},
+	"_bucket": {v1.MetricTypeHistogram, v1.MetricTypeGaugeHistogram},
+	"_count":  {v1.MetricTypeHistogram, v1.MetricTypeGaugeHistogram, v1.MetricTypeSummary},
+	"_sum":    {v1.MetricTypeHistogram, v1.MetricTypeGaugeHistogram, v1.MetricTypeSummary},
+	"_gcount": {v1.MetricTypeGaugeHistogram},
+	"_gsum":   {v1.MetricTypeGaugeHistogram},
+	"_info":   {v1.MetricTypeInfo},
 }
 
-// familyName returns the name of the metric family a series name may belong to, and the types of such a family.
+// familyName returns the metric family that a series may belong to, e.g. http_requests for http_requests_total, and
+// the types of the families with series of this suffix. As in Prometheus, a family name that already ends with _total
+// or _info has a series of the same name (text format): x_total_total isn't a series of the family x_total.
 func familyName(name string) (string, []v1.MetricType, bool) {
-	for _, family := range familySuffixes {
-		if base, found := strings.CutSuffix(name, family.suffix); found && base != "" {
-			return base, family.types, true
-		}
+	i := strings.LastIndexByte(name, '_')
+	if i <= 0 {
+		return "", nil, false
 	}
-	return "", nil, false
+	family, suffix := name[:i], name[i:]
+	types, found := suffixTypes[suffix]
+	if !found || ((suffix == "_total" || suffix == "_info") && strings.HasSuffix(family, suffix)) {
+		return "", nil, false
+	}
+	return family, types, true
 }
 
 // findMetadata returns the metadata of a metric: its own, else the metadata of its family when the type of the

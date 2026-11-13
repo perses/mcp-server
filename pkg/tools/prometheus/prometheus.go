@@ -161,8 +161,8 @@ func (p *prometheus) GetMetricMetadata() *tools.Tool {
 				Items:    &jsonschema.Schema{Type: tools.SchemaTypeString, MinLength: new(1)},
 				MinItems: new(1), MaxItems: new(maxMetadataMetrics),
 				Description: fmt.Sprintf("Metric names (1 to %d). The series of histograms, summaries, counters and info "+
-					"metrics (_bucket, _count, _sum, _gcount, _gsum, _created, _total, _info) are also looked up under their "+
-					"family name.", maxMetadataMetrics),
+					"metrics (_bucket, _count, _sum, _gcount, _gsum, _total, _info) are also looked up under their family "+
+					"name.", maxMetadataMetrics),
 			},
 		}, "metrics"),
 	}

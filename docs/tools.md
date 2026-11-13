@@ -213,25 +213,24 @@ The parameters are:
 - `datasource`: `{name}` for a global datasource, `{name, project}` for a project datasource. It is optional: see
   [Default datasource](#default-datasource).
 - `match`: a series selector, or a list of series selectors OR-ed together, e.g. `"{job=\"prometheus\"}"`.
-- `search`: a case-insensitive substring filter, applied by the MCP server. When the list is over 1 MiB and `match` is
-  not set, the list is requested again with `search` as a regular expression matcher (e.g.
-  `{__name__=~"(?is).*memory.*"}`), so that Prometheus filters it. Both match the same way: Prometheus uses the
-  same regular expressions (RE2).
+- `search`: a case-insensitive substring filter, applied by the MCP server to the list returned by Prometheus. It
+  doesn't make Prometheus return less: to narrow a large list, use `match`, e.g. `{__name__=~".*memory.*"}`.
 - `time_range`: `{past_duration}` (e.g. `"6h"`, `"7d"`), or `{start, end}` in RFC 3339 (`end` defaults to now).
   The past hour by default, so that the list tools only return current series.
 - `limit`: the maximum number of returned items. Defaults: 200 metric names (50 with `include_metadata`, max 200), 200
   label names, 100 label values (max 1000), 20 series (max 100).
 
 The list tools return `{datasource, total, returned, truncated, ...}`. A list over 1 MiB is an error that asks to
-narrow it with `match`, `search` or `time_range`. With `include_metadata: true`, each metric name comes with its type
+narrow it with `match` or `time_range`. With `include_metadata: true`, each metric name comes with its type
 and help, shortened to 80 characters. The metadata of all the metrics is fetched in one request; when it is over
 1 MiB, the metadata of the returned metrics is looked up one by one instead. When it is unavailable, the metrics are
 returned without it, with a warning.
 
 `perses_get_prometheus_metric_metadata` looks up each metric under its own name, then under the name of its family
-when the family has series with this suffix: `_total` and `_created` of counters, `_bucket`, `_count`, `_sum` and
-`_created` of histograms, `_bucket`, `_count`, `_sum`, `_gcount` and `_gsum` of gauge histograms, `_count`, `_sum` and
-`_created` of summaries, `_info` of info metrics (e.g. `http_requests_total` of the counter `http_requests`).
+when the family has series with this suffix, as Prometheus matches them: `_total` of counters, `_bucket`, `_count` and
+`_sum` of histograms, `_bucket`, `_count`, `_sum`, `_gcount` and `_gsum` of gauge histograms, `_count` and `_sum` of
+summaries, `_info` of info metrics (e.g. `http_requests_total` of the counter `http_requests`). A `_created` series
+isn't matched, as it holds a timestamp, and neither is `x_total_total` with the family `x_total`.
 
 `perses_query_prometheus` runs an instant query (`type: "instant"`, default) at `time` (default now), or a range query
 (`type: "range"`) over `time_range` with `step` (default about 500 points, at least the scrape interval of the
