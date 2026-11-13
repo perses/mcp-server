@@ -399,7 +399,7 @@ func TestQueryErrors(t *testing.T) {
 		{
 			name:   "native histograms",
 			answer: new(ok(`{"resultType":"vector","result":[{"metric":{},"histogram":[1767355200,{"count":"2","sum":"3","buckets":[[0,"0","1","2"]]}]}]}`)),
-			want:   "use histogram_quantile(), histogram_count() or histogram_sum()",
+			want:   "use histogram_quantile(), histogram_count() or histogram_sum() to get numbers, without _bucket or le, e.g. histogram_quantile(0.99, sum(rate(x[5m])))",
 		},
 		{
 			name:   "too much data",
