@@ -305,6 +305,7 @@ func timeRangeSchema(description string) *jsonschema.Schema {
 }
 
 func discoveryTimeRangeSchema() *jsonschema.Schema {
-	return timeRangeSchema("Only consider series with samples in this time range. Defaults to the past hour, " +
-		"so that only current metrics are returned.")
+	return timeRangeSchema("Time range of the series to consider. Defaults to the past hour. Prometheus applies it " +
+		"approximately (by storage block): the list may include series without samples in it, e.g. series that stopped " +
+		"a few hours ago.")
 }
