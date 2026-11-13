@@ -172,11 +172,7 @@ func (p *prometheus) list(ctx context.Context, datasourceInput *DatasourceRef, l
 			}
 			return values, warnings, infos, fetchErr
 		}
-		// The Prometheus client puts the label name in the URL path as is: a UTF-8 name (e.g. http.method) is escaped
-		// as Prometheus documents it (U__http_2e_method), which is required for '/' and matches the allowedEndpoints
-		// patterns of the Perses proxy. Other names are kept unchanged.
-		escapedLabel := model.EscapeName(label, model.ValueEncodingEscaping)
-		labelValues, warnings, infos, fetchErr := promAPI.LabelValues(ctx, escapedLabel, match, start, end)
+		labelValues, warnings, infos, fetchErr := promAPI.LabelValues(ctx, escapeLabelName(label), match, start, end)
 		for _, value := range labelValues {
 			values = append(values, string(value))
 		}
@@ -206,6 +202,18 @@ func (p *prometheus) list(ctx context.Context, datasourceInput *DatasourceRef, l
 
 var errListTooLarge = errors.New("the list is too large (over 1 MiB): narrow it with match (e.g. {job=\"node\"}), " +
 	"search or a shorter time_range")
+
+// escapeLabelName returns the name of a label in the path of the label values endpoint, where the Prometheus client
+// puts it as is. A UTF-8 name (e.g. http.method) is escaped as Prometheus documents it (U__http_2e_method), which is
+// required for '/' and matches the allowedEndpoints patterns of the Perses proxy; other names are kept unchanged.
+// Prometheus unescapes every name starting with U__, so such a name is always escaped to be read back unchanged.
+func escapeLabelName(label string) string {
+	if strings.HasPrefix(label, "U__") && model.LegacyValidation.IsValidMetricName(label) {
+		// EscapeName keeps the legacy names unchanged: in them, only the underscores are escaped (doubled).
+		return "U__" + strings.ReplaceAll(label, "_", "__")
+	}
+	return model.EscapeName(label, model.ValueEncodingEscaping)
+}
 
 // searchPattern returns the regular expression of the values that contain search, ignoring case. Prometheus uses the
 // regular expressions of Go (RE2) for its matchers, so the values match the same way here and in Prometheus.
