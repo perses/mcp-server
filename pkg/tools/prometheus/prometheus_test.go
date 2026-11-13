@@ -14,9 +14,11 @@
 package prometheus
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"reflect"
 	"strings"
@@ -26,6 +28,9 @@ import (
 
 	"github.com/perses/mcp-server/pkg/tools"
 	"github.com/perses/mcp-server/pkg/tools/internal/tooltest"
+	apiClient "github.com/perses/perses/pkg/client/api"
+	"github.com/perses/perses/pkg/client/perseshttp"
+	"github.com/perses/spec/go/common"
 	v1 "github.com/prometheus/client_golang/api/prometheus/v1"
 )
 
@@ -167,6 +172,31 @@ func TestProxyRequestsUseThePersesCredentials(t *testing.T) {
 		if request.Authorization != tooltest.Authorization {
 			t.Errorf("%s %s: Authorization = %q, want %q", request.Method, request.Path, request.Authorization, tooltest.Authorization)
 		}
+	}
+}
+
+func TestProxyPathIsAppendedToTheBasePath(t *testing.T) {
+	perses := &tooltest.Perses{Handler: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"status":"success","data":["node"]}`))
+	})}
+	server := httptest.NewServer(perses)
+	t.Cleanup(server.Close)
+	// Perses served under a path, with a query string in its base URL.
+	client := apiClient.NewWithClient(&perseshttp.RESTClient{
+		BaseURL: common.MustParseURL(server.URL + "/perses?tenant=demo"),
+		Client:  server.Client(),
+	}).V1()
+	promAPI, err := New(client).(*prometheus).newAPI(resolvedDatasource{ref: DatasourceRef{Name: "prom"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, _, err = promAPI.LabelValues(context.Background(), "job", nil, time.Time{}, time.Time{}); err != nil {
+		t.Fatal(err)
+	}
+	received := perses.Received()
+	if len(received) != 1 || received[0].Path != "/perses"+globalProxy+"/api/v1/label/job/values" || received[0].RawQuery != "tenant=demo" {
+		t.Errorf("requests = %+v, want the label values of the proxy under /perses, with the query of the base URL", received)
 	}
 }
 
@@ -321,6 +351,17 @@ func TestQueryRange(t *testing.T) {
 	}
 	if got := perses.paramsOf(globalProxy + "/api/v1/query_range").Get("step"); got != "0.1" {
 		t.Errorf("subsecond step sent = %s, want 0.1", got)
+	}
+}
+
+func TestQueryInstantKeepsFractionalSeconds(t *testing.T) {
+	perses := newFakePerses(t, map[string]answer{globalProxy + "/api/v1/query": ok(`{"resultType":"vector","result":[]}`)})
+	output := decode(t, call(t, connect(t, perses), QueryToolName, map[string]any{"query": "up", "time": "2026-01-02T10:00:00.250Z"}, false))
+	if output["time"] != "2026-01-02T10:00:00.25Z" {
+		t.Errorf("time = %v, want the time queried", output["time"])
+	}
+	if got := perses.paramsOf(globalProxy + "/api/v1/query").Get("time"); got != "1767348000.25" {
+		t.Errorf("time sent = %s", got)
 	}
 }
 

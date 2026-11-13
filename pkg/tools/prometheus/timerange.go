@@ -81,7 +81,13 @@ func resolveTimeRange(input *TimeRangeInput, now time.Time) (time.Time, time.Tim
 	if !start.Before(end) {
 		return time.Time{}, time.Time{}, timeRangeOutput{}, errors.New("time_range.start must be before time_range.end")
 	}
-	return start, end, timeRangeOutput{Start: start.UTC().Format(time.RFC3339), End: end.UTC().Format(time.RFC3339)}, nil
+	return start, end, timeRangeOutput{Start: formatTimestamp(start), End: formatTimestamp(end)}, nil
+}
+
+// formatTimestamp formats a time of the outputs in RFC 3339 in UTC, with its fractional seconds if any, so that the
+// output has the time that was queried.
+func formatTimestamp(t time.Time) string {
+	return t.UTC().Format(time.RFC3339Nano)
 }
 
 // parseDuration parses a positive Prometheus duration, e.g. "15m", "1h30m" or "7d".
