@@ -131,32 +131,14 @@ func TestListLabels(t *testing.T) {
 
 func TestListLabelValuesOfUTF8Label(t *testing.T) {
 	// The label name is escaped in the path, as Prometheus documents it: the fake answers this path only.
-	path := globalProxy + "/api/v1/label/U__http_2e_method/values"
-	var tooLargeList atomic.Bool
-	perses := newFakePerses(t, nil)
-	perses.answer = func(r *http.Request) *answer {
-		if r.URL.Path != path {
-			return nil
-		}
-		// Prometheus filters the values when the search is sent as a matcher on the quoted label name.
-		if r.URL.Query().Get("match[]") == `{"http.method"=~"(?is).*get.*"}` {
-			return new(ok(`["GET"]`))
-		}
-		if tooLargeList.Load() {
-			return &answer{status: http.StatusOK, body: tooLarge(`[]`)}
-		}
-		return new(ok(`["GET","POST"]`))
-	}
+	perses := newFakePerses(t, map[string]answer{globalProxy + "/api/v1/label/U__http_2e_method/values": ok(`["GET","POST"]`)})
 	session := connect(t, perses)
 	output := decode(t, call(t, session, ListLabelValuesToolName, map[string]any{"label": "http.method"}, false))
 	if output["label"] != "http.method" || !reflect.DeepEqual(output["values"], []any{"GET", "POST"}) {
 		t.Errorf("output = %v", output)
 	}
-
-	// When the list is too large, it is requested again with search as a matcher.
-	tooLargeList.Store(true)
-	output = decode(t, call(t, session, ListLabelValuesToolName, map[string]any{"label": "http.method", "search": "get"}, false))
-	if !reflect.DeepEqual(output["values"], []any{"GET"}) {
+	output = decode(t, call(t, session, ListLabelValuesToolName, map[string]any{"label": "http.method", "search": "po"}, false))
+	if !reflect.DeepEqual(output["values"], []any{"POST"}) {
 		t.Errorf("values with search = %v", output["values"])
 	}
 }
@@ -222,6 +204,7 @@ func TestGetMetricMetadata(t *testing.T) {
 		"queue_count":  {{Type: v1.MetricTypeGauge, Help: "Items in the queue."}},
 		"x_seconds":    {{Type: v1.MetricTypeHistogram, Help: "Latency."}},
 		"requests":     {{Type: v1.MetricTypeCounter, Help: "Requests."}},
+		"errors_total": {{Type: v1.MetricTypeCounter, Help: "Errors."}},
 		"temperature":  {{Type: v1.MetricTypeGauge, Help: "Temperature."}},
 		"jobs_waiting": {{Type: v1.MetricTypeGaugeHistogram, Help: "Waiting jobs."}},
 		"build":        {{Type: v1.MetricTypeInfo, Help: "Build information."}},
@@ -230,6 +213,7 @@ func TestGetMetricMetadata(t *testing.T) {
 		"metrics": []any{
 			"up", "queue_count", "x_seconds_bucket", "requests_total", "temperature_total", "nope",
 			"jobs_waiting_gcount", "jobs_waiting_gsum", "jobs_waiting_created", "build_info",
+			"errors_total", "errors_total_total", "requests_created",
 		},
 	}, false))
 	want := map[string]any{
@@ -240,13 +224,16 @@ func TestGetMetricMetadata(t *testing.T) {
 		"jobs_waiting_gcount": []any{map[string]any{"type": "gaugehistogram", "help": "Waiting jobs.", "unit": ""}},
 		"jobs_waiting_gsum":   []any{map[string]any{"type": "gaugehistogram", "help": "Waiting jobs.", "unit": ""}},
 		"build_info":          []any{map[string]any{"type": "info", "help": "Build information.", "unit": ""}},
+		"errors_total":        []any{map[string]any{"type": "counter", "help": "Errors.", "unit": ""}},
 	}
 	if !reflect.DeepEqual(output["metadata"], want) {
 		t.Errorf("metadata =\n%v\nwant\n%v", output["metadata"], want)
 	}
-	// temperature is a gauge: it is not the family of temperature_total. Gauge histograms have no _created series.
-	if !reflect.DeepEqual(output["missing"], []any{"temperature_total", "nope", "jobs_waiting_created"}) {
-		t.Errorf("missing = %v", output["missing"])
+	// Like in Prometheus: temperature is a gauge, not the family of temperature_total; a _created series holds a
+	// timestamp, not a value of its family; x_total_total isn't a series of the family x_total.
+	wantMissing := []any{"temperature_total", "nope", "jobs_waiting_created", "errors_total_total", "requests_created"}
+	if !reflect.DeepEqual(output["missing"], wantMissing) {
+		t.Errorf("missing = %v, want %v", output["missing"], wantMissing)
 	}
 	// A metric with metadata under its own name is looked up once.
 	if count := countMetadataRequests(perses, "queue_count") + countMetadataRequests(perses, "queue"); count != 1 {
@@ -565,34 +552,18 @@ func TestDatasourceSettingsApplyToEveryRequest(t *testing.T) {
 
 func TestListTooLarge(t *testing.T) {
 	path := globalProxy + "/api/v1/label/__name__/values"
-	perses := newFakePerses(t, nil)
-	perses.answer = func(r *http.Request) *answer {
-		if r.URL.Path != path {
-			return nil
-		}
-		// Prometheus filters the names when the search is sent as a matcher.
-		if r.URL.Query().Get("match[]") == `{__name__=~"(?is).*MEMORY.*"}` {
-			return new(ok(`["process_resident_memory_bytes","up_memory"]`))
-		}
-		return &answer{status: http.StatusOK, body: tooLarge(`[]`)}
-	}
+	perses := newFakePerses(t, map[string]answer{path: {status: http.StatusOK, body: tooLarge(`[]`)}})
 	session := connect(t, perses)
-
-	// With search and without match, the list is requested again with search as a matcher.
-	output := decode(t, call(t, session, ListMetricNamesToolName, map[string]any{"search": "MEMORY"}, false))
-	if !reflect.DeepEqual(output["metrics"], []any{"process_resident_memory_bytes", "up_memory"}) {
-		t.Errorf("metrics = %v", output["metrics"])
-	}
-	if got := perses.Count(http.MethodGet, path); got != 2 {
-		t.Errorf("%d requests, want 2", got)
-	}
-
-	// Otherwise, the error tells how to narrow the list, not how to aggregate a query.
-	for _, arguments := range []map[string]any{nil, {"search": "memory", "match": "up"}} {
+	// The error tells how to narrow the list, not how to aggregate a query: search can't, as it filters the list once
+	// received.
+	for _, arguments := range []map[string]any{nil, {"search": "memory"}, {"search": "memory", "match": "up"}} {
 		text := call(t, session, ListMetricNamesToolName, arguments, true)
 		if !strings.Contains(text, errListTooLarge.Error()) {
 			t.Errorf("error = %s, want %s", text, errListTooLarge)
 		}
+	}
+	if got := perses.Count(http.MethodGet, path); got != 3 {
+		t.Errorf("%d requests, want 3 (one per call)", got)
 	}
 }
 
