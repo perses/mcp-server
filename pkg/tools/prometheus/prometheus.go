@@ -35,8 +35,6 @@ const (
 	QueryToolName             = "perses_query_prometheus"
 )
 
-const labelNamePattern = `^[a-zA-Z_][a-zA-Z0-9_]*$`
-
 type prometheus struct {
 	client   apiClient.ClientInterface
 	resolver *resolver
@@ -130,7 +128,10 @@ func (p *prometheus) ListLabelValues() *tools.Tool {
 			"of a job (`label: \"instance\", match: \"{job=\\\"node\\\"}\"`). Use it to write exact label matchers.",
 		Annotations: readOnlyAnnotations("Lists Prometheus label values"),
 		InputSchema: objectSchema(map[string]*jsonschema.Schema{
-			"label":      {Type: tools.SchemaTypeString, Pattern: labelNamePattern, Description: "Label name, e.g. \"job\"."},
+			"label": {
+				Type: tools.SchemaTypeString, MinLength: new(1),
+				Description: "Label name, e.g. \"job\", or a UTF-8 label name of Prometheus 3, e.g. \"http.method\".",
+			},
 			"match":      matchSchema(),
 			"search":     searchSchema(),
 			"time_range": discoveryTimeRangeSchema(),
@@ -159,8 +160,9 @@ func (p *prometheus) GetMetricMetadata() *tools.Tool {
 				Type:     tools.SchemaTypeArray,
 				Items:    &jsonschema.Schema{Type: tools.SchemaTypeString, MinLength: new(1)},
 				MinItems: new(1), MaxItems: new(maxMetadataMetrics),
-				Description: fmt.Sprintf("Metric names (1 to %d). The series of histograms, summaries and counters "+
-					"(_bucket, _count, _sum, _total) are also looked up under their family name.", maxMetadataMetrics),
+				Description: fmt.Sprintf("Metric names (1 to %d). The series of histograms, summaries, counters and info "+
+					"metrics (_bucket, _count, _sum, _gcount, _gsum, _created, _total, _info) are also looked up under their "+
+					"family name.", maxMetadataMetrics),
 			},
 		}, "metrics"),
 	}
@@ -182,7 +184,8 @@ func (p *prometheus) Query() *tools.Tool {
 			"`query: \"topk(5, sum by (handler) (rate(prometheus_http_requests_total[5m])))\"`. type \"range\" returns " +
 			"per-series statistics over `time_range` (min, max, avg, last and when min/max happened), never raw points. " +
 			"Aggregate (sum by, topk) to keep results small; labels shared by all series are returned once in " +
-			"commonLabels. Errors of Prometheus (e.g. bad_data: parse error) are returned unchanged.",
+			"commonLabels. Values keep 4 significant digits, and all the digits of their integer part. " +
+			"Errors of Prometheus (e.g. bad_data: parse error) are returned unchanged.",
 		Annotations: readOnlyAnnotations("Queries a Prometheus datasource"),
 		InputSchema: objectSchema(map[string]*jsonschema.Schema{
 			"query": {Type: tools.SchemaTypeString, MinLength: new(1), Description: "PromQL expression. Use rate() on counters."},

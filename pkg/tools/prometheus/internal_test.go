@@ -212,6 +212,10 @@ func TestSearchSelector(t *testing.T) {
 	if got, want := searchSelector("__name__", `mem.x"y`), `{__name__=~"(?is).*mem\\.x\"y.*"}`; got != want {
 		t.Errorf("searchSelector() = %s, want %s", got, want)
 	}
+	// A UTF-8 label name is quoted.
+	if got, want := searchSelector("http.method", "get"), `{"http.method"=~"(?is).*get.*"}`; got != want {
+		t.Errorf("searchSelector() = %s, want %s", got, want)
+	}
 }
 
 func TestSeriesStats(t *testing.T) {
@@ -232,8 +236,8 @@ func TestSeriesStats(t *testing.T) {
 	}
 	// The average of large finite values doesn't overflow.
 	large := []model.SamplePair{{Value: math.MaxFloat64}, {Value: math.MaxFloat64}, {Value: -math.MaxFloat64}}
-	if got, _, _ := seriesStats(large, time.UTC); math.IsInf(got.Avg, 0) || got.Avg != round(math.MaxFloat64/3) {
-		t.Errorf("average of large values = %v, want %v", got.Avg, round(math.MaxFloat64/3))
+	if got, _, _ := seriesStats(large, time.UTC); math.IsInf(got.Avg, 0) || math.Abs(got.Avg/(math.MaxFloat64/3)-1) > 1e-9 {
+		t.Errorf("average of large values = %v, want about %v", got.Avg, math.MaxFloat64/3)
 	}
 }
 
@@ -258,6 +262,39 @@ func TestKeepTopSeries(t *testing.T) {
 	_, common = keepTopSeries([]series{{Labels: map[string]string{"a": "1"}}, {Labels: map[string]string{}}}, 5)
 	if common != nil {
 		t.Errorf("common = %v, want none (a series has no labels)", common)
+	}
+}
+
+func TestKeepTopSeriesSortsNaNLast(t *testing.T) {
+	all, err := vectorSeries(model.Vector{
+		{Metric: model.Metric{"s": "nan"}, Value: model.SampleValue(math.NaN())},
+		{Metric: model.Metric{"s": "-inf"}, Value: model.SampleValue(math.Inf(-1))},
+		{Metric: model.Metric{"s": "one"}, Value: 1},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// NaN comes first in the result of Prometheus but is dropped: -Inf is lower than any number, NaN is lower still.
+	top, _ := keepTopSeries(all, 2)
+	if len(top) != 2 || top[0].Labels["s"] != "one" || top[1].Labels["s"] != "-inf" || top[1].Value != "-Inf" {
+		t.Errorf("top = %+v, want one and -inf", top)
+	}
+}
+
+func TestRound(t *testing.T) {
+	tests := []struct{ value, want float64 }{
+		{value: 12.34567, want: 12.35},
+		{value: 0.000123456, want: 0.0001235},
+		{value: 1234.567, want: 1235},
+		{value: 123456.789, want: 123457},
+		{value: -98765.4, want: -98765},
+		// A timestamp keeps all its digits: with 4 significant digits, it would be 1767000000, 4 days earlier.
+		{value: 1767355200.123, want: 1767355200},
+	}
+	for _, tt := range tests {
+		if got := round(tt.value); got != tt.want {
+			t.Errorf("round(%v) = %v, want %v", tt.value, got, tt.want)
+		}
 	}
 }
 

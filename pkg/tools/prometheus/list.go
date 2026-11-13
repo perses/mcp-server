@@ -172,7 +172,11 @@ func (p *prometheus) list(ctx context.Context, datasourceInput *DatasourceRef, l
 			}
 			return values, warnings, infos, fetchErr
 		}
-		labelValues, warnings, infos, fetchErr := promAPI.LabelValues(ctx, label, match, start, end)
+		// The Prometheus client puts the label name in the URL path as is: a UTF-8 name (e.g. http.method) is escaped
+		// as Prometheus documents it (U__http_2e_method), which is required for '/' and matches the allowedEndpoints
+		// patterns of the Perses proxy. Other names are kept unchanged.
+		escapedLabel := model.EscapeName(label, model.ValueEncodingEscaping)
+		labelValues, warnings, infos, fetchErr := promAPI.LabelValues(ctx, escapedLabel, match, start, end)
 		for _, value := range labelValues {
 			values = append(values, string(value))
 		}
@@ -211,9 +215,14 @@ func searchPattern(search string) string {
 
 // searchSelector returns a series selector of the values of label that contain search, ignoring case. Prometheus
 // anchors the regular expressions of matchers, hence the surrounding ".*", which also matches newlines with the
-// flag s (the default since Prometheus 3 only).
+// flag s (the default since Prometheus 3 only). A UTF-8 label name is quoted, as Prometheus 3 requires; other names are
+// not, so that the selector also works with older versions.
 func searchSelector(label, search string) string {
-	return fmt.Sprintf("{%s=~%s}", label, strconv.Quote("(?is).*"+regexp.QuoteMeta(search)+".*"))
+	name := label
+	if !model.LegacyValidation.IsValidLabelName(label) {
+		name = strconv.Quote(label)
+	}
+	return fmt.Sprintf("{%s=~%s}", name, strconv.Quote("(?is).*"+regexp.QuoteMeta(search)+".*"))
 }
 
 // firstPage returns the first limit values (defaultLimit when limit is not set) and the page they form.
@@ -286,7 +295,8 @@ func (p *prometheus) listLabelValues(ctx context.Context, input ListLabelValuesI
 }
 
 // familySuffixes are the suffixes of the series of a metric family, with the types of the families that have them.
-// The metadata of these series may be under the family name, e.g. http_requests for http_requests_total.
+// The metadata of these series may be under the family name, e.g. http_requests for http_requests_total. They are the
+// suffixes with which Prometheus matches metadata, plus _created (OpenMetrics), which gauge histograms don't have.
 var familySuffixes = []struct {
 	suffix string
 	types  []v1.MetricType
@@ -294,8 +304,11 @@ var familySuffixes = []struct {
 	{"_bucket", []v1.MetricType{v1.MetricTypeHistogram, v1.MetricTypeGaugeHistogram}},
 	{"_count", []v1.MetricType{v1.MetricTypeHistogram, v1.MetricTypeGaugeHistogram, v1.MetricTypeSummary}},
 	{"_sum", []v1.MetricType{v1.MetricTypeHistogram, v1.MetricTypeGaugeHistogram, v1.MetricTypeSummary}},
-	{"_created", []v1.MetricType{v1.MetricTypeCounter, v1.MetricTypeHistogram, v1.MetricTypeGaugeHistogram, v1.MetricTypeSummary}},
+	{"_gcount", []v1.MetricType{v1.MetricTypeGaugeHistogram}},
+	{"_gsum", []v1.MetricType{v1.MetricTypeGaugeHistogram}},
+	{"_created", []v1.MetricType{v1.MetricTypeCounter, v1.MetricTypeHistogram, v1.MetricTypeSummary}},
 	{"_total", []v1.MetricType{v1.MetricTypeCounter}},
+	{"_info", []v1.MetricType{v1.MetricTypeInfo}},
 }
 
 // familyName returns the name of the metric family a series name may belong to, and the types of such a family.

@@ -124,11 +124,12 @@ func labels(metric model.Metric) map[string]string {
 	return result
 }
 
-// sampleValue returns the rounded value of a sample, or a string for NaN and infinities, and its sort key (NaN last).
+// sampleValue returns the rounded value of a sample, or a string for NaN and infinities, and its sort key: the value
+// itself, as cmp.Compare orders NaN below all the other values, -Inf included (NaN last, highest first).
 func sampleValue(value float64) (any, float64) {
 	switch {
 	case math.IsNaN(value):
-		return "NaN", math.Inf(-1)
+		return "NaN", value
 	case math.IsInf(value, 1):
 		return "+Inf", value
 	case math.IsInf(value, -1):
@@ -173,8 +174,12 @@ func seriesStats(samples []model.SamplePair, location *time.Location) (result st
 	return result, maxValue, true
 }
 
-// round keeps 4 significant digits.
+// round keeps 4 significant digits, but all the digits of the integer part: rounding them would make values such as
+// timestamps (e.g. process_start_time_seconds) wrong by days, without making their JSON shorter.
 func round(value float64) float64 {
+	if math.Abs(value) >= 1e4 {
+		return math.Round(value)
+	}
 	rounded, err := strconv.ParseFloat(strconv.FormatFloat(value, 'g', 4, 64), 64)
 	if err != nil {
 		return value
