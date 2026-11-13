@@ -83,8 +83,8 @@ func (p *prometheus) ListMetricNames() *tools.Tool {
 			"match":      matchSchema(),
 			"search":     searchSchema(),
 			"time_range": discoveryTimeRangeSchema(),
-			"limit": limitSchema(fmt.Sprintf("Maximum number of metrics returned (default %d, %d with include_metadata, max %d).",
-				defaultMetricsLimit, defaultMetadataMetricsLimit, maxListLimit), maxListLimit),
+			"limit": limitSchema(fmt.Sprintf("Maximum number of metrics returned (default %d, max %d; with include_metadata default %d, max %d).",
+				defaultMetricsLimit, maxListLimit, defaultMetadataMetricsLimit, maxMetadataMetricsLimit), maxListLimit),
 			"include_metadata": {
 				Type:        tools.SchemaTypeBoolean,
 				Description: "Add the type and help (shortened) of each returned metric. Defaults to false.",
