@@ -199,6 +199,10 @@ func TestResolveStep(t *testing.T) {
 		{step: "1m", span: time.Hour, minStep: 5 * time.Minute, want: time.Minute},
 		// The step is raised to stay under the Prometheus limit of points.
 		{step: "1s", span: 7 * 24 * time.Hour, minStep: time.Minute, want: 55 * time.Second},
+		// A subsecond step under the limit is kept (601 points).
+		{step: "100ms", span: time.Minute, minStep: time.Minute, want: 100 * time.Millisecond},
+		// A subsecond step over the limit is raised to the smallest step under it, to the millisecond (60s / 11000).
+		{step: "1ms", span: time.Minute, minStep: time.Minute, want: 6 * time.Millisecond},
 	}
 	for _, tt := range tests {
 		got, err := resolveStep(tt.step, testNow.Add(-tt.span), testNow, tt.minStep)
@@ -215,6 +219,32 @@ func TestSearchSelector(t *testing.T) {
 	// A UTF-8 label name is quoted.
 	if got, want := searchSelector("http.method", "get"), `{"http.method"=~"(?is).*get.*"}`; got != want {
 		t.Errorf("searchSelector() = %s, want %s", got, want)
+	}
+}
+
+func TestEscapeLabelName(t *testing.T) {
+	tests := []struct{ label, want string }{
+		{label: "job", want: "job"},
+		{label: "__name__", want: "__name__"},
+		{label: "http.method", want: "U__http_2e_method"},
+		{label: "a/b", want: "U__a_2f_b"},
+		// Prometheus unescapes every name starting with U__: such names are escaped to be read back unchanged.
+		{label: "U__job", want: "U__U____job"},
+		{label: "U__http.method", want: "U__U____http_2e_method"},
+	}
+	for _, tt := range tests {
+		got := escapeLabelName(tt.label)
+		if got != tt.want {
+			t.Errorf("escapeLabelName(%q) = %q, want %q", tt.label, got, tt.want)
+		}
+		// The label values endpoint of Prometheus unescapes the names starting with U__ only.
+		read := got
+		if strings.HasPrefix(read, "U__") {
+			read = model.UnescapeName(read, model.ValueEncodingEscaping)
+		}
+		if read != tt.label {
+			t.Errorf("Prometheus reads %q as %q, want %q", got, read, tt.label)
+		}
 	}
 }
 

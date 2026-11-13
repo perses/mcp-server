@@ -110,13 +110,24 @@ func parseTime(field, value string) (time.Time, error) {
 func resolveStep(step string, start, end time.Time, minStep time.Duration) (time.Duration, error) {
 	span := end.Sub(start)
 	if step == "" {
-		return max(minStep, ceilSeconds(span/statsPoints)), nil
+		return max(minStep, ceilTo(span/statsPoints, time.Second)), nil
 	}
 	parsed, err := parseStep(step)
 	if err != nil {
 		return 0, err
 	}
-	return max(parsed, ceilSeconds(span/maxPoints)), nil
+	return max(parsed, minLimitStep(span)), nil
+}
+
+// minLimitStep returns the smallest step that stays under the Prometheus limit of points over span, rounded up to the
+// second, or to the millisecond (the precision of the steps) when it is under a second: a valid subsecond step is
+// kept.
+func minLimitStep(span time.Duration) time.Duration {
+	limit := (span + maxPoints - 1) / maxPoints
+	if limit < time.Second {
+		return ceilTo(limit, time.Millisecond)
+	}
+	return ceilTo(limit, time.Second)
 }
 
 func parseStep(step string) (time.Duration, error) {
@@ -127,9 +138,9 @@ func parseStep(step string) (time.Duration, error) {
 	return parsed, nil
 }
 
-// ceilSeconds rounds a duration up to the second.
-func ceilSeconds(duration time.Duration) time.Duration {
-	return (duration + time.Second - 1).Truncate(time.Second)
+// ceilTo rounds a duration up to a multiple of unit.
+func ceilTo(duration, unit time.Duration) time.Duration {
+	return (duration + unit - 1).Truncate(unit)
 }
 
 // resolveLocation returns the IANA time zone used to format times, UTC by default.

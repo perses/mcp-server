@@ -126,10 +126,33 @@ func TestListLabels(t *testing.T) {
 
 func TestListLabelValuesOfUTF8Label(t *testing.T) {
 	// The label name is escaped in the path, as Prometheus documents it: the fake answers this path only.
-	perses := newFakePerses(t, map[string]answer{globalProxy + "/api/v1/label/U__http_2e_method/values": ok(`["GET","POST"]`)})
-	output := decode(t, call(t, connect(t, perses), ListLabelValuesToolName, map[string]any{"label": "http.method"}, false))
+	path := globalProxy + "/api/v1/label/U__http_2e_method/values"
+	var tooLargeList atomic.Bool
+	perses := newFakePerses(t, nil)
+	perses.answer = func(r *http.Request) *answer {
+		if r.URL.Path != path {
+			return nil
+		}
+		// Prometheus filters the values when the search is sent as a matcher on the quoted label name.
+		if r.URL.Query().Get("match[]") == `{"http.method"=~"(?is).*get.*"}` {
+			return new(ok(`["GET"]`))
+		}
+		if tooLargeList.Load() {
+			return &answer{status: http.StatusOK, body: tooLarge(`[]`)}
+		}
+		return new(ok(`["GET","POST"]`))
+	}
+	session := connect(t, perses)
+	output := decode(t, call(t, session, ListLabelValuesToolName, map[string]any{"label": "http.method"}, false))
 	if output["label"] != "http.method" || !reflect.DeepEqual(output["values"], []any{"GET", "POST"}) {
 		t.Errorf("output = %v", output)
+	}
+
+	// When the list is too large, it is requested again with search as a matcher.
+	tooLargeList.Store(true)
+	output = decode(t, call(t, session, ListLabelValuesToolName, map[string]any{"label": "http.method", "search": "get"}, false))
+	if !reflect.DeepEqual(output["values"], []any{"GET"}) {
+		t.Errorf("values with search = %v", output["values"])
 	}
 }
 
@@ -286,6 +309,18 @@ func TestQueryRange(t *testing.T) {
 	}
 	if got := perses.paramsOf(globalProxy + "/api/v1/query_range").Get("step"); got != "300" {
 		t.Errorf("explicit step = %s", got)
+	}
+
+	// An explicit subsecond step under the limit of points is sent unchanged.
+	output = decode(t, call(t, session, QueryToolName, map[string]any{
+		"query": "up", "type": "range", "step": "100ms",
+		"time_range": map[string]any{"start": "2026-01-02T10:00:00Z", "end": "2026-01-02T10:01:00Z"},
+	}, false))
+	if output["step"] != "100ms" {
+		t.Errorf("subsecond step = %v", output["step"])
+	}
+	if got := perses.paramsOf(globalProxy + "/api/v1/query_range").Get("step"); got != "0.1" {
+		t.Errorf("subsecond step sent = %s, want 0.1", got)
 	}
 }
 
