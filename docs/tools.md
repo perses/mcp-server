@@ -229,8 +229,9 @@ and help, shortened to 80 characters. The metadata of all the metrics is fetched
 returned without it, with a warning.
 
 `perses_get_prometheus_metric_metadata` looks up each metric under its own name, then under the name of its family
-when the family has series with this suffix: `_bucket`, `_count`, `_sum` and `_created` of histograms and summaries,
-`_total` of counters (e.g. `http_requests_total` of the counter `http_requests`).
+when the family has series with this suffix: `_total` and `_created` of counters, `_bucket`, `_count`, `_sum` and
+`_created` of histograms, `_bucket`, `_count`, `_sum`, `_gcount` and `_gsum` of gauge histograms, `_count`, `_sum` and
+`_created` of summaries, `_info` of info metrics (e.g. `http_requests_total` of the counter `http_requests`).
 
 `perses_query_prometheus` runs an instant query (`type: "instant"`, default) at `time` (default now), or a range query
 (`type: "range"`) over `time_range` with `step` (default about 500 points, at least the scrape interval of the
@@ -244,8 +245,9 @@ datasource; see [Datasource settings](#datasource-settings)). It returns:
   last sample. A series that only has NaN or infinite samples is not returned, with a warning. `minAt` and `maxAt` are
   formatted in `time_zone` (default UTC).
 
-The labels shared by all returned series are returned once in `commonLabels`. The values keep 4 significant digits;
-NaN and infinities are returned as strings. Native histograms are not summarized: the tool returns an error that
+The labels shared by all returned series are returned once in `commonLabels`. The values keep 4 significant digits,
+and all the digits of their integer part, so that timestamps and large counters are not rounded (e.g. `12.35`,
+`123457`, `1767355200`); NaN and infinities are returned as strings. Native histograms are not summarized: the tool returns an error that
 asks to use `histogram_quantile()`, `histogram_count()` or `histogram_sum()`. The `warnings` and `infos` of
 Prometheus are passed through. The errors of Prometheus are returned unchanged as tool errors, e.g. `bad_data: invalid
 parameter "query": 1:9: parse error: ...`; the other HTTP errors, e.g. of Perses, with their status and message. A

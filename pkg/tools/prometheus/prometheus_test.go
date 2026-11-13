@@ -121,7 +121,16 @@ func TestListLabels(t *testing.T) {
 		t.Errorf("start = %s", got)
 	}
 
-	call(t, session, ListLabelValuesToolName, map[string]any{"label": "bad-label"}, true)
+	call(t, session, ListLabelValuesToolName, map[string]any{"label": ""}, true)
+}
+
+func TestListLabelValuesOfUTF8Label(t *testing.T) {
+	// The label name is escaped in the path, as Prometheus documents it: the fake answers this path only.
+	perses := newFakePerses(t, map[string]answer{globalProxy + "/api/v1/label/U__http_2e_method/values": ok(`["GET","POST"]`)})
+	output := decode(t, call(t, connect(t, perses), ListLabelValuesToolName, map[string]any{"label": "http.method"}, false))
+	if output["label"] != "http.method" || !reflect.DeepEqual(output["values"], []any{"GET", "POST"}) {
+		t.Errorf("output = %v", output)
+	}
 }
 
 func TestProxyRequestsUseThePersesCredentials(t *testing.T) {
@@ -156,26 +165,34 @@ func TestListMetricNamesWithUnavailableMetadata(t *testing.T) {
 func TestGetMetricMetadata(t *testing.T) {
 	perses := newFakePerses(t, nil)
 	perses.metadata = map[string][]v1.Metadata{
-		"up":          {{Type: v1.MetricTypeGauge, Help: "Target is up."}},
-		"queue_count": {{Type: v1.MetricTypeGauge, Help: "Items in the queue."}},
-		"x_seconds":   {{Type: v1.MetricTypeHistogram, Help: "Latency."}},
-		"requests":    {{Type: v1.MetricTypeCounter, Help: "Requests."}},
-		"temperature": {{Type: v1.MetricTypeGauge, Help: "Temperature."}},
+		"up":           {{Type: v1.MetricTypeGauge, Help: "Target is up."}},
+		"queue_count":  {{Type: v1.MetricTypeGauge, Help: "Items in the queue."}},
+		"x_seconds":    {{Type: v1.MetricTypeHistogram, Help: "Latency."}},
+		"requests":     {{Type: v1.MetricTypeCounter, Help: "Requests."}},
+		"temperature":  {{Type: v1.MetricTypeGauge, Help: "Temperature."}},
+		"jobs_waiting": {{Type: v1.MetricTypeGaugeHistogram, Help: "Waiting jobs."}},
+		"build":        {{Type: v1.MetricTypeInfo, Help: "Build information."}},
 	}
 	output := decode(t, call(t, connect(t, perses), GetMetricMetadataToolName, map[string]any{
-		"metrics": []any{"up", "queue_count", "x_seconds_bucket", "requests_total", "temperature_total", "nope"},
+		"metrics": []any{
+			"up", "queue_count", "x_seconds_bucket", "requests_total", "temperature_total", "nope",
+			"jobs_waiting_gcount", "jobs_waiting_gsum", "jobs_waiting_created", "build_info",
+		},
 	}, false))
 	want := map[string]any{
-		"up":               []any{map[string]any{"type": "gauge", "help": "Target is up.", "unit": ""}},
-		"queue_count":      []any{map[string]any{"type": "gauge", "help": "Items in the queue.", "unit": ""}},
-		"x_seconds_bucket": []any{map[string]any{"type": "histogram", "help": "Latency.", "unit": ""}},
-		"requests_total":   []any{map[string]any{"type": "counter", "help": "Requests.", "unit": ""}},
+		"up":                  []any{map[string]any{"type": "gauge", "help": "Target is up.", "unit": ""}},
+		"queue_count":         []any{map[string]any{"type": "gauge", "help": "Items in the queue.", "unit": ""}},
+		"x_seconds_bucket":    []any{map[string]any{"type": "histogram", "help": "Latency.", "unit": ""}},
+		"requests_total":      []any{map[string]any{"type": "counter", "help": "Requests.", "unit": ""}},
+		"jobs_waiting_gcount": []any{map[string]any{"type": "gaugehistogram", "help": "Waiting jobs.", "unit": ""}},
+		"jobs_waiting_gsum":   []any{map[string]any{"type": "gaugehistogram", "help": "Waiting jobs.", "unit": ""}},
+		"build_info":          []any{map[string]any{"type": "info", "help": "Build information.", "unit": ""}},
 	}
 	if !reflect.DeepEqual(output["metadata"], want) {
 		t.Errorf("metadata =\n%v\nwant\n%v", output["metadata"], want)
 	}
-	// temperature is a gauge: it is not the family of temperature_total.
-	if !reflect.DeepEqual(output["missing"], []any{"temperature_total", "nope"}) {
+	// temperature is a gauge: it is not the family of temperature_total. Gauge histograms have no _created series.
+	if !reflect.DeepEqual(output["missing"], []any{"temperature_total", "nope", "jobs_waiting_created"}) {
 		t.Errorf("missing = %v", output["missing"])
 	}
 	// A metric with metadata under its own name is looked up once.
