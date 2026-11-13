@@ -37,6 +37,7 @@ import (
 	"github.com/perses/mcp-server/pkg/tools/migrate"
 	"github.com/perses/mcp-server/pkg/tools/plugin"
 	"github.com/perses/mcp-server/pkg/tools/project"
+	"github.com/perses/mcp-server/pkg/tools/prometheus"
 	"github.com/perses/mcp-server/pkg/tools/resource"
 	"github.com/perses/mcp-server/pkg/tools/role"
 	"github.com/perses/mcp-server/pkg/tools/rolebinding"
@@ -147,6 +148,7 @@ func (s *server) registerTools() {
 		schema.New(v1Client),
 		validate.New(s.persesClient),
 		migrate.New(s.persesClient),
+		prometheus.New(v1Client),
 	}
 
 	var allTools []*tools.Tool

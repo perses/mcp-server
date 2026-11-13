@@ -190,6 +190,101 @@ Example of a range query on a Prometheus datasource of a project:
 }
 ```
 
+## Prometheus
+
+Resource: `prometheus`
+
+These read-only tools discover and query the metrics of the Prometheus datasources of Perses. They call the
+[Prometheus HTTP API](https://prometheus.io/docs/prometheus/latest/querying/api/) through the Perses proxy, like
+`perses_query_*_datasource` (credentials injected by Perses, `allowedEndpoints` enforced), but return compact JSON
+instead of the raw response: a range query over 6 hours returning 61 series is about 3 KB with
+`perses_query_prometheus` (top 20 series, statistics) and 240 KB with `perses_query_global_datasource` (raw points).
+
+| Tool                                    | Description                                              | Required parameters | Optional parameters                                                                       |
+|-----------------------------------------|----------------------------------------------------------|---------------------|-------------------------------------------------------------------------------------------|
+| `perses_list_prometheus_metric_names`   | List metric names                                        | -                   | `datasource`, `match`, `search`, `time_range`, `limit`, `include_metadata`                |
+| `perses_list_prometheus_label_names`    | List label names                                         | -                   | `datasource`, `match`, `time_range`, `limit`                                              |
+| `perses_list_prometheus_label_values`   | List the values of a label                               | `label`             | `datasource`, `match`, `search`, `time_range`, `limit`                                    |
+| `perses_get_prometheus_metric_metadata` | Get the type, help and unit of 1 to 20 metrics           | `metrics`           | `datasource`                                                                              |
+| `perses_query_prometheus`               | Run a PromQL query and get a compact result              | `query`             | `datasource`, `type`, `time`, `time_range`, `step`, `limit`, `time_zone`                  |
+
+The parameters are:
+
+- `datasource`: `{name}` for a global datasource, `{name, project}` for a project datasource. It is optional: see
+  [Default datasource](#default-datasource).
+- `match`: a series selector, or a list of series selectors OR-ed together, e.g. `"{job=\"prometheus\"}"`.
+- `search`: a case-insensitive substring filter, applied by the MCP server to the list returned by Prometheus. It
+  doesn't make Prometheus return less: to narrow a large list, use `match`, e.g. `{__name__=~".*memory.*"}`.
+- `time_range`: `{past_duration}` (e.g. `"6h"`, `"7d"`), or `{start, end}` in RFC 3339 (`end` defaults to now).
+  The past hour by default. Prometheus applies it approximately (by storage block): the lists may include series
+  without samples in it, e.g. series that stopped a few hours ago.
+- `limit`: the maximum number of returned items. Defaults: 200 metric names (50 with `include_metadata`, max 200), 200
+  label names, 100 label values (max 1000), 20 series (max 100).
+
+The list tools return `{datasource, total, returned, truncated, ...}`. A list over 1 MiB is an error that asks to
+narrow it with `match` or `time_range`. With `include_metadata: true`, each metric name comes with its type
+and help, shortened to 80 characters. The metadata of all the metrics is fetched in one request; when it is over
+1 MiB, the metadata of the returned metrics is looked up one by one instead. When it is unavailable, the metrics are
+returned without it, with a warning.
+
+`perses_get_prometheus_metric_metadata` looks up each metric under its own name, then under the name of its family
+when the family has series with this suffix, as Prometheus matches them: `_total` of counters, `_bucket`, `_count` and
+`_sum` of histograms, `_bucket`, `_count`, `_sum`, `_gcount` and `_gsum` of gauge histograms, `_count` and `_sum` of
+summaries, `_info` of info metrics (e.g. `http_requests_total` of the counter `http_requests`). A `_created` series
+isn't matched, as it holds a timestamp, and neither is `x_total_total` with the family `x_total`.
+
+`perses_query_prometheus` runs an instant query (`type: "instant"`, default) at `time` (default now), or a range query
+(`type: "range"`) over `time_range` with `step` (default about 500 points, at least the scrape interval of the
+datasource; see [Datasource settings](#datasource-settings)). It returns:
+
+- for an instant query, the value of each series, highest first: `{resultType: "vector", time, seriesCount, returned,
+  commonLabels, series: [{labels, value}]}`;
+- for a range query, never the raw points but the statistics of each series, highest max first: `{resultType:
+  "matrix", timeRange, step, seriesCount, returned, commonLabels, series: [{labels, min, max, avg, last, minAt, maxAt,
+  nonFinite}]}`. `min`, `max` and `avg` leave out the NaN and infinite samples, counted in `nonFinite`; `last` is the
+  last sample. A series that only has NaN or infinite samples is not returned, with a warning. `minAt` and `maxAt` are
+  formatted in `time_zone` (default UTC).
+
+The labels shared by all returned series are returned once in `commonLabels`. The values keep 4 significant digits,
+and all the digits of their integer part, so that timestamps and large counters are not rounded (e.g. `12.35`,
+`123457`, `1767355200`); NaN and infinities are returned as strings. Native histograms are not summarized: the tool
+returns an error that asks to use `histogram_quantile()`, `histogram_count()` or `histogram_sum()`, without `_bucket`
+or `le`, e.g. `histogram_quantile(0.99, sum(rate(x[5m])))`. The `warnings` and `infos` of
+Prometheus are passed through. The errors of Prometheus are returned unchanged as tool errors, e.g. `bad_data: invalid
+parameter "query": 1:9: parse error: ...`; the other HTTP errors, e.g. of Perses, with their status and message. A
+response over 1 MiB is an error that asks to aggregate the query. `time` applies to instant queries only, `time_range`
+and `step` to range queries only: the other combinations are errors.
+
+Use `perses_query_*_datasource` for the other endpoints of Prometheus and for the other kinds of datasources.
+
+### Default datasource
+
+The parameter `datasource` of the Prometheus tools is resolved as follows:
+
+- `{name}`: the global datasource `name`; `{name, project}`: the datasource `name` of the project. It must be a
+  `PrometheusDatasource`.
+- `{project}`: the Prometheus datasource of the project marked as default (`spec.default: true`), else the global one.
+- omitted: the global Prometheus datasource marked as default.
+
+When no Prometheus datasource is marked as default but there is exactly one that the Perses proxy can query, it is
+used. Otherwise the tool returns an error that lists the available Prometheus datasources. The resolved datasources
+are cached for 30 seconds.
+
+The tools query the datasources through the Perses proxy: a datasource with a `directUrl`, which only the browser can
+reach, is an error, also when it is the default one.
+
+### Datasource settings
+
+Like the Perses UI, the tools apply two settings of the Prometheus datasource, which the Perses proxy doesn't:
+
+- `queryParams` are added to every request, unless the request sets the same parameter, e.g. `dedup` or
+  `partial_response` for Thanos. A value with a dashboard variable (`$`) can't be resolved: it is sent as is, with a
+  warning.
+- `scrapeInterval` (default `1m`) is the minimum default `step` of range queries. An explicit `step` isn't raised to
+  the scrape interval, but like the default one it is raised if needed to stay under the Prometheus limit of 11000
+  points per series. Before, the minimum default step was 15s: range statistics are now computed over fewer points
+  unless `step` is set.
+
 ## Variables
 
 Resources: `globalvariable` for the tools `*_global_variable*`, `variable` for the tools `*_project_variable*`.
