@@ -16,6 +16,7 @@ package prometheus
 import (
 	"math"
 	"reflect"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -225,11 +226,20 @@ func TestEscapeLabelName(t *testing.T) {
 		// Prometheus unescapes every name starting with U__: such names are escaped to be read back unchanged.
 		{label: "U__job", want: "U__U____job"},
 		{label: "U__http.method", want: "U__U____http_2e_method"},
+		// ':' is valid in legacy metric names but not in label names, nor in the label values path of the Perses proxy.
+		{label: "http:method", want: "U__http_3a_method"},
+		{label: "http.a:b", want: "U__http_2e_a_3a_b"},
+		{label: "U__a:b", want: "U__U____a_3a_b"},
 	}
+	// The default allowedEndpoints pattern of the label values endpoint in the Perses proxy.
+	proxyLabelPattern := regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 	for _, tt := range tests {
 		got := escapeLabelName(tt.label)
 		if got != tt.want {
 			t.Errorf("escapeLabelName(%q) = %q, want %q", tt.label, got, tt.want)
+		}
+		if !proxyLabelPattern.MatchString(got) {
+			t.Errorf("escapeLabelName(%q) = %q, rejected by the Perses proxy", tt.label, got)
 		}
 		// The label values endpoint of Prometheus unescapes the names starting with U__ only.
 		read := got

@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"unicode/utf8"
 
 	v1 "github.com/prometheus/client_golang/api/prometheus/v1"
 	"github.com/prometheus/common/model"
@@ -196,15 +197,29 @@ var errListTooLarge = errors.New("the list is too large (over 1 MiB): narrow it 
 	"{__name__=~\".*memory.*\"} or {job=\"node\"}, or a shorter time_range")
 
 // escapeLabelName returns the name of a label in the path of the label values endpoint, where the Prometheus client
-// puts it as is. A UTF-8 name (e.g. http.method) is escaped as Prometheus documents it (U__http_2e_method), which is
-// required for '/' and matches the allowedEndpoints patterns of the Perses proxy; other names are kept unchanged.
-// Prometheus unescapes every name starting with U__, so such a name is always escaped to be read back unchanged.
+// puts it as is. A name that is not a legacy label name (e.g. http.method or http:method) is escaped as Prometheus
+// documents it (U__http_2e_method), which is required for '/' and matches the allowedEndpoints patterns of the Perses
+// proxy ([a-zA-Z0-9_-]+): ':' is escaped too, unlike in model.EscapeName where it is valid in metric names. Prometheus
+// unescapes every name starting with U__, so such a name is always escaped to be read back unchanged.
 func escapeLabelName(label string) string {
-	if strings.HasPrefix(label, "U__") && model.LegacyValidation.IsValidMetricName(label) {
-		// EscapeName keeps the legacy names unchanged: in them, only the underscores are escaped (doubled).
-		return "U__" + strings.ReplaceAll(label, "_", "__")
+	if model.LegacyValidation.IsValidLabelName(label) && !strings.HasPrefix(label, "U__") {
+		return label
 	}
-	return model.EscapeName(label, model.ValueEncodingEscaping)
+	var escaped strings.Builder
+	escaped.WriteString("U__")
+	for i, r := range label {
+		switch {
+		case r == '_':
+			escaped.WriteString("__")
+		case (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9' && i > 0):
+			escaped.WriteRune(r)
+		case !utf8.ValidRune(r):
+			escaped.WriteString("_FFFD_")
+		default:
+			fmt.Fprintf(&escaped, "_%x_", r)
+		}
+	}
+	return escaped.String()
 }
 
 // firstPage returns the first limit values (defaultLimit when limit is not set) and the page they form.

@@ -143,6 +143,16 @@ func TestListLabelValuesOfUTF8Label(t *testing.T) {
 	}
 }
 
+func TestListLabelValuesOfLabelWithColon(t *testing.T) {
+	// ':' is escaped in the path, as the Perses proxy allows [a-zA-Z0-9_-]+ only: the fake answers this path only.
+	perses := newFakePerses(t, map[string]answer{globalProxy + "/api/v1/label/U__http_3a_method/values": ok(`["GET"]`)})
+	session := connect(t, perses)
+	output := decode(t, call(t, session, ListLabelValuesToolName, map[string]any{"label": "http:method"}, false))
+	if output["label"] != "http:method" || !reflect.DeepEqual(output["values"], []any{"GET"}) {
+		t.Errorf("output = %v", output)
+	}
+}
+
 func TestProxyRequestsUseThePersesCredentials(t *testing.T) {
 	perses := newFakePerses(t, map[string]answer{globalProxy + "/api/v1/labels": ok(`["job"]`)})
 	call(t, connect(t, perses), ListLabelNamesToolName, nil, false)
