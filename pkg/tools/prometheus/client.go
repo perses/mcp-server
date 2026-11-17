@@ -58,10 +58,14 @@ func (p *prometheus) newAPI(datasource resolvedDatasource) (v1.API, error) {
 	address.Path = strings.TrimRight(address.Path, "/") + path
 	client, err := api.NewClient(api.Config{
 		Address: address.String(),
-		Client: &http.Client{Transport: &persesTransport{
-			// A redirect to another host is returned as an error instead of being followed.
-			client: proxy.SameHostClient(restClient.Client), headers: restClient.Headers, queryParams: datasource.queryParams,
-		}},
+		Client: &http.Client{
+			Transport: &persesTransport{
+				// A redirect to another host is returned as an error instead of being followed.
+				client: proxy.SameHostClient(restClient.Client), headers: restClient.Headers, queryParams: datasource.queryParams,
+			},
+			// The transport adds the Perses credentials to every request: the redirects it returns must not be followed.
+			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+		},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("error creating the Prometheus client of %s: %w", ref, err)
@@ -119,7 +123,9 @@ func (t *persesTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	if _, isPrometheusError := prometheusErrorMessage(body); isPrometheusError {
+	// Only the error statuses are passed to the Prometheus client: a redirect, even with a Prometheus error body, is an
+	// error.
+	if _, isPrometheusError := prometheusErrorMessage(body); isPrometheusError && resp.StatusCode >= http.StatusBadRequest {
 		resp.Body = io.NopCloser(bytes.NewReader(body))
 		return resp, nil
 	}

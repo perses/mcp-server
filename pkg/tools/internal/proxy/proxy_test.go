@@ -124,6 +124,25 @@ func TestDoRedirects(t *testing.T) {
 	}
 }
 
+func TestSameHostClientRejectsHTTPSDowngrade(t *testing.T) {
+	plain := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		t.Errorf("the redirect from https to http is followed: %s", r.URL)
+	}))
+	defer plain.Close()
+	secure := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, plain.URL+"/plaintext", http.StatusFound)
+	}))
+	defer secure.Close()
+	resp, err := SameHostClient(secure.Client()).Get(secure.URL)
+	if err != nil {
+		t.Fatalf("Get() unexpected error: %v", err)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusFound {
+		t.Errorf("StatusCode = %d, want %d", resp.StatusCode, http.StatusFound)
+	}
+}
+
 func TestDoTruncation(t *testing.T) {
 	tests := []struct {
 		name          string

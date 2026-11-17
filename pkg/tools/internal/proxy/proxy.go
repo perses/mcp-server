@@ -28,8 +28,8 @@ import (
 const maxRedirects = 10
 
 // SameHostClient returns a copy of client that follows the redirects to the host of the request only, e.g. from http
-// to https: a redirect to another host is returned as the response, as the requests carry the Perses credentials and
-// must not leave the Perses host.
+// to https. The requests carry the Perses credentials: a redirect to another host, or from https to http (which would
+// send them in plaintext), is returned as the response instead of being followed.
 func SameHostClient(client *http.Client) *http.Client {
 	sameHost := *client
 	sameHost.CheckRedirect = func(req *http.Request, via []*http.Request) error {
@@ -38,6 +38,13 @@ func SameHostClient(client *http.Client) *http.Client {
 		}
 		if !strings.EqualFold(req.URL.Hostname(), via[0].URL.Hostname()) {
 			return http.ErrUseLastResponse
+		}
+		if !strings.EqualFold(req.URL.Scheme, "https") {
+			for _, previous := range via {
+				if strings.EqualFold(previous.URL.Scheme, "https") {
+					return http.ErrUseLastResponse
+				}
+			}
 		}
 		return nil
 	}

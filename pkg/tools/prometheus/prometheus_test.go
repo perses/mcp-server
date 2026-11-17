@@ -373,6 +373,22 @@ func TestQueryScalar(t *testing.T) {
 	}
 }
 
+func TestCrossHostRedirectWithPrometheusErrorIsNotFollowed(t *testing.T) {
+	other := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Errorf("the redirect to another host is followed: %s %s (Authorization %q)", r.Method, r.URL.Path, r.Header.Get("Authorization"))
+	}))
+	defer other.Close()
+	// Another hostname than the 127.0.0.1 of the fake Perses, on the same machine.
+	location := strings.Replace(other.URL, "127.0.0.1", "localhost", 1) + "/steal"
+	perses := newFakePerses(t, map[string]answer{globalProxy + "/api/v1/query": {
+		status: http.StatusFound, location: location, body: `{"status":"error","errorType":"bad_data","error":"redirect"}`,
+	}})
+	text := call(t, connect(t, perses), QueryToolName, map[string]any{"query": "up"}, true)
+	if want := "error querying global datasource 'prom': HTTP 302 Found"; !strings.Contains(text, want) {
+		t.Errorf("error %q does not contain %q", text, want)
+	}
+}
+
 func TestQueryErrors(t *testing.T) {
 	large := `{"status":"success","data":{"resultType":"vector","result":[` + strings.Repeat(" ", maxBodyBytes) + `]}}`
 	tests := []struct {
