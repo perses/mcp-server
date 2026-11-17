@@ -373,18 +373,19 @@ func TestQueryScalar(t *testing.T) {
 	}
 }
 
-func TestCrossHostRedirectWithPrometheusErrorIsNotFollowed(t *testing.T) {
+// A redirect is never followed, even with a Prometheus error body: the Prometheus client would follow it, and the
+// transport would add the Perses credentials to the request.
+func TestRedirectWithPrometheusErrorIsNotFollowed(t *testing.T) {
 	other := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		t.Errorf("the redirect to another host is followed: %s %s (Authorization %q)", r.Method, r.URL.Path, r.Header.Get("Authorization"))
+		t.Errorf("the redirect is followed: %s %s (Authorization %q)", r.Method, r.URL.Path, r.Header.Get("Authorization"))
 	}))
 	defer other.Close()
-	// Another hostname than the 127.0.0.1 of the fake Perses, on the same machine.
-	location := strings.Replace(other.URL, "127.0.0.1", "localhost", 1) + "/steal"
+	location := other.URL + "/steal"
 	perses := newFakePerses(t, map[string]answer{globalProxy + "/api/v1/query": {
 		status: http.StatusFound, location: location, body: `{"status":"error","errorType":"bad_data","error":"redirect"}`,
 	}})
 	text := call(t, connect(t, perses), QueryToolName, map[string]any{"query": "up"}, true)
-	if want := "error querying global datasource 'prom': HTTP 302 Found"; !strings.Contains(text, want) {
+	if want := "error querying global datasource 'prom': HTTP 302 Found: the redirect to " + location + " is not followed"; !strings.Contains(text, want) {
 		t.Errorf("error %q does not contain %q", text, want)
 	}
 }
@@ -423,9 +424,9 @@ func TestQueryErrors(t *testing.T) {
 			want:   "error querying global datasource 'prom': HTTP 502 Bad Gateway: upstream down",
 		},
 		{
-			name:   "redirect to another host is not followed",
-			answer: &answer{status: http.StatusFound, location: "http://login.example.com/"},
-			want:   "error querying global datasource 'prom': HTTP 302 Found",
+			name:   "redirect is not followed",
+			answer: &answer{status: http.StatusFound, location: "/login"},
+			want:   "error querying global datasource 'prom': HTTP 302 Found: the redirect to /login is not followed: if Perses has moved, configure its new URL",
 		},
 		{
 			name:   "large error page keeps its status",

@@ -89,100 +89,24 @@ func TestResponseText(t *testing.T) {
 	}
 }
 
-func TestDoRedirects(t *testing.T) {
-	tests := []struct {
-		name       string
-		location   string
-		wantStatus int
-	}{
-		// e.g. from http to https: the requests stay on the Perses host.
-		{name: "same host is followed", location: "/moved", wantStatus: http.StatusOK},
-		{name: "another host is not followed", location: "http://login.example.com/", wantStatus: http.StatusFound},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				if r.URL.Path == "/moved" {
-					_, _ = w.Write([]byte("{}"))
-					return
-				}
-				http.Redirect(w, r, tt.location, http.StatusFound)
-			}))
-			defer httpServer.Close()
-			client := apiclient.NewWithClient(&perseshttp.RESTClient{
-				BaseURL: common.MustParseURL(httpServer.URL),
-				Client:  httpServer.Client(),
-			})
-			resp, err := New(client.V1()).Do(context.Background(), ProxyQuery{Path: GlobalDatasourceProxyPath("prom", "/api/v1/query")})
-			if err != nil {
-				t.Fatalf("Do() unexpected error: %v", err)
-			}
-			if resp.StatusCode != tt.wantStatus {
-				t.Errorf("StatusCode = %d, want %d", resp.StatusCode, tt.wantStatus)
-			}
-		})
-	}
-}
-
-func TestSameHostClientRejectsHTTPSDowngrade(t *testing.T) {
-	plain := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
-		t.Errorf("the redirect from https to http is followed: %s", r.URL)
+func TestDoDoesNotFollowRedirects(t *testing.T) {
+	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/moved" {
+			t.Errorf("the redirect to %s is followed", r.URL.Path)
+		}
+		http.Redirect(w, r, "/moved", http.StatusFound)
 	}))
-	defer plain.Close()
-	secure := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, plain.URL+"/plaintext", http.StatusFound)
-	}))
-	defer secure.Close()
-	resp, err := SameHostClient(secure.Client()).Get(secure.URL)
+	defer httpServer.Close()
+	client := apiclient.NewWithClient(&perseshttp.RESTClient{
+		BaseURL: common.MustParseURL(httpServer.URL),
+		Client:  httpServer.Client(),
+	})
+	resp, err := New(client.V1()).Do(context.Background(), ProxyQuery{Path: GlobalDatasourceProxyPath("prom", "/api/v1/query")})
 	if err != nil {
-		t.Fatalf("Get() unexpected error: %v", err)
+		t.Fatalf("Do() unexpected error: %v", err)
 	}
-	_ = resp.Body.Close()
 	if resp.StatusCode != http.StatusFound {
 		t.Errorf("StatusCode = %d, want %d", resp.StatusCode, http.StatusFound)
-	}
-}
-
-func TestSameHostClientRejectsOtherPort(t *testing.T) {
-	other := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
-		t.Errorf("the redirect to another port is followed: %s", r.URL)
-	}))
-	defer other.Close()
-	// Same host (127.0.0.1), another port: another service.
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, other.URL+"/steal", http.StatusFound)
-	}))
-	defer server.Close()
-	resp, err := SameHostClient(server.Client()).Get(server.URL)
-	if err != nil {
-		t.Fatalf("Get() unexpected error: %v", err)
-	}
-	_ = resp.Body.Close()
-	if resp.StatusCode != http.StatusFound {
-		t.Errorf("StatusCode = %d, want %d", resp.StatusCode, http.StatusFound)
-	}
-}
-
-func TestSameService(t *testing.T) {
-	tests := []struct {
-		from, to string
-		want     bool
-	}{
-		{from: "http://perses.example.com/a", to: "http://perses.example.com/b", want: true},
-		{from: "http://perses.example.com/a", to: "https://perses.example.com/a", want: true},
-		{from: "http://perses.example.com:80/a", to: "https://PERSES.example.com:443/a", want: true},
-		{from: "http://perses.example.com:8080/a", to: "https://perses.example.com:8080/a", want: true},
-		{from: "http://perses.example.com:8080/a", to: "http://perses.example.com:9090/a", want: false},
-		{from: "http://perses.example.com:8080/a", to: "https://perses.example.com/a", want: false},
-		{from: "https://perses.example.com/a", to: "http://perses.example.com:443/a", want: true}, // the downgrade is refused by CheckRedirect
-		{from: "http://perses.example.com/a", to: "http://other.example.com/a", want: false},
-	}
-	for _, tt := range tests {
-		t.Run(tt.from+" -> "+tt.to, func(t *testing.T) {
-			if got := sameService(common.MustParseURL(tt.from).URL, common.MustParseURL(tt.to).URL); got != tt.want {
-				t.Errorf("sameService() = %v, want %v", got, tt.want)
-			}
-		})
 	}
 }
 

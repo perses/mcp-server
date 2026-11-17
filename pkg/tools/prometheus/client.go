@@ -58,14 +58,9 @@ func (p *prometheus) newAPI(datasource resolvedDatasource) (v1.API, error) {
 	address.Path = strings.TrimRight(address.Path, "/") + path
 	client, err := api.NewClient(api.Config{
 		Address: address.String(),
-		Client: &http.Client{
-			Transport: &persesTransport{
-				// A redirect to another host is returned as an error instead of being followed.
-				client: proxy.SameHostClient(restClient.Client), headers: restClient.Headers, queryParams: datasource.queryParams,
-			},
-			// The transport adds the Perses credentials to every request: the redirects it returns must not be followed.
-			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
-		},
+		Client: &http.Client{Transport: &persesTransport{
+			client: proxy.NoRedirectClient(restClient.Client), headers: restClient.Headers, queryParams: datasource.queryParams,
+		}},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("error creating the Prometheus client of %s: %w", ref, err)
@@ -113,6 +108,13 @@ func (t *persesTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	if err != nil {
 		return nil, err
 	}
+	// The client doesn't follow redirects: a redirect is an error, even with a Prometheus error body, as the Prometheus
+	// client would follow it with the Perses credentials.
+	if resp.StatusCode/100 == 3 {
+		_ = resp.Body.Close()
+		return nil, &statusError{status: resp.Status, message: fmt.Sprintf(
+			"the redirect to %s is not followed: if Perses has moved, configure its new URL", resp.Header.Get("Location"))}
+	}
 	if resp.StatusCode/100 == 2 || (req.Method == http.MethodPost && isGetFallbackStatus(resp.StatusCode)) {
 		resp.Body = &limitedBody{ReadCloser: resp.Body, remaining: maxBodyBytes}
 		return resp, nil
@@ -123,9 +125,7 @@ func (t *persesTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	// Only the error statuses are passed to the Prometheus client: a redirect, even with a Prometheus error body, is an
-	// error.
-	if _, isPrometheusError := prometheusErrorMessage(body); isPrometheusError && resp.StatusCode >= http.StatusBadRequest {
+	if _, isPrometheusError := prometheusErrorMessage(body); isPrometheusError {
 		resp.Body = io.NopCloser(bytes.NewReader(body))
 		return resp, nil
 	}
