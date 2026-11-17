@@ -161,7 +161,14 @@ func (r *resolver) resolve(input *DatasourceRef) (resolvedDatasource, error) {
 		return resolvedDatasource{}, err
 	}
 	r.mutex.Lock()
-	r.cache[key] = cacheEntry{datasource: resolved, expires: r.now().Add(cacheTTL)}
+	now := r.now()
+	// Remove the expired entries, e.g. of deleted datasources, so that the cache only keeps the recent keys.
+	for k, e := range r.cache {
+		if !now.Before(e.expires) {
+			delete(r.cache, k)
+		}
+	}
+	r.cache[key] = cacheEntry{datasource: resolved, expires: now.Add(cacheTTL)}
 	r.mutex.Unlock()
 	return resolved, nil
 }

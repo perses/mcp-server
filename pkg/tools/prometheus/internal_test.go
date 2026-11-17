@@ -410,6 +410,26 @@ func TestResolveEmptyProjectWithoutGlobalAccess(t *testing.T) {
 	}
 }
 
+func TestResolveCacheEvictsExpiredEntries(t *testing.T) {
+	resolver := newTestPrometheus(t, newFakePerses(t, nil)).resolver
+	now := testNow
+	resolver.now = func() time.Time { return now }
+	for _, ref := range []*DatasourceRef{{Name: "prom"}, {Name: "prom", Project: "demo"}, {Project: "demo"}} {
+		if _, err := resolver.resolve(ref); err != nil {
+			t.Fatal(err)
+		}
+	}
+	now = now.Add(2 * cacheTTL)
+	if _, err := resolver.resolve(nil); err != nil {
+		t.Fatal(err)
+	}
+	resolver.mutex.Lock()
+	defer resolver.mutex.Unlock()
+	if len(resolver.cache) != 1 {
+		t.Errorf("the cache has %d entries, want 1: the expired entries are kept", len(resolver.cache))
+	}
+}
+
 func TestResolveCacheRefreshesTheSettings(t *testing.T) {
 	perses := newFakePerses(t, nil)
 	perses.datasources = []testDatasource{{Name: "prom", Kind: prometheusDatasourceKind, Default: true, ScrapeInterval: "30s", QueryParams: map[string]string{"dedup": "true"}}}
