@@ -143,6 +143,49 @@ func TestSameHostClientRejectsHTTPSDowngrade(t *testing.T) {
 	}
 }
 
+func TestSameHostClientRejectsOtherPort(t *testing.T) {
+	other := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		t.Errorf("the redirect to another port is followed: %s", r.URL)
+	}))
+	defer other.Close()
+	// Same host (127.0.0.1), another port: another service.
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, other.URL+"/steal", http.StatusFound)
+	}))
+	defer server.Close()
+	resp, err := SameHostClient(server.Client()).Get(server.URL)
+	if err != nil {
+		t.Fatalf("Get() unexpected error: %v", err)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusFound {
+		t.Errorf("StatusCode = %d, want %d", resp.StatusCode, http.StatusFound)
+	}
+}
+
+func TestSameService(t *testing.T) {
+	tests := []struct {
+		from, to string
+		want     bool
+	}{
+		{from: "http://perses.example.com/a", to: "http://perses.example.com/b", want: true},
+		{from: "http://perses.example.com/a", to: "https://perses.example.com/a", want: true},
+		{from: "http://perses.example.com:80/a", to: "https://PERSES.example.com:443/a", want: true},
+		{from: "http://perses.example.com:8080/a", to: "https://perses.example.com:8080/a", want: true},
+		{from: "http://perses.example.com:8080/a", to: "http://perses.example.com:9090/a", want: false},
+		{from: "http://perses.example.com:8080/a", to: "https://perses.example.com/a", want: false},
+		{from: "https://perses.example.com/a", to: "http://perses.example.com:443/a", want: true}, // the downgrade is refused by CheckRedirect
+		{from: "http://perses.example.com/a", to: "http://other.example.com/a", want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.from+" -> "+tt.to, func(t *testing.T) {
+			if got := sameService(common.MustParseURL(tt.from).URL, common.MustParseURL(tt.to).URL); got != tt.want {
+				t.Errorf("sameService() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestDoTruncation(t *testing.T) {
 	tests := []struct {
 		name          string

@@ -27,16 +27,17 @@ import (
 // maxRedirects is the number of redirects followed, as by the default HTTP client.
 const maxRedirects = 10
 
-// SameHostClient returns a copy of client that follows the redirects to the host of the request only, e.g. from http
-// to https. The requests carry the Perses credentials: a redirect to another host, or from https to http (which would
-// send them in plaintext), is returned as the response instead of being followed.
+// SameHostClient returns a copy of client that follows the redirects to the host and port of the request only, or
+// from http on port 80 to https on port 443 of the same host. The requests carry the Perses credentials: a redirect to
+// another host or port (another service), or from https to http (which would send them in plaintext), is returned as
+// the response instead of being followed.
 func SameHostClient(client *http.Client) *http.Client {
 	sameHost := *client
 	sameHost.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 		if len(via) >= maxRedirects {
 			return fmt.Errorf("stopped after %d redirects", maxRedirects)
 		}
-		if !strings.EqualFold(req.URL.Hostname(), via[0].URL.Hostname()) {
+		if !sameService(via[0].URL, req.URL) {
 			return http.ErrUseLastResponse
 		}
 		if !strings.EqualFold(req.URL.Scheme, "https") {
@@ -49,6 +50,30 @@ func SameHostClient(client *http.Client) *http.Client {
 		return nil
 	}
 	return &sameHost
+}
+
+// sameService reports whether a redirect from one URL to another stays on the same host and port, or upgrades the
+// default http port of the host to its default https port.
+func sameService(from, to *url.URL) bool {
+	if !strings.EqualFold(from.Hostname(), to.Hostname()) {
+		return false
+	}
+	fromPort, toPort := portOf(from), portOf(to)
+	if fromPort == toPort {
+		return true
+	}
+	return strings.EqualFold(from.Scheme, "http") && fromPort == "80" && strings.EqualFold(to.Scheme, "https") && toPort == "443"
+}
+
+// portOf returns the port of a URL, or the default port of its scheme.
+func portOf(u *url.URL) string {
+	if port := u.Port(); port != "" {
+		return port
+	}
+	if strings.EqualFold(u.Scheme, "https") {
+		return "443"
+	}
+	return "80"
 }
 
 // maxBodyBytes caps response body size to prevent overwhelming LLM context windows.
