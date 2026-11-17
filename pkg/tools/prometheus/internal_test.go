@@ -20,6 +20,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/prometheus/common/model"
 )
@@ -427,6 +428,17 @@ func TestResolveCacheEvictsExpiredEntries(t *testing.T) {
 	defer resolver.mutex.Unlock()
 	if len(resolver.cache) != 1 {
 		t.Errorf("the cache has %d entries, want 1: the expired entries are kept", len(resolver.cache))
+	}
+}
+
+func TestErrorMessageKeepsValidUTF8(t *testing.T) {
+	got := errorMessage([]byte("a" + strings.Repeat("é", maxErrorLength)))
+	if !utf8.ValidString(got) || !strings.HasSuffix(got, "...") {
+		t.Errorf("errorMessage() = %q, want valid UTF-8 ending with ...", got)
+	}
+	// A short body that is not UTF-8, e.g. a Latin-1 error page.
+	if got = errorMessage([]byte("caf\xe9 down")); got != "caf down" {
+		t.Errorf("errorMessage() = %q, want the invalid bytes removed", got)
 	}
 }
 

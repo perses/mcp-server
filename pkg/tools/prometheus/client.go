@@ -108,11 +108,12 @@ func (t *persesTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	resp.Body = &limitedBody{ReadCloser: resp.Body, remaining: maxBodyBytes}
 	if resp.StatusCode/100 == 2 || (req.Method == http.MethodPost && isGetFallbackStatus(resp.StatusCode)) {
+		resp.Body = &limitedBody{ReadCloser: resp.Body, remaining: maxBodyBytes}
 		return resp, nil
 	}
-	body, err := io.ReadAll(resp.Body)
+	// The error bodies are only read up to the cap: errorMessage keeps their beginning.
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxBodyBytes))
 	_ = resp.Body.Close()
 	if err != nil {
 		return nil, err
@@ -196,8 +197,10 @@ func errorMessage(body []byte) string {
 	if json.Unmarshal(body, &persesError) == nil && persesError.Message != "" {
 		message = persesError.Message
 	}
+	// The body may not be UTF-8, e.g. a Latin-1 error page, and the cut below may split a character.
+	message = strings.ToValidUTF8(message, "")
 	if len(message) > maxErrorLength {
-		message = message[:maxErrorLength] + "..."
+		message = strings.ToValidUTF8(message[:maxErrorLength], "") + "..."
 	}
 	return message
 }

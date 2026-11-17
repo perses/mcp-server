@@ -407,6 +407,11 @@ func TestQueryErrors(t *testing.T) {
 			want:   "error querying global datasource 'prom': HTTP 502 Bad Gateway: upstream down",
 		},
 		{
+			name:   "large error page keeps its status",
+			answer: &answer{status: http.StatusBadGateway, body: "<html>" + strings.Repeat("x", 2*maxBodyBytes) + "</html>"},
+			want:   "error querying global datasource 'prom': HTTP 502 Bad Gateway: <html>",
+		},
+		{
 			name:   "native histograms",
 			answer: new(ok(`{"resultType":"vector","result":[{"metric":{},"histogram":[1767355200,{"count":"2","sum":"3","buckets":[[0,"0","1","2"]]}]}]}`)),
 			want:   "use histogram_quantile(), histogram_count() or histogram_sum() to get numbers, without _bucket or le, e.g. histogram_quantile(0.99, sum(rate(x[5m])))",
