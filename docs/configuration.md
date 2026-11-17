@@ -142,6 +142,7 @@ ignored. The MCP server refuses to start if a name is unknown.
 | `ephemeraldashboard` | [Ephemeral dashboards](./tools.md#ephemeral-dashboards)               |
 | `datasource`         | [Project datasources](./tools.md#datasources)                         |
 | `globaldatasource`   | [Global datasources](./tools.md#datasources)                          |
+| `prometheus`         | [Prometheus](./tools.md#prometheus)                                   |
 | `variable`           | [Project variables](./tools.md#variables)                             |
 | `globalvariable`     | [Global variables](./tools.md#variables)                              |
 | `role`               | [Project roles](./tools.md#roles-and-role-bindings)                   |

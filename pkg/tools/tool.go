@@ -45,6 +45,7 @@ const (
 	MigrateResource            Resource = "migrate"
 	SchemaResource             Resource = "schema"
 	ValidateResource           Resource = "validate"
+	PrometheusResource         Resource = "prometheus"
 )
 
 var ValidResources = []Resource{
@@ -63,6 +64,7 @@ var ValidResources = []Resource{
 	MigrateResource,
 	SchemaResource,
 	ValidateResource,
+	PrometheusResource,
 }
 
 // Tool represents an MCP tool with metadata about write access requirements

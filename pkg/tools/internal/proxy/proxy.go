@@ -24,6 +24,14 @@ import (
 	apiClient "github.com/perses/perses/pkg/client/api/v1"
 )
 
+// NoRedirectClient returns a copy of client that doesn't follow redirects: the datasource APIs don't redirect, and the
+// requests carry the Perses credentials, which must not be sent to another URL. A redirect is returned as the response.
+func NoRedirectClient(client *http.Client) *http.Client {
+	noRedirect := *client
+	noRedirect.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	return &noRedirect
+}
+
 // maxBodyBytes caps response body size to prevent overwhelming LLM context windows.
 const maxBodyBytes = 1 << 20 // 1 MiB
 
@@ -200,7 +208,7 @@ func (h *Helper) Do(ctx context.Context, input ProxyQuery) (*Response, error) {
 	}
 
 	// #nosec G704 -- req URL is built from configured base URL and validated above.
-	resp, err := restClient.Client.Do(req)
+	resp, err := NoRedirectClient(restClient.Client).Do(req)
 	if err != nil {
 		return nil, err
 	}

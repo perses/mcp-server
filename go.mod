@@ -7,8 +7,12 @@ require (
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 	github.com/perses/common v0.33.0
 	github.com/perses/perses v0.55.1-0.20261026072743-c4a2e03ca959
+	github.com/perses/plugins/prometheus v0.59.1
 	github.com/perses/spec v0.3.0
+	github.com/prometheus/client_golang v1.25.0
+	github.com/prometheus/common v0.73.1
 	github.com/sirupsen/logrus v1.10.2
+	golang.org/x/sync v0.24.0
 )
 
 require (
@@ -85,9 +89,7 @@ require (
 	github.com/pandatix/go-abnf v0.5.3 // indirect
 	github.com/pb33f/ordered-map/v2 v2.3.1 // indirect
 	github.com/pjbgf/sha1cd v0.6.0 // indirect
-	github.com/prometheus/client_golang v1.25.0 // indirect
 	github.com/prometheus/client_model v0.6.3 // indirect
-	github.com/prometheus/common v0.73.1 // indirect
 	github.com/prometheus/procfs v0.22.0 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/segmentio/asm v1.1.3 // indirect
@@ -119,7 +121,6 @@ require (
 	golang.org/x/exp v0.0.0-20260410095643-746e56fc9e2f // indirect
 	golang.org/x/net v0.61.0 // indirect
 	golang.org/x/oauth2 v0.37.0 // indirect
-	golang.org/x/sync v0.24.0 // indirect
 	golang.org/x/sys v0.49.0 // indirect
 	golang.org/x/term v0.47.0 // indirect
 	golang.org/x/text v0.43.0 // indirect

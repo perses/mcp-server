@@ -89,6 +89,27 @@ func TestResponseText(t *testing.T) {
 	}
 }
 
+func TestDoDoesNotFollowRedirects(t *testing.T) {
+	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/moved" {
+			t.Errorf("the redirect to %s is followed", r.URL.Path)
+		}
+		http.Redirect(w, r, "/moved", http.StatusFound)
+	}))
+	defer httpServer.Close()
+	client := apiclient.NewWithClient(&perseshttp.RESTClient{
+		BaseURL: common.MustParseURL(httpServer.URL),
+		Client:  httpServer.Client(),
+	})
+	resp, err := New(client.V1()).Do(context.Background(), ProxyQuery{Path: GlobalDatasourceProxyPath("prom", "/api/v1/query")})
+	if err != nil {
+		t.Fatalf("Do() unexpected error: %v", err)
+	}
+	if resp.StatusCode != http.StatusFound {
+		t.Errorf("StatusCode = %d, want %d", resp.StatusCode, http.StatusFound)
+	}
+}
+
 func TestDoTruncation(t *testing.T) {
 	tests := []struct {
 		name          string
