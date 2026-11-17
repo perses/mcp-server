@@ -58,6 +58,18 @@ var defaultDatasources = []testDatasource{
 type answer struct {
 	status int
 	body   string
+	// location is the Location header of a redirect.
+	location string
+}
+
+// write writes the answer as the response.
+func (a answer) write(w http.ResponseWriter) {
+	w.Header().Set("Content-Type", "application/json")
+	if a.location != "" {
+		w.Header().Set("Location", a.location)
+	}
+	w.WriteHeader(a.status)
+	_, _ = w.Write([]byte(a.body))
 }
 
 func ok(data string) answer {
@@ -94,9 +106,7 @@ func (f *fakePerses) serve(w http.ResponseWriter, r *http.Request) {
 	}
 	if f.answer != nil {
 		if a := f.answer(r); a != nil {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(a.status)
-			_, _ = w.Write([]byte(a.body))
+			a.write(w)
 			return
 		}
 	}
@@ -113,9 +123,7 @@ func (f *fakePerses) serve(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(a.status)
-	_, _ = w.Write([]byte(a.body))
+	a.write(w)
 }
 
 func (f *fakePerses) serveMetadata(w http.ResponseWriter, metric string) {

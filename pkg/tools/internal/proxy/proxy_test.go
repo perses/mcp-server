@@ -89,6 +89,41 @@ func TestResponseText(t *testing.T) {
 	}
 }
 
+func TestDoRedirects(t *testing.T) {
+	tests := []struct {
+		name       string
+		location   string
+		wantStatus int
+	}{
+		// e.g. from http to https: the requests stay on the Perses host.
+		{name: "same host is followed", location: "/moved", wantStatus: http.StatusOK},
+		{name: "another host is not followed", location: "http://login.example.com/", wantStatus: http.StatusFound},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path == "/moved" {
+					_, _ = w.Write([]byte("{}"))
+					return
+				}
+				http.Redirect(w, r, tt.location, http.StatusFound)
+			}))
+			defer httpServer.Close()
+			client := apiclient.NewWithClient(&perseshttp.RESTClient{
+				BaseURL: common.MustParseURL(httpServer.URL),
+				Client:  httpServer.Client(),
+			})
+			resp, err := New(client.V1()).Do(context.Background(), ProxyQuery{Path: GlobalDatasourceProxyPath("prom", "/api/v1/query")})
+			if err != nil {
+				t.Fatalf("Do() unexpected error: %v", err)
+			}
+			if resp.StatusCode != tt.wantStatus {
+				t.Errorf("StatusCode = %d, want %d", resp.StatusCode, tt.wantStatus)
+			}
+		})
+	}
+}
+
 func TestDoTruncation(t *testing.T) {
 	tests := []struct {
 		name          string

@@ -59,7 +59,8 @@ func (p *prometheus) newAPI(datasource resolvedDatasource) (v1.API, error) {
 	client, err := api.NewClient(api.Config{
 		Address: address.String(),
 		Client: &http.Client{Transport: &persesTransport{
-			client: restClient.Client, headers: restClient.Headers, queryParams: datasource.queryParams,
+			// A redirect to another host is returned as an error instead of being followed.
+			client: proxy.SameHostClient(restClient.Client), headers: restClient.Headers, queryParams: datasource.queryParams,
 		}},
 	})
 	if err != nil {

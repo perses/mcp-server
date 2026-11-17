@@ -407,6 +407,11 @@ func TestQueryErrors(t *testing.T) {
 			want:   "error querying global datasource 'prom': HTTP 502 Bad Gateway: upstream down",
 		},
 		{
+			name:   "redirect to another host is not followed",
+			answer: &answer{status: http.StatusFound, location: "http://login.example.com/"},
+			want:   "error querying global datasource 'prom': HTTP 302 Found",
+		},
+		{
 			name:   "large error page keeps its status",
 			answer: &answer{status: http.StatusBadGateway, body: "<html>" + strings.Repeat("x", 2*maxBodyBytes) + "</html>"},
 			want:   "error querying global datasource 'prom': HTTP 502 Bad Gateway: <html>",

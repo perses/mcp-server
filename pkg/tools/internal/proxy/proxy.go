@@ -24,6 +24,26 @@ import (
 	apiClient "github.com/perses/perses/pkg/client/api/v1"
 )
 
+// maxRedirects is the number of redirects followed, as by the default HTTP client.
+const maxRedirects = 10
+
+// SameHostClient returns a copy of client that follows the redirects to the host of the request only, e.g. from http
+// to https: a redirect to another host is returned as the response, as the requests carry the Perses credentials and
+// must not leave the Perses host.
+func SameHostClient(client *http.Client) *http.Client {
+	sameHost := *client
+	sameHost.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		if len(via) >= maxRedirects {
+			return fmt.Errorf("stopped after %d redirects", maxRedirects)
+		}
+		if !strings.EqualFold(req.URL.Hostname(), via[0].URL.Hostname()) {
+			return http.ErrUseLastResponse
+		}
+		return nil
+	}
+	return &sameHost
+}
+
 // maxBodyBytes caps response body size to prevent overwhelming LLM context windows.
 const maxBodyBytes = 1 << 20 // 1 MiB
 
@@ -200,7 +220,7 @@ func (h *Helper) Do(ctx context.Context, input ProxyQuery) (*Response, error) {
 	}
 
 	// #nosec G704 -- req URL is built from configured base URL and validated above.
-	resp, err := restClient.Client.Do(req)
+	resp, err := SameHostClient(restClient.Client).Do(req)
 	if err != nil {
 		return nil, err
 	}
