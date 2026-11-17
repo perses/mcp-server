@@ -218,7 +218,7 @@ The parameters are:
 - `time_range`: `{past_duration}` (e.g. `"6h"`, `"7d"`), or `{start, end}` in RFC 3339 (`end` defaults to now).
   The past hour by default. Prometheus applies it approximately (by storage block): the lists may include series
   without samples in it, e.g. series that stopped a few hours ago.
-- `limit`: the maximum number of returned items. Defaults: 200 metric names (50 with `include_metadata`, max 200), 200
+- `limit`: the maximum number of returned items. Defaults: 200 metric names (50 with `include_metadata`, also its max), 200
   label names, 100 label values (max 1000), 20 series (max 100).
 
 The list tools return `{datasource, total, returned, truncated, ...}`. A list over 1 MiB is an error that asks to

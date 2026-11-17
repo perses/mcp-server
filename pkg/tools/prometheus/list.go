@@ -31,8 +31,9 @@ const (
 	defaultMetricsLimit = 200
 	// defaultMetadataMetricsLimit is the default limit of metric names listed with their metadata, which are larger.
 	defaultMetadataMetricsLimit = 50
-	// maxMetadataMetricsLimit caps the metric names listed with their metadata, which may be looked up one by one.
-	maxMetadataMetricsLimit = 200
+	// maxMetadataMetricsLimit caps the metric names listed with their metadata, which may be looked up one by one
+	// (up to 2 requests each).
+	maxMetadataMetricsLimit = 50
 	defaultLabelsLimit      = 200
 	defaultValuesLimit      = 100
 	maxListLimit            = 1000
