@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"net/http"
 	"slices"
 	"sort"
 	"strings"
@@ -25,6 +26,7 @@ import (
 	"time"
 
 	apiClient "github.com/perses/perses/pkg/client/api/v1"
+	"github.com/perses/perses/pkg/client/perseshttp"
 	promDatasource "github.com/perses/plugins/prometheus/sdk/go/datasource"
 	"github.com/perses/spec/go/datasource"
 )
@@ -193,7 +195,13 @@ func (r *resolver) resolveUncached(key DatasourceRef) (resolvedDatasource, error
 	}
 	globals, err := r.client.GlobalDatasource().List("")
 	if err != nil {
-		return resolvedDatasource{}, fmt.Errorf("error listing the global datasources: %w", err)
+		// Without the global read permission, the datasources of the project are the only candidates. Without
+		// project candidates, the error is kept: it explains why no datasource is found.
+		var reqErr *perseshttp.RequestError
+		if len(candidates) == 0 || !errors.As(err, &reqErr) || reqErr.StatusCode != http.StatusForbidden {
+			return resolvedDatasource{}, fmt.Errorf("error listing the global datasources: %w", err)
+		}
+		globals = nil
 	}
 	specs := map[string]datasource.Spec{}
 	for _, ds := range globals {

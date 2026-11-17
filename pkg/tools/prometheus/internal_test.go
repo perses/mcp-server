@@ -375,6 +375,41 @@ func TestResolveProjectDefaultWithoutGlobalAccess(t *testing.T) {
 	}
 }
 
+func TestResolveProjectWithoutDefaultWithoutGlobalAccess(t *testing.T) {
+	perses := newFakePerses(t, nil)
+	perses.datasources = []testDatasource{{Name: "local", Project: "demo", Kind: prometheusDatasourceKind}}
+	perses.forbidGlobalList = true
+	got, err := newTestPrometheus(t, perses).resolver.resolve(&DatasourceRef{Project: "demo"})
+	if err != nil {
+		t.Fatalf("resolve() error: %v", err)
+	}
+	if got.ref != (DatasourceRef{Name: "local", Project: "demo"}) {
+		t.Errorf("resolve() = %+v", got.ref)
+	}
+}
+
+func TestResolveProjectAmbiguousWithoutGlobalAccess(t *testing.T) {
+	perses := newFakePerses(t, nil)
+	perses.datasources = []testDatasource{
+		{Name: "a", Project: "demo", Kind: prometheusDatasourceKind},
+		{Name: "b", Project: "demo", Kind: prometheusDatasourceKind},
+	}
+	perses.forbidGlobalList = true
+	_, err := newTestPrometheus(t, perses).resolver.resolve(&DatasourceRef{Project: "demo"})
+	if err == nil || !strings.Contains(err.Error(), "available Prometheus datasources: a (project demo), b (project demo)") {
+		t.Fatalf("resolve() error = %v, want the available datasources", err)
+	}
+}
+
+func TestResolveEmptyProjectWithoutGlobalAccess(t *testing.T) {
+	perses := newFakePerses(t, nil)
+	perses.forbidGlobalList = true
+	_, err := newTestPrometheus(t, perses).resolver.resolve(&DatasourceRef{Project: "empty"})
+	if err == nil || !strings.Contains(err.Error(), "error listing the global datasources") {
+		t.Fatalf("resolve() error = %v, want the error of the global list", err)
+	}
+}
+
 func TestResolveCacheRefreshesTheSettings(t *testing.T) {
 	perses := newFakePerses(t, nil)
 	perses.datasources = []testDatasource{{Name: "prom", Kind: prometheusDatasourceKind, Default: true, ScrapeInterval: "30s", QueryParams: map[string]string{"dedup": "true"}}}
