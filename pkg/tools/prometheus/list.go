@@ -144,14 +144,25 @@ type listing struct {
 	warnings   []string
 }
 
-// list resolves the time range and the datasource, then lists the label names (label empty) or the values of a
-// label, keeping the values that contain search (ignoring case) when it is set.
-func (p *prometheus) list(ctx context.Context, datasourceInput *DatasourceRef, label string, match Selectors, timeRange *TimeRangeInput, search string) (*listing, error) {
-	start, end, _, err := resolveTimeRange(timeRange, p.now())
+// listRequest is a request for label names or label values.
+type listRequest struct {
+	datasource *DatasourceRef
+	// label is the label whose values are listed: the label names are listed when it is empty.
+	label     string
+	match     Selectors
+	timeRange *TimeRangeInput
+	// search keeps the values that contain it (ignoring case) when it is set.
+	search string
+}
+
+// list resolves the time range and the datasource, then lists the label names or the values of a label.
+func (p *prometheus) list(ctx context.Context, request listRequest) (*listing, error) {
+	label, match, search := request.label, request.match, request.search
+	start, end, _, err := resolveTimeRange(request.timeRange, p.now())
 	if err != nil {
 		return nil, err
 	}
-	datasource, err := p.resolver.resolve(datasourceInput)
+	datasource, err := p.resolver.resolve(request.datasource)
 	if err != nil {
 		return nil, err
 	}
@@ -233,7 +244,9 @@ func firstPage(values []string, limit, defaultLimit int) ([]string, page) {
 }
 
 func (p *prometheus) listMetricNames(ctx context.Context, input ListMetricNamesInput) (*metricNamesOutput, error) {
-	names, err := p.list(ctx, input.Datasource, model.MetricNameLabel, input.Match, input.TimeRange, input.Search)
+	names, err := p.list(ctx, listRequest{
+		datasource: input.Datasource, label: model.MetricNameLabel, match: input.Match, timeRange: input.TimeRange, search: input.Search,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -275,7 +288,7 @@ func (p *prometheus) listMetricNames(ctx context.Context, input ListMetricNamesI
 }
 
 func (p *prometheus) listLabelNames(ctx context.Context, input ListLabelNamesInput) (*labelNamesOutput, error) {
-	labels, err := p.list(ctx, input.Datasource, "", input.Match, input.TimeRange, "")
+	labels, err := p.list(ctx, listRequest{datasource: input.Datasource, match: input.Match, timeRange: input.TimeRange})
 	if err != nil {
 		return nil, err
 	}
@@ -284,7 +297,9 @@ func (p *prometheus) listLabelNames(ctx context.Context, input ListLabelNamesInp
 }
 
 func (p *prometheus) listLabelValues(ctx context.Context, input ListLabelValuesInput) (*labelValuesOutput, error) {
-	values, err := p.list(ctx, input.Datasource, input.Label, input.Match, input.TimeRange, input.Search)
+	values, err := p.list(ctx, listRequest{
+		datasource: input.Datasource, label: input.Label, match: input.Match, timeRange: input.TimeRange, search: input.Search,
+	})
 	if err != nil {
 		return nil, err
 	}

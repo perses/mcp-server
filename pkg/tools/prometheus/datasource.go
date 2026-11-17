@@ -14,13 +14,13 @@
 package prometheus
 
 import (
+	"cmp"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"maps"
 	"net/http"
 	"slices"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -290,6 +290,6 @@ func prometheusCandidates(specs map[string]datasource.Spec, project string) []ca
 			candidates = append(candidates, candidate{ref: DatasourceRef{Name: name, Project: project}, spec: spec})
 		}
 	}
-	sort.Slice(candidates, func(i, j int) bool { return candidates[i].ref.Name < candidates[j].ref.Name })
+	slices.SortFunc(candidates, func(a, b candidate) int { return cmp.Compare(a.ref.Name, b.ref.Name) })
 	return candidates
 }

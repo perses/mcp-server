@@ -14,6 +14,7 @@
 package prometheus
 
 import (
+	"fmt"
 	"math"
 	"reflect"
 	"regexp"
@@ -211,10 +212,12 @@ func TestResolveStep(t *testing.T) {
 		{step: "1ms", span: time.Minute, minStep: time.Minute, want: 6 * time.Millisecond},
 	}
 	for _, tt := range tests {
-		got, err := resolveStep(tt.step, testNow.Add(-tt.span), testNow, tt.minStep)
-		if err != nil || got != tt.want {
-			t.Errorf("resolveStep(%q, %s, %s) = %s, %v, want %s", tt.step, tt.span, tt.minStep, got, err, tt.want)
-		}
+		t.Run(fmt.Sprintf("step=%q span=%s min=%s", tt.step, tt.span, tt.minStep), func(t *testing.T) {
+			got, err := resolveStep(tt.step, testNow.Add(-tt.span), testNow, tt.minStep)
+			if err != nil || got != tt.want {
+				t.Errorf("resolveStep(%q, %s, %s) = %s, %v, want %s", tt.step, tt.span, tt.minStep, got, err, tt.want)
+			}
+		})
 	}
 }
 
@@ -235,21 +238,23 @@ func TestEscapeLabelName(t *testing.T) {
 	// The default allowedEndpoints pattern of the label values endpoint in the Perses proxy.
 	proxyLabelPattern := regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 	for _, tt := range tests {
-		got := escapeLabelName(tt.label)
-		if got != tt.want {
-			t.Errorf("escapeLabelName(%q) = %q, want %q", tt.label, got, tt.want)
-		}
-		if !proxyLabelPattern.MatchString(got) {
-			t.Errorf("escapeLabelName(%q) = %q, rejected by the Perses proxy", tt.label, got)
-		}
-		// The label values endpoint of Prometheus unescapes the names starting with U__ only.
-		read := got
-		if strings.HasPrefix(read, "U__") {
-			read = model.UnescapeName(read, model.ValueEncodingEscaping)
-		}
-		if read != tt.label {
-			t.Errorf("Prometheus reads %q as %q, want %q", got, read, tt.label)
-		}
+		t.Run(tt.label, func(t *testing.T) {
+			got := escapeLabelName(tt.label)
+			if got != tt.want {
+				t.Errorf("escapeLabelName(%q) = %q, want %q", tt.label, got, tt.want)
+			}
+			if !proxyLabelPattern.MatchString(got) {
+				t.Errorf("escapeLabelName(%q) = %q, rejected by the Perses proxy", tt.label, got)
+			}
+			// The label values endpoint of Prometheus unescapes the names starting with U__ only.
+			read := got
+			if strings.HasPrefix(read, "U__") {
+				read = model.UnescapeName(read, model.ValueEncodingEscaping)
+			}
+			if read != tt.label {
+				t.Errorf("Prometheus reads %q as %q, want %q", got, read, tt.label)
+			}
+		})
 	}
 }
 
@@ -327,9 +332,11 @@ func TestRound(t *testing.T) {
 		{value: 1767355200.123, want: 1767355200},
 	}
 	for _, tt := range tests {
-		if got := round(tt.value); got != tt.want {
-			t.Errorf("round(%v) = %v, want %v", tt.value, got, tt.want)
-		}
+		t.Run(fmt.Sprint(tt.value), func(t *testing.T) {
+			if got := round(tt.value); got != tt.want {
+				t.Errorf("round(%v) = %v, want %v", tt.value, got, tt.want)
+			}
+		})
 	}
 }
 
