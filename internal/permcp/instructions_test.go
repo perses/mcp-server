@@ -14,7 +14,6 @@
 package permcp
 
 import (
-	"context"
 	"flag"
 	"os"
 	"path/filepath"
@@ -22,14 +21,11 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 	apiclient "github.com/perses/perses/pkg/client/api"
-	"github.com/perses/perses/pkg/client/config"
 	"github.com/perses/perses/pkg/client/perseshttp"
 	"github.com/perses/spec/go/common"
 
 	"github.com/perses/mcp-server/pkg/tools"
-	"github.com/perses/mcp-server/pkg/tools/prometheus"
 )
 
 var updateGolden = flag.Bool("update", false, "update the golden files of the instructions")
@@ -61,67 +57,6 @@ func checkMentionedTools(t *testing.T, instructions string, registered []string)
 	}
 }
 
-// The instructions silently skip the tools which are not registered: a renamed tool would disappear from them.
-func TestInstructionToolNamesExist(t *testing.T) {
-	all := toolNames(allTestTools(t))
-	for _, name := range []string{
-		listGlobalDatasourcesTool, listProjectDatasourcesTool, queryGlobalDatasourceTool, queryProjectDatasourceTool,
-		listDashboardsTool, getDashboardTool, prometheus.ListMetricNamesToolName, prometheus.ListLabelNamesToolName,
-		prometheus.ListLabelValuesToolName, prometheus.GetMetricMetadataToolName, prometheus.QueryToolName,
-	} {
-		if !slices.Contains(all, name) {
-			t.Errorf("the tool %s used by the instructions does not exist", name)
-		}
-	}
-}
-
-func TestNewSendsTheInstructions(t *testing.T) {
-	cfg := Config{
-		ReadOnly:         true,
-		AllowedResources: []string{"dashboard", "prometheus"},
-		PersesServer:     config.RestConfigClient{URL: common.MustParseURL("http://127.0.0.1:1")},
-	}
-	task, err := New(cfg)
-	if err != nil {
-		t.Fatalf("New() error = %v", err)
-	}
-	serverTransport, clientTransport := mcp.NewInMemoryTransports()
-	serverSession, err := task.(*server).mcpServer.Connect(context.Background(), serverTransport, nil)
-	if err != nil {
-		t.Fatalf("connecting the server: %v", err)
-	}
-	t.Cleanup(func() { _ = serverSession.Close() })
-	session, err := mcp.NewClient(&mcp.Implementation{Name: "test-client"}, nil).Connect(context.Background(), clientTransport, nil)
-	if err != nil {
-		t.Fatalf("connecting the client: %v", err)
-	}
-	t.Cleanup(func() { _ = session.Close() })
-
-	toolList, err := session.ListTools(context.Background(), nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var registered []string
-	for _, tool := range toolList.Tools {
-		registered = append(registered, tool.Name)
-	}
-	want := toolNames(selectTools(allTestTools(t), cfg).selected)
-	slices.Sort(registered)
-	slices.Sort(want)
-	if !slices.Equal(registered, want) {
-		t.Errorf("registered tools = %v, want %v", registered, want)
-	}
-	if slices.Contains(registered, "perses_create_dashboard") {
-		t.Error("a write tool is registered in read-only mode")
-	}
-
-	instructions := session.InitializeResult().Instructions
-	if instructions != buildInstructions(selectTools(allTestTools(t), cfg).selected) {
-		t.Errorf("instructions =\n%s", instructions)
-	}
-	checkMentionedTools(t, instructions, registered)
-}
-
 // TestBuildInstructions compares the instructions with the golden files of testdata/instructions.
 // Run `go test ./internal/permcp -run TestBuildInstructions -update` to update them.
 func TestBuildInstructions(t *testing.T) {
@@ -135,6 +70,8 @@ func TestBuildInstructions(t *testing.T) {
 		{name: "prometheus", cfg: Config{AllowedResources: []string{"prometheus"}}},
 		{name: "prometheus-globaldatasource", cfg: Config{AllowedResources: []string{"prometheus", "globaldatasource"}}},
 		{name: "dashboard", cfg: Config{AllowedResources: []string{"dashboard"}}},
+		{name: "prometheus-datasource", cfg: Config{AllowedResources: []string{"prometheus", "datasource"}}},
+		{name: "read-only-dashboard-prometheus", cfg: Config{ReadOnly: true, AllowedResources: []string{"dashboard", "prometheus"}}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

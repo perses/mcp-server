@@ -31,6 +31,12 @@ import (
 	"github.com/perses/spec/go/plugin"
 )
 
+// The names of the tools that other packages refer to, e.g. in the server instructions.
+const (
+	ListToolName  = "perses_list_global_datasources"
+	QueryToolName = "perses_query_global_datasource"
+)
+
 type globalDatasource struct {
 	client apiClient.ClientInterface
 }
@@ -63,7 +69,7 @@ type QueryGlobalDatasourceInput struct {
 
 func (g *globalDatasource) Query() *tools.Tool {
 	tool := &mcp.Tool{
-		Name:        "perses_query_global_datasource",
+		Name:        QueryToolName,
 		Description: "Query a global datasource through Perses proxy",
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Queries a global datasource through Perses proxy",
@@ -147,7 +153,7 @@ func (g *globalDatasource) Query() *tools.Tool {
 
 func (g *globalDatasource) List() *tools.Tool {
 	tool := &mcp.Tool{
-		Name:        "perses_list_global_datasources",
+		Name:        ListToolName,
 		Description: "List all Perses Global Datasources",
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Lists all global datasources in Perses",

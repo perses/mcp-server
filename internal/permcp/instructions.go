@@ -20,16 +20,10 @@ import (
 	"github.com/perses/common/set"
 
 	"github.com/perses/mcp-server/pkg/tools"
+	"github.com/perses/mcp-server/pkg/tools/dashboard"
+	"github.com/perses/mcp-server/pkg/tools/datasource"
+	"github.com/perses/mcp-server/pkg/tools/globaldatasource"
 	"github.com/perses/mcp-server/pkg/tools/prometheus"
-)
-
-const (
-	listGlobalDatasourcesTool  = "perses_list_global_datasources"
-	listProjectDatasourcesTool = "perses_list_project_datasources"
-	queryGlobalDatasourceTool  = "perses_query_global_datasource"
-	queryProjectDatasourceTool = "perses_query_project_datasource"
-	listDashboardsTool         = "perses_list_dashboards"
-	getDashboardTool           = "perses_get_dashboard_by_name"
 )
 
 // buildInstructions returns the server instructions sent to every client on initialize: what Perses is and how to
@@ -52,8 +46,8 @@ func buildInstructions(registered []*tools.Tool) string {
 	}
 
 	var b strings.Builder
-	b.WriteString("Perses is an open-source observability dashboard tool. This server gives access to Perses " +
-		"resources (projects, dashboards, datasources, variables).\n")
+	b.WriteString("Perses is an open-source observability dashboard tool. " +
+		"This server gives access to Perses resources.\n")
 
 	// The Prometheus tools are all read-only tools of the same resource: they are all registered or none is.
 	if !names.Contains(prometheus.QueryToolName) {
@@ -61,16 +55,17 @@ func buildInstructions(registered []*tools.Tool) string {
 	}
 
 	datasourceStep := "Datasource: use the same `datasource` for discovery and queries"
-	if listTools := code(listGlobalDatasourcesTool, listProjectDatasourcesTool); len(listTools) > 0 {
-		datasourceStep += "; " + strings.Join(listTools, " and ") + " list the other datasources"
+	if listTools := code(globaldatasource.ListToolName, datasource.ListToolName); len(listTools) > 0 {
+		datasourceStep += "; find the other datasources with " + strings.Join(listTools, " and ")
 	}
 	datasourceStep += "."
 
 	queryStep := fmt.Sprintf("Query with `%s`", prometheus.QueryToolName)
-	if proxyTools := code(queryGlobalDatasourceTool, queryProjectDatasourceTool); len(proxyTools) > 0 {
-		queryStep += ", not " + strings.Join(proxyTools, " or ") + ", which return raw responses"
+	if proxyTools := code(globaldatasource.QueryToolName, datasource.QueryToolName); len(proxyTools) > 0 {
+		queryStep += ", not the raw datasource proxy " + strings.Join(proxyTools, " or ")
 	}
-	queryStep += ". For a past time range, pass the same `time_range` to the discovery tools."
+	queryStep += fmt.Sprintf(". For a past time range, pass the same `time_range` to `%s`, `%s` and `%s`.",
+		prometheus.ListMetricNamesToolName, prometheus.ListLabelNamesToolName, prometheus.ListLabelValuesToolName)
 
 	steps := []string{
 		datasourceStep,
@@ -84,7 +79,7 @@ func buildInstructions(registered []*tools.Tool) string {
 		fmt.Fprintf(&b, "%d. %s\n", i+1, step)
 	}
 
-	if dashboards := code(listDashboardsTool, getDashboardTool); len(dashboards) > 0 {
+	if dashboards := code(dashboard.ListToolName, dashboard.GetToolName); len(dashboards) > 0 {
 		fmt.Fprintf(&b, "\nThe panels of existing dashboards (%s) show which metrics and queries matter for a system.\n",
 			strings.Join(dashboards, ", "))
 	}

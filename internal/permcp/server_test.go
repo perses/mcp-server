@@ -17,6 +17,7 @@ import (
 	"context"
 	"errors"
 	"net"
+	"os"
 	"slices"
 	"testing"
 
@@ -134,5 +135,63 @@ func TestSelectTools(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestNew checks that New registers the selected tools and sends the instructions on initialize.
+func TestNew(t *testing.T) {
+	task, err := New(Config{
+		ReadOnly:         true,
+		AllowedResources: []string{"dashboard", "prometheus"},
+		PersesServer:     config.RestConfigClient{URL: common.MustParseURL("http://127.0.0.1:1")},
+	})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	s, ok := task.(*server)
+	if !ok {
+		t.Fatalf("New() = %T, want *server", task)
+	}
+	serverTransport, clientTransport := mcp.NewInMemoryTransports()
+	serverSession, err := s.mcpServer.Connect(t.Context(), serverTransport, nil)
+	if err != nil {
+		t.Fatalf("connecting the server: %v", err)
+	}
+	t.Cleanup(func() { _ = serverSession.Close() })
+	session, err := mcp.NewClient(&mcp.Implementation{Name: "test-client"}, nil).Connect(t.Context(), clientTransport, nil)
+	if err != nil {
+		t.Fatalf("connecting the client: %v", err)
+	}
+	t.Cleanup(func() { _ = session.Close() })
+
+	toolList, err := session.ListTools(t.Context(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var registered []string
+	for _, tool := range toolList.Tools {
+		registered = append(registered, tool.Name)
+	}
+	// The read-only tools of the dashboards and of Prometheus only.
+	want := []string{
+		"perses_get_dashboard_by_name",
+		"perses_get_prometheus_metric_metadata",
+		"perses_list_dashboards",
+		"perses_list_prometheus_label_names",
+		"perses_list_prometheus_label_values",
+		"perses_list_prometheus_metric_names",
+		"perses_query_prometheus",
+	}
+	slices.Sort(registered)
+	if !slices.Equal(registered, want) {
+		t.Errorf("registered tools = %v, want %v", registered, want)
+	}
+
+	wantInstructions, err := os.ReadFile("testdata/instructions/read-only-dashboard-prometheus.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := session.InitializeResult().Instructions; got != string(wantInstructions) {
+		t.Errorf("instructions =\n%s\nwant\n%s", got, wantInstructions)
 	}
 }

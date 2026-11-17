@@ -27,6 +27,12 @@ import (
 	v1 "github.com/perses/perses/pkg/model/api/v1"
 )
 
+// The names of the tools that other packages refer to, e.g. in the server instructions.
+const (
+	ListToolName  = "perses_list_project_datasources"
+	QueryToolName = "perses_query_project_datasource"
+)
+
 type datasource struct {
 	client apiClient.ClientInterface
 }
@@ -60,7 +66,7 @@ type QueryProjectDatasourceInput struct {
 
 func (d *datasource) Query() *tools.Tool {
 	tool := &mcp.Tool{
-		Name:        "perses_query_project_datasource",
+		Name:        QueryToolName,
 		Description: "Query a project datasource through Perses proxy",
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Queries a project datasource through Perses proxy",
@@ -155,7 +161,7 @@ type ListProjectDatasourcesInput struct {
 
 func (d *datasource) List() *tools.Tool {
 	tool := &mcp.Tool{
-		Name:        "perses_list_project_datasources",
+		Name:        ListToolName,
 		Description: "List Datasources for a specific project",
 		Annotations: &mcp.ToolAnnotations{
 			Title:           "Lists datasources for a specific project in Perses",

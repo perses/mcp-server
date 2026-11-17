@@ -38,6 +38,12 @@ import (
 	dashboardSpec "github.com/perses/spec/go/dashboard"
 )
 
+// The names of the tools that other packages refer to, e.g. in the server instructions.
+const (
+	ListToolName = "perses_list_dashboards"
+	GetToolName  = "perses_get_dashboard_by_name"
+)
+
 const (
 	dryRunProperty          = "dry_run"
 	expectedVersionProperty = "expected_version"
@@ -185,7 +191,7 @@ type listedDashboard struct {
 
 func (d *dashboard) List() *tools.Tool {
 	tool := &mcp.Tool{
-		Name: "perses_list_dashboards",
+		Name: ListToolName,
 		Description: "List the dashboards of a project: name, display name, version and panel count. " +
 			"Use perses_get_dashboard_by_name to read one.",
 		Annotations: &mcp.ToolAnnotations{
@@ -254,7 +260,7 @@ type panelsResult struct {
 
 func (d *dashboard) Get() *tools.Tool {
 	tool := &mcp.Tool{
-		Name: "perses_get_dashboard_by_name",
+		Name: GetToolName,
 		Description: "Get a dashboard by name in a project. By default returns a compact outline " +
 			"(panel keys, plugins, placement, variables, layouts, URL) to decide what to change. " +
 			"Set summary=false to get the complete dashboard JSON before read-modify-write, such as perses_update_dashboard. " +
