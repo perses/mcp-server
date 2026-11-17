@@ -314,8 +314,8 @@ func TestQueryRange(t *testing.T) {
 		"seriesCount": 3.0,
 		"returned":    2.0,
 		"series": []any{
-			map[string]any{"labels": map[string]any{"job": "b"}, "min": 4.0, "max": 5.0, "avg": 4.5, "last": 4.0, "minAt": "2 Jan 2026, 13:01", "maxAt": "2 Jan 2026, 13:00"},
-			map[string]any{"labels": map[string]any{"job": "a"}, "min": 1.0, "max": 3.0, "avg": 2.0, "last": 3.0, "minAt": "2 Jan 2026, 13:00", "maxAt": "2 Jan 2026, 13:01"},
+			map[string]any{"labels": map[string]any{"job": "b"}, "min": 4.0, "max": 5.0, "avg": 4.5, "last": 4.0, "minAt": "2026-01-02T13:01:00+01:00", "maxAt": "2026-01-02T13:00:00+01:00"},
+			map[string]any{"labels": map[string]any{"job": "a"}, "min": 1.0, "max": 3.0, "avg": 2.0, "last": 3.0, "minAt": "2026-01-02T13:00:00+01:00", "maxAt": "2026-01-02T13:01:00+01:00"},
 		},
 		"warnings": []any{"1 series are not returned: they only have NaN or infinite samples in the time range"},
 	}

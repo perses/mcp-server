@@ -262,7 +262,7 @@ func TestSeriesStats(t *testing.T) {
 		{Timestamp: 1767355260000, Value: model.SampleValue(math.Inf(1))},
 	}
 	got, maxValue, ok := seriesStats(samples, time.UTC)
-	want := stats{Min: 1, Max: 3.333, Avg: 2.111, Last: "+Inf", MinAt: "2 Jan 2026, 12:00", MaxAt: "2 Jan 2026, 12:00", NonFinite: 2}
+	want := stats{Min: 1, Max: 3.333, Avg: 2.111, Last: "+Inf", MinAt: "2026-01-02T12:00:30Z", MaxAt: "2026-01-02T12:00:45Z", NonFinite: 2}
 	if !ok || !reflect.DeepEqual(got, want) || maxValue != 3.33333 {
 		t.Errorf("seriesStats() = %+v, %v, %v, want %+v", got, maxValue, ok, want)
 	}

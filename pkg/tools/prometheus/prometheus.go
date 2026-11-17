@@ -202,7 +202,7 @@ func (p *prometheus) Query() *tools.Tool {
 			},
 			"limit": limitSchema(fmt.Sprintf("Maximum number of series returned, highest values first (default %d, max %d).",
 				defaultSeriesLimit, maxSeriesLimit), maxSeriesLimit),
-			"time_zone": {Type: tools.SchemaTypeString, Description: "IANA time zone of minAt/maxAt, e.g. \"Europe/Berlin\". Defaults to UTC."},
+			"time_zone": {Type: tools.SchemaTypeString, Description: "IANA time zone of minAt/maxAt (RFC 3339 with the offset of the zone), e.g. \"Europe/Berlin\". Defaults to UTC."},
 		}, "query"),
 	}
 	handler := func(ctx context.Context, _ *mcp.CallToolRequest, input QueryInput) (*mcp.CallToolResult, any, error) { //nolint:unparam

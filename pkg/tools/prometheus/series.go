@@ -24,9 +24,6 @@ import (
 	"github.com/prometheus/common/model"
 )
 
-// timeLayout formats minAt and maxAt, e.g. "2 Jan 2026, 14:05".
-const timeLayout = "2 Jan 2006, 15:04"
-
 // errNativeHistograms shows how to query native histograms: unlike the classic ones, they have no _bucket series or le
 // label.
 var errNativeHistograms = errors.New("the query returns native histograms, which this tool does not summarize: " +
@@ -172,8 +169,10 @@ func seriesStats(samples []model.SamplePair, location *time.Location) (result st
 	result.Max = round(maxValue)
 	result.Avg = round(avg)
 	result.Last, _ = sampleValue(float64(samples[len(samples)-1].Value))
-	result.MinAt = minAt.Time().In(location).Format(timeLayout)
-	result.MaxAt = maxAt.Time().In(location).Format(timeLayout)
+	// RFC 3339 like the other times of the outputs, so that they can be reused as time or in time_range, but in the
+	// requested time zone.
+	result.MinAt = formatTimeIn(minAt.Time(), location)
+	result.MaxAt = formatTimeIn(maxAt.Time(), location)
 	return result, maxValue, true
 }
 

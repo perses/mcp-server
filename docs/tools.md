@@ -243,7 +243,7 @@ datasource; see [Datasource settings](#datasource-settings)). It returns:
   "matrix", timeRange, step, seriesCount, returned, commonLabels, series: [{labels, min, max, avg, last, minAt, maxAt,
   nonFinite}]}`. `min`, `max` and `avg` leave out the NaN and infinite samples, counted in `nonFinite`; `last` is the
   last sample. A series that only has NaN or infinite samples is not returned, with a warning. `minAt` and `maxAt` are
-  formatted in `time_zone` (default UTC).
+  in RFC 3339 with the offset of `time_zone` (default UTC).
 
 The labels shared by all returned series are returned once in `commonLabels`. The values keep 4 significant digits,
 and all the digits of their integer part, so that timestamps and large counters are not rounded (e.g. `12.35`,

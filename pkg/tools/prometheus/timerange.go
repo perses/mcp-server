@@ -87,7 +87,12 @@ func resolveTimeRange(input *TimeRangeInput, now time.Time) (time.Time, time.Tim
 // formatTimestamp formats a time of the outputs in RFC 3339 in UTC, with its fractional seconds if any, so that the
 // output has the time that was queried.
 func formatTimestamp(t time.Time) string {
-	return t.UTC().Format(time.RFC3339Nano)
+	return formatTimeIn(t, time.UTC)
+}
+
+// formatTimeIn formats a time of the outputs in RFC 3339 in a time zone, with its fractional seconds if any.
+func formatTimeIn(t time.Time, location *time.Location) string {
+	return t.In(location).Format(time.RFC3339Nano)
 }
 
 // parseDuration parses a positive Prometheus duration, e.g. "15m", "1h30m" or "7d".
