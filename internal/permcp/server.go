@@ -26,6 +26,7 @@ import (
 	"github.com/perses/perses/pkg/client/config"
 	"github.com/sirupsen/logrus"
 
+	"github.com/perses/mcp-server/pkg/mcpapp"
 	"github.com/perses/mcp-server/pkg/tools"
 	"github.com/perses/mcp-server/pkg/tools/dashboard"
 	"github.com/perses/mcp-server/pkg/tools/datasource"
@@ -44,6 +45,7 @@ import (
 	"github.com/perses/mcp-server/pkg/tools/schema"
 	"github.com/perses/mcp-server/pkg/tools/validate"
 	"github.com/perses/mcp-server/pkg/tools/variable"
+	"github.com/perses/mcp-server/ui"
 )
 
 func New(cfg Config) (async.SimpleTask, error) {
@@ -55,7 +57,7 @@ func New(cfg Config) (async.SimpleTask, error) {
 	logrus.WithField("url", cfg.PersesServer.URL).Info("Perses client initialized")
 
 	// The tools are selected first: the instructions are built from them, so that they never mention a missing tool.
-	selection := selectTools(buildTools(persesClient), cfg)
+	selection := selectTools(buildTools(persesClient, panelsView()), cfg)
 
 	mcpServer := mcp.NewServer(&mcp.Implementation{
 		Name:  "perses-mcp-server",
@@ -66,7 +68,7 @@ func New(cfg Config) (async.SimpleTask, error) {
 				Tools: &mcp.ToolCapabilities{ListChanged: false},
 			},
 		})
-	mcpServer.AddReceivingMiddleware(recoverPanics)
+	mcpServer.AddReceivingMiddleware(recoverPanics, mcpapp.HideAppOnlyTools)
 
 	for _, tool := range selection.selected {
 		tool.RegisterWith(mcpServer)
@@ -139,8 +141,22 @@ func (s *server) Execute(ctx context.Context, cancelFunc context.CancelFunc) err
 	return nil
 }
 
-// buildTools returns the tools of all the resources.
-func buildTools(persesClient apiclient.ClientInterface) []*tools.Tool {
+// loadPanelsView is replaced by the tests, which don't depend on the views being built.
+var loadPanelsView = ui.PanelsHTML
+
+// panelsView returns the view of perses_render_panels, which is empty when the server is built without it.
+func panelsView() string {
+	view, ok := loadPanelsView()
+	if !ok {
+		logrus.Warnf("this server is built without the MCP Apps views: %s is not available (see ui/mcp-apps)",
+			prometheus.RenderPanelsToolName)
+	}
+	return view
+}
+
+// buildTools returns the tools of all the resources. panelsView is the view of perses_render_panels: its tools are
+// left out when it is empty.
+func buildTools(persesClient apiclient.ClientInterface, panelsView string) []*tools.Tool {
 	v1Client := persesClient.V1()
 	resources := []resource.Resource{
 		project.New(v1Client),
@@ -159,6 +175,7 @@ func buildTools(persesClient apiclient.ClientInterface) []*tools.Tool {
 		validate.New(persesClient),
 		migrate.New(persesClient),
 		prometheus.New(v1Client),
+		prometheus.NewPanels(persesClient, panelsView),
 	}
 
 	var allTools []*tools.Tool

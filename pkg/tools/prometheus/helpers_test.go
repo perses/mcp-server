@@ -91,6 +91,12 @@ type fakePerses struct {
 	answer func(r *http.Request) *answer
 	// forbidGlobalList makes the list of the global datasources fail with 403.
 	forbidGlobalList bool
+	// panelPlugins are the panel plugins served on /api/v1/plugins: all the bundled ones when nil.
+	panelPlugins []string
+	// pluginsUnavailable makes /api/v1/plugins fail with 500.
+	pluginsUnavailable bool
+	// invalidDashboard, when set, is the message of the 400 error of /api/validate/dashboards.
+	invalidDashboard string
 }
 
 func newFakePerses(t *testing.T, answers map[string]answer) *fakePerses {
@@ -100,6 +106,18 @@ func newFakePerses(t *testing.T, answers map[string]answer) *fakePerses {
 }
 
 func (f *fakePerses) serve(w http.ResponseWriter, r *http.Request) {
+	switch r.URL.Path {
+	case "/api/v1/plugins":
+		f.servePlugins(w)
+		return
+	case "/api/validate/dashboards":
+		w.Header().Set("Content-Type", "application/json")
+		if f.invalidDashboard != "" {
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]string{"message": f.invalidDashboard})
+		}
+		return
+	}
 	if strings.HasPrefix(r.URL.Path, "/api/v1/") {
 		f.serveDatasources(w, r)
 		return
@@ -218,6 +236,30 @@ func (f *fakePerses) serveDatasources(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_ = json.NewEncoder(w).Encode(found[0])
+}
+
+// servePlugins serves the plugin modules of Perses: a module with the panel plugins and the Prometheus datasource.
+func (f *fakePerses) servePlugins(w http.ResponseWriter) {
+	w.Header().Set("Content-Type", "application/json")
+	if f.pluginsUnavailable {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(`{"message":"internal error"}`))
+		return
+	}
+	kinds := f.panelPlugins
+	if kinds == nil {
+		kinds = panelKindNames()
+	}
+	plugins := []any{map[string]any{"kind": "Datasource", "spec": map[string]any{"name": prometheusDatasourceKind}}}
+	for _, kind := range kinds {
+		plugins = append(plugins, map[string]any{"kind": "Panel", "spec": map[string]any{"name": kind}})
+	}
+	_ = json.NewEncoder(w).Encode([]any{map[string]any{
+		"kind":     "PluginModule",
+		"metadata": map[string]any{"name": "plugins", "version": "0.1.0"},
+		"spec":     map[string]any{"schemasPath": "schemas", "plugins": plugins},
+		"status":   map[string]any{"isLoaded": true},
+	}})
 }
 
 // tooLarge returns a successful Prometheus response with data, padded over maxBodyBytes.

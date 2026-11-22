@@ -105,7 +105,15 @@ func NewClient(t testing.TB, perses http.Handler) apiClient.ClientInterface {
 // Connect registers the tools on an in-memory MCP server and returns the session of a client connected to it.
 func Connect(t testing.TB, toolset []*tools.Tool) *mcp.ClientSession {
 	t.Helper()
+	return ConnectClient(t, toolset, nil)
+}
+
+// ConnectClient is Connect with the options of the client, e.g. its capabilities, and the receiving middlewares of the
+// server.
+func ConnectClient(t testing.TB, toolset []*tools.Tool, clientOptions *mcp.ClientOptions, middleware ...mcp.Middleware) *mcp.ClientSession {
+	t.Helper()
 	server := mcp.NewServer(&mcp.Implementation{Name: "test-server"}, nil)
+	server.AddReceivingMiddleware(middleware...)
 	names := map[string]bool{}
 	for _, tool := range toolset {
 		if names[tool.MCPTool.Name] {
@@ -121,7 +129,7 @@ func Connect(t testing.TB, toolset []*tools.Tool) *mcp.ClientSession {
 	}
 	t.Cleanup(func() { _ = serverSession.Close() })
 
-	session, err := mcp.NewClient(&mcp.Implementation{Name: "test-client"}, nil).Connect(context.Background(), clientTransport, nil)
+	session, err := mcp.NewClient(&mcp.Implementation{Name: "test-client"}, clientOptions).Connect(context.Background(), clientTransport, nil)
 	if err != nil {
 		t.Fatalf("connecting the client: %v", err)
 	}
