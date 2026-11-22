@@ -120,6 +120,9 @@ make build
 
 The binary is created in the folder `bin`: `bin/perses-mcp-server`.
 
+`make build` also builds the view of [`perses_render_panels`](./tools.md#mcp-apps) when [Node.js](https://nodejs.org/)
+(`npm`) is installed. Without it, the server is built without this tool. The released binaries and images have it.
+
 ## What's next
 
 - [Connect the MCP server to your LLM host](./clients.md)

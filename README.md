@@ -480,8 +480,11 @@ optional: the default Prometheus datasource is used when it is omitted.
 | `perses_list_prometheus_label_values`   | List the values of a label                     | `label`             |
 | `perses_get_prometheus_metric_metadata` | Get the type, help and unit of metrics         | `metrics`           |
 | `perses_query_prometheus`               | Run a PromQL query and get a compact result    | `query`             |
+| `perses_render_panels`                  | Show Prometheus queries as Perses panels       | `panels`            |
 
-See [Prometheus tools](./docs/tools.md#prometheus) for details.
+`perses_render_panels` is an [MCP App](https://modelcontextprotocol.io/docs/extensions/apps): the clients that support
+MCP Apps display the live Perses panels inline in the chat, the other clients get statistics of the series. See
+[Prometheus tools](./docs/tools.md#prometheus) and [Panels](./docs/tools.md#panels) for details.
 
 ### Roles
 
@@ -564,7 +567,7 @@ If you want to build the MCP server from source code (for development or contrib
 make build
 ```
 
-This creates a `bin` directory containing the binary named `perses-mcp-server`. Copy the absolute path to the binary to use in your MCP server configuration.
+This creates a `bin` directory containing the binary named `perses-mcp-server`. The tool `perses_render_panels` needs [Node.js](https://nodejs.org/) (`npm`) at build time: without it, the server is built without this tool. Copy the absolute path to the binary to use in your MCP server configuration.
 
 ## License
 

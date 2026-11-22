@@ -285,6 +285,69 @@ Like the Perses UI, the tools apply two settings of the Prometheus datasource, w
   points per series. Before, the minimum default step was 15s: range statistics are now computed over fewer points
   unless `step` is set.
 
+### Panels
+
+| Tool                           | Description                                         | Required parameters | Optional parameters                                          |
+|--------------------------------|-----------------------------------------------------|---------------------|--------------------------------------------------------------|
+| `perses_render_panels`         | Show Prometheus queries as Perses panels            | `panels`            | `datasource`, `time_range`, `time_zone`, `allow_no_data`     |
+| `perses_query_prometheus_data` | Load the data of the panels view (app-only)         | `query`             | `datasource`, `time`, `start`, `end`, `step`                 |
+
+`perses_render_panels` shows data to the user as Perses panels. Each of the 1 to 6 `panels` has:
+
+- `title`, and an optional `description`;
+- `kind`: one of the panel plugins of Perses that display time series: `TimeSeriesChart` (default), `StatChart`,
+  `GaugeChart`, `BarChart`, `PieChart`, `Table`, `TimeSeriesTable`, `StatusHistoryChart`, `HeatMapChart` and
+  `HistogramChart` (the last two display native histograms only). The plugin must also be installed in Perses: the
+  list of the plugins of Perses is cached for 5 minutes; when it can't be read, the kinds are not checked against it,
+  with a warning;
+- `unit`: a unit of the Perses formats, e.g. `bytes`, `seconds`, `percent` (0-100), `percent-decimal` (0-1) or
+  `requests/sec`, set in the format of the panel (not for `Table`, `TimeSeriesTable` and `StatusHistoryChart`);
+- `queries`: 1 to 5 `{promql, legend}`, where `legend` is a series name with label placeholders, e.g.
+  `"{{instance}}"`;
+- `spec`: an optional plugin spec, merged over the defaults of the kind, e.g. `{"thresholds": {...}}`.
+
+The panels are validated by Perses (`/api/validate/dashboards`) against the schemas of the plugins: an invalid spec is a
+tool error with the message of Perses. Each query is then run once as a range query over `time_range` (default the past
+hour; the step is chosen as for `perses_query_prometheus`). The result has:
+
+- in the text content, read by the model: `{status, message, datasource, timeRange, step, displayedPanels, summaries,
+  warnings}`, where each summary is a query with the statistics of its 8 highest series (`name` from the legend,
+  `min`, `max`, `avg`, `last`, `minAt`, `maxAt`);
+- in the structured content: the same with the Perses definitions of the panels (`panels`) instead of
+  `displayedPanels`, used by the view and by chat UIs that render Perses panels.
+
+When a query fails, a panel has no data (unless `allow_no_data`), or a `HeatMapChart` or `HistogramChart` gets no native
+histogram, `status` is `error`, there are no panels and `message` tells the model what to fix.
+
+#### MCP Apps
+
+`perses_render_panels` follows the [MCP Apps](https://modelcontextprotocol.io/docs/extensions/apps) extension: its
+`_meta.ui.resourceUri` is the view `ui://perses/panels.html`, which the clients that support MCP Apps (e.g. Claude,
+ChatGPT, VS Code GitHub Copilot) display inline in the chat: the live panels, with a time range picker, a refresh
+button and a fullscreen mode, in the theme and time zone of the client. The other clients only get the text content.
+
+The view is a single HTML file, built from [`ui/mcp-apps`](https://github.com/perses/mcp-server/tree/main/ui/mcp-apps)
+with the panel plugins of Perses and embedded in the server: the panels are those of the server release, which may
+not be the versions of the plugins installed in Perses. It makes no network request: the Prometheus plugin of the
+view gets its data from `perses_query_prometheus_data`, which runs an instant or range query through the Perses proxy
+like the other Prometheus tools and returns the response of Prometheus in the structured content (an error over 2 MiB:
+aggregate the query or shorten the time range). This tool is only for
+the view (`_meta.ui.visibility: ["app"]`): it is not listed to the clients that don't declare the
+`io.modelcontextprotocol/ui` extension, which would show it to the model.
+
+Each query runs twice when the panels are first displayed: once by `perses_render_panels`, for the statistics of the
+model, and once by the view, as the Prometheus plugin of Perses chooses the step of a query from the width of its panel.
+Changing the time range or refreshing only runs the queries of the view; the view then tells the model the new time
+range (`ui/update-model-context`), as the statistics are those of the time range of the call. The automatic refresh
+stops while the view is scrolled out of the chat.
+
+The releases of the server (binaries and images) embed the view. A server built from the sources embeds it when
+`npm` is installed (Node.js, see `ui/mcp-apps/.nvmrc`): otherwise `perses_render_panels` and
+`perses_query_prometheus_data` are not registered, and the server logs a warning when it starts. To change the view,
+edit `ui/mcp-apps` and run `make build`. To see the view in an MCP Apps host (Claude Desktop, VS
+Code, the basic-host of ext-apps...), see
+[Testing locally](https://github.com/perses/mcp-server/tree/main/ui/mcp-apps#testing-locally).
+
 ## Variables
 
 Resources: `globalvariable` for the tools `*_global_variable*`, `variable` for the tools `*_project_variable*`.
