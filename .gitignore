@@ -1,4 +1,8 @@
 dist/
+# The MCP Apps views are built (make build-mcp-apps): only the placeholder of the embed pattern is committed.
+!/ui/mcp-apps/dist/
+/ui/mcp-apps/dist/*
+!/ui/mcp-apps/dist/.placeholder.html
 bin/
 .vscode/
 .idea/
@@ -9,3 +13,4 @@ AGENTS.md
 
 .github/perses-ci/
 perses-mcp-config.yaml
+node_modules/
