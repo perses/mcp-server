@@ -11,8 +11,19 @@ LDFLAGS := -s -w -X ${PKG_LDFLAGS}.Version=${VERSION} -X ${PKG_LDFLAGS}.Revision
 export LDFLAGS
 export DATE
 
+MCP_APPS_DIR := ui/mcp-apps
+MCP_APPS_VIEW := $(MCP_APPS_DIR)/dist/panels.html
+MCP_APPS_SOURCES := $(shell find $(MCP_APPS_DIR)/app -type f) $(MCP_APPS_DIR)/package.json \
+	$(MCP_APPS_DIR)/package-lock.json $(MCP_APPS_DIR)/tsconfig.json $(MCP_APPS_DIR)/vite.config.ts
+
+## Build the server, with the MCP Apps views when npm is installed (perses_render_panels needs them).
 .PHONY: build
 build:
+	@if command -v npm >/dev/null 2>&1; then \
+		$(MAKE) --no-print-directory $(MCP_APPS_VIEW); \
+	else \
+		echo ">> npm not found: building without the MCP Apps views (perses_render_panels will not be available)"; \
+	fi
 	$(GO) build -ldflags "$(LDFLAGS)" -o bin/perses-mcp-server ./cmd/permcp
 
 .PHONY: generate-goreleaser
@@ -21,11 +32,11 @@ generate-goreleaser:
 
 ## Cross build binaries for all platforms (Use "make build" in development)
 .PHONY: cross-build
-cross-build: generate-goreleaser ## Cross build binaries for all platforms (Use "make build" in development)
+cross-build: checkmcpapps generate-goreleaser ## Cross build binaries for all platforms (Use "make build" in development)
 	goreleaser release --snapshot --clean
 
 .PHONY: cross-release
-cross-release: generate-goreleaser
+cross-release: checkmcpapps generate-goreleaser
 	goreleaser release --clean
 
 .PHONY: checkstyle
@@ -48,3 +59,23 @@ checkunused:
 test:
 	@echo ">> running all tests"
 	$(GO) test -count=1 -v ./...	
+
+## Build the MCP Apps views embedded in the server (ui/mcp-apps/dist, not committed).
+.PHONY: build-mcp-apps
+build-mcp-apps:
+	@echo ">> building the MCP Apps views"
+	cd $(MCP_APPS_DIR) && npm ci && npm run build
+
+# Rebuilds the views only when their sources changed.
+$(MCP_APPS_VIEW): $(MCP_APPS_SOURCES)
+	@$(MAKE) --no-print-directory build-mcp-apps
+
+.PHONY: test-mcp-apps
+test-mcp-apps:
+	@echo ">> checking the MCP Apps views"
+	cd $(MCP_APPS_DIR) && npm ci && npm run typecheck && npm test
+
+## Build the MCP Apps views and fail when the server doesn't embed them: the releases must have them.
+.PHONY: checkmcpapps
+checkmcpapps: build-mcp-apps
+	PERSES_MCP_REQUIRE_VIEWS=true $(GO) test -count=1 ./ui/...

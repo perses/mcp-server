@@ -55,3 +55,19 @@ jobs:
         with:
           version: v2.14.0
           args: --timeout 5m
+  mcp-apps:
+    name: "MCP Apps views"
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v7
+      - uses: perses/github-actions@v0.13.0
+      - uses: ./.github/perses-ci/actions/setup_environment
+        with:
+          enable_go: true
+          enable_npm: true
+          nvmrc_path: 'ui/mcp-apps/.nvmrc'
+      - name: typecheck and test
+        run: make test-mcp-apps
+      - name: build the views and check that the server embeds them
+        run: make checkmcpapps

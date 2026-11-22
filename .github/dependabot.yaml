@@ -12,6 +12,18 @@ updates:
       gomod:
         patterns:
           - "*"
+  - package-ecosystem: "npm"
+    directory: "/ui/mcp-apps"
+    schedule:
+      interval: "weekly"
+    groups:
+      # The Perses packages depend on each other: they are updated together.
+      perses:
+        patterns:
+          - "@perses-dev/*"
+      npm:
+        patterns:
+          - "*"
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
