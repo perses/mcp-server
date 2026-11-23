@@ -14,6 +14,7 @@
 package prometheus
 
 import (
+	"errors"
 	"fmt"
 	"maps"
 	"slices"
@@ -231,6 +232,10 @@ type installedPanels struct {
 	expires time.Time
 }
 
+// errNoPanelPlugin is returned when Perses lists no loaded panel plugin, e.g. while it loads them: the kinds are then
+// not checked, rather than all refused.
+var errNoPanelPlugin = errors.New("perses lists no loaded panel plugin")
+
 // get returns the installed panel kinds. Errors are not cached.
 func (i *installedPanels) get() (map[string]bool, error) {
 	i.mutex.Lock()
@@ -252,6 +257,9 @@ func (i *installedPanels) get() (map[string]bool, error) {
 				kinds[p.Spec.Name] = true
 			}
 		}
+	}
+	if len(kinds) == 0 {
+		return nil, errNoPanelPlugin
 	}
 	i.kinds = kinds
 	i.expires = i.now().Add(installedPanelsTTL)

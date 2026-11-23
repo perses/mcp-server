@@ -378,6 +378,28 @@ func TestRenderPanelsWithoutThePluginList(t *testing.T) {
 	}
 }
 
+func TestRenderPanelsWithoutLoadedPanelPlugins(t *testing.T) {
+	perses := newFakePerses(t, nil)
+	perses.panelPlugins = []string{}
+	perses.answer = answerQueries(map[string]answer{"up": matrix(`{"metric":{"job":"node"},"values":[[1767355200,"1"]]}`)})
+	session := connectPanels(t, perses, false)
+	result, text := callPanels(t, session, map[string]any{
+		"panels": []any{map[string]any{"title": "Up", "kind": "PieChart", "queries": []any{map[string]any{"promql": "up"}}}},
+	}, false)
+
+	// The kinds are not all refused: they are not checked, with a warning. The empty list is not cached.
+	output := structured(t, result)
+	if output["status"] != panelsStatusOK || !strings.Contains(text, "Perses lists no loaded panel plugin") {
+		t.Errorf("output = %s", text)
+	}
+	callPanels(t, session, map[string]any{
+		"panels": []any{map[string]any{"title": "Up", "queries": []any{map[string]any{"promql": "up"}}}},
+	}, false)
+	if count := perses.Count(http.MethodGet, "/api/v1/plugins"); count != 2 {
+		t.Errorf("%d plugin list requests, want 2", count)
+	}
+}
+
 func TestInstalledPanelsAreCached(t *testing.T) {
 	perses := newFakePerses(t, nil)
 	p := newTestPanels(t, perses)

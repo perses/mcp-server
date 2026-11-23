@@ -298,8 +298,8 @@ Like the Perses UI, the tools apply two settings of the Prometheus datasource, w
 - `kind`: one of the panel plugins of Perses that display time series: `TimeSeriesChart` (default), `StatChart`,
   `GaugeChart`, `BarChart`, `PieChart`, `Table`, `TimeSeriesTable`, `StatusHistoryChart`, `HeatMapChart` and
   `HistogramChart` (the last two display native histograms only). The plugin must also be installed in Perses: the
-  list of the plugins of Perses is cached for 5 minutes; when it can't be read, the kinds are not checked against it,
-  with a warning;
+  list of the plugins of Perses is cached for 5 minutes; when it can't be read or has no loaded panel plugin, the kinds
+  are not checked against it, with a warning;
 - `unit`: a unit of the Perses formats, e.g. `bytes`, `seconds`, `percent` (0-100), `percent-decimal` (0-1) or
   `requests/sec`, set in the format of the panel (not for `Table`, `TimeSeriesTable` and `StatusHistoryChart`);
 - `queries`: 1 to 5 `{promql, legend}`, where `legend` is a series name with label placeholders, e.g.

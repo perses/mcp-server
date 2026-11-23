@@ -148,7 +148,11 @@ func (p *panels) render(ctx context.Context, input RenderPanelsInput) (*RenderPa
 	}
 	var warnings []string
 	installed, err := p.installed.get()
-	if err != nil {
+	switch {
+	case errors.Is(err, errNoPanelPlugin):
+		logrus.Warn("Perses lists no loaded panel plugin: the panel kinds are not checked against them")
+		warnings = append(warnings, "Perses lists no loaded panel plugin: the panel kinds were not checked against them")
+	case err != nil:
 		logrus.WithError(err).Warn("error listing the plugins of Perses: the panel kinds are not checked against them")
 		warnings = append(warnings, "the plugins installed in Perses could not be listed: the panel kinds were not checked against them")
 	}
