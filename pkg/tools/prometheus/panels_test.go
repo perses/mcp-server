@@ -435,6 +435,10 @@ func TestQueryData(t *testing.T) {
 			if string(got) != tt.want {
 				t.Errorf("structured content =\n%s\nwant\n%s", got, tt.want)
 			}
+			// The text content is the same JSON, for the hosts that only pass the content to the views.
+			if strings.TrimSpace(text) != tt.want {
+				t.Errorf("text content =\n%s\nwant\n%s", text, tt.want)
+			}
 			path := queryRangePath
 			if tt.arguments["time"] != nil {
 				path = globalProxy + "/api/v1/query"
