@@ -312,12 +312,12 @@ hour; the step is chosen as for `perses_query_prometheus`). As in the Prometheus
 `$__interval_ms` and `$__rate_interval` (max(`$__interval` + scrape interval, 4 * scrape interval)) are replaced with this
 step in these queries; the panels keep them for the view. The result has:
 
-- in the text content, read by the model: `{status, message, datasource, timeRange, step, displayedPanels, summaries,
+- in the text content, read by the model: `{status, message, datasource, timeRange, step, panelCount, summaries,
   warnings}`, where each summary is a query with the statistics of its 8 highest series (`name` from the legend,
   `min`, `max`, `avg`, `last`, `minAt`, `maxAt`); a series that only has NaN or infinite samples has no statistics,
   with a warning;
 - in the structured content: the same with the Perses definitions of the panels (`panels`) instead of
-  `displayedPanels`, and the `scrapeInterval` of the datasource, used by the view and by chat UIs that render Perses
+  `panelCount`, and the `scrapeInterval` of the datasource, used by the view and by chat UIs that render Perses
   panels.
 
 When a query fails, a panel has no data (unless `allow_no_data`), or a `HeatMapChart` or `HistogramChart` gets no native

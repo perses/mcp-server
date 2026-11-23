@@ -114,26 +114,26 @@ type RenderPanelsOutput struct {
 // renderPanelsText is the text content of perses_render_panels, read by the model: the structured content without
 // the panel definitions, which the model wrote and which only the views use.
 type renderPanelsText struct {
-	Status          string          `json:"status"`
-	Message         string          `json:"message,omitempty"`
-	Datasource      DatasourceRef   `json:"datasource"`
-	TimeRange       timeRangeOutput `json:"timeRange"`
-	Step            string          `json:"step"`
-	DisplayedPanels int             `json:"displayedPanels"`
-	Summaries       []querySummary  `json:"summaries"`
-	Warnings        []string        `json:"warnings,omitempty"`
+	Status     string          `json:"status"`
+	Message    string          `json:"message,omitempty"`
+	Datasource DatasourceRef   `json:"datasource"`
+	TimeRange  timeRangeOutput `json:"timeRange"`
+	Step       string          `json:"step"`
+	PanelCount int             `json:"panelCount"`
+	Summaries  []querySummary  `json:"summaries"`
+	Warnings   []string        `json:"warnings,omitempty"`
 }
 
 func (o *RenderPanelsOutput) text() renderPanelsText {
 	return renderPanelsText{
-		Status:          o.Status,
-		Message:         o.Message,
-		Datasource:      o.Datasource,
-		TimeRange:       o.TimeRange,
-		Step:            o.Step,
-		DisplayedPanels: len(o.Panels),
-		Summaries:       o.Summaries,
-		Warnings:        o.Warnings,
+		Status:     o.Status,
+		Message:    o.Message,
+		Datasource: o.Datasource,
+		TimeRange:  o.TimeRange,
+		Step:       o.Step,
+		PanelCount: len(o.Panels),
+		Summaries:  o.Summaries,
+		Warnings:   o.Warnings,
 	}
 }
 

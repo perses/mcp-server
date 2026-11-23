@@ -135,8 +135,8 @@ func TestRenderPanels(t *testing.T) {
 	if _, found := textOutput["panels"]; found {
 		t.Errorf("the text has the panels: %s", text)
 	}
-	if textOutput["displayedPanels"] != float64(2) {
-		t.Errorf("displayedPanels = %v", textOutput["displayedPanels"])
+	if textOutput["panelCount"] != float64(2) {
+		t.Errorf("panelCount = %v", textOutput["panelCount"])
 	}
 	gotSummaries, err := json.Marshal(textOutput["summaries"])
 	if err != nil {
