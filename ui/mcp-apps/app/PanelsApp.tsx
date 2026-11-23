@@ -38,6 +38,7 @@ import type { RenderPanelsOutput } from './model';
 import { timeRangeContext, toTimeRangeValue } from './model';
 import { pluginLoader } from './plugins';
 import { createPrometheusFetch } from './prometheusFetch';
+import { useResultKey } from './resultKey';
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { refetchOnWindowFocus: false, retry: 0 } } });
 
@@ -55,6 +56,8 @@ export function PanelsApp({ app, store }: PanelsAppProps): ReactElement {
   const muiTheme = useMemo(() => getTheme(mode), [mode]);
   const chartsTheme = useMemo(() => generateChartsTheme(muiTheme, {}), [muiTheme]);
   const insets = hostContext.safeAreaInsets;
+  // A new result starts the dashboard again: its time range is that of the new call.
+  const resultKey = useResultKey(view.kind === 'panels' ? view.output : undefined);
 
   return (
     <ThemeProvider theme={muiTheme}>
@@ -75,7 +78,13 @@ export function PanelsApp({ app, store }: PanelsAppProps): ReactElement {
                 }}
               >
                 {view.kind === 'panels' && serverTools !== false && (
-                  <PanelsDashboard app={app} output={view.output} hostContext={hostContext} paused={tornDown === true} />
+                  <PanelsDashboard
+                    key={resultKey}
+                    app={app}
+                    output={view.output}
+                    hostContext={hostContext}
+                    paused={tornDown === true}
+                  />
                 )}
                 {view.kind === 'panels' && serverTools === false && (
                   <Alert severity="warning">
