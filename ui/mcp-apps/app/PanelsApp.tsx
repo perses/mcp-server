@@ -109,7 +109,9 @@ interface PanelsDashboardProps {
 function PanelsDashboard({ app, output, hostContext, paused }: PanelsDashboardProps): ReactElement {
   const [timeRange, setTimeRange] = useState<TimeRangeValue>(() => toTimeRangeValue(output.timeRange));
   const [refreshInterval, setRefreshInterval] = useState<DurationString>('0s');
-  const [timeZone, setTimeZone] = useState(hostContext.timeZone ?? 'local');
+  // The time zone of the host, which can change after the first display, unless the user picks one.
+  const [pickedTimeZone, setTimeZone] = useState<string>();
+  const timeZone = pickedTimeZone ?? hostContext.timeZone ?? 'local';
   const fetchFn = useMemo(
     () => createPrometheusFetch((params, options) => app.callServerTool(params, options), output.datasource),
     [app, output.datasource],
@@ -178,7 +180,9 @@ function PanelsDashboard({ app, output, hostContext, paused }: PanelsDashboardPr
                 sx={{
                   display: 'grid',
                   gap: 1,
-                  gridTemplateColumns: output.panels.length === 1 ? '1fr' : 'repeat(auto-fill, minmax(360px, 1fr))',
+                  // A column is at most as wide as the view, so that the panels shrink in a narrow host.
+                  gridTemplateColumns:
+                    output.panels.length === 1 ? 'minmax(0, 1fr)' : 'repeat(auto-fill, minmax(min(360px, 100%), 1fr))',
                 }}
               >
                 {output.panels.map((panel, index) => (
