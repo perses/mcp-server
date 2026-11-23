@@ -80,28 +80,29 @@ export function attachHostCapabilities(app: App, store: HostStore): void {
   store.update({ serverTools: app.getHostCapabilities()?.serverTools !== undefined });
 }
 
+// The messages of the results are written for the model, e.g. "Fix the queries and call the tool again": the view
+// shows short messages for the user instead.
+export const TOOL_ERROR_MESSAGE = 'The panels could not be rendered.';
+export const NO_PANEL_MESSAGE = 'No panels: the queries failed or returned no data.';
+
 /** Returns what the view displays for a result of perses_render_panels. */
 export function viewOfResult(result: ToolResult): ViewState {
   if (result.isError) {
-    const text = (result.content ?? [])
-      .filter((content) => content.type === 'text' && content.text)
-      .map((content) => content.text)
-      .join('\n');
-    return { kind: 'message', message: text || 'The panels could not be rendered.' };
+    return { kind: 'message', message: TOOL_ERROR_MESSAGE };
   }
   const output = structuredContentOf(result) as Partial<RenderPanelsOutput> | undefined;
   if (output === undefined) {
     return { kind: 'message', message: 'The panels could not be rendered: the tool result has no structured content.' };
   }
   if (output.status !== 'ok') {
-    return { kind: 'message', message: output.message ?? 'No panel to display.' };
+    return { kind: 'message', message: NO_PANEL_MESSAGE };
   }
   if (!Array.isArray(output.panels)) {
     // The text content, which has no panel definitions: the host didn't pass the structured content.
     return { kind: 'message', message: 'The panels could not be rendered: the host did not pass their definitions to the view.' };
   }
   if (output.panels.length === 0) {
-    return { kind: 'message', message: output.message ?? 'No panel to display.' };
+    return { kind: 'message', message: NO_PANEL_MESSAGE };
   }
   return { kind: 'panels', output: output as RenderPanelsOutput };
 }

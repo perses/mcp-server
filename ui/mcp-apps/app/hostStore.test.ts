@@ -15,7 +15,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { App } from '@modelcontextprotocol/ext-apps';
 
-import { attachHost, attachHostCapabilities, HostStore, viewOfResult } from './hostStore';
+import { attachHost, attachHostCapabilities, HostStore, NO_PANEL_MESSAGE, TOOL_ERROR_MESSAGE, viewOfResult } from './hostStore';
 import type { RenderPanelsOutput } from './model';
 import { timeRangeContext, toTimeRangeValue } from './model';
 
@@ -32,9 +32,13 @@ describe('viewOfResult', () => {
     expect(viewOfResult({ structuredContent: output })).toEqual({ kind: 'panels', output });
   });
 
-  it('shows the message of an error status', () => {
-    const view = viewOfResult({ structuredContent: { ...output, status: 'error', message: 'Nothing was displayed.', panels: [] } });
-    expect(view).toEqual({ kind: 'message', message: 'Nothing was displayed.' });
+  it('shows a message for the user, not the message for the model, when no panel is displayed', () => {
+    const message = 'Nothing was displayed. Fix the queries and call the tool again.';
+    expect(viewOfResult({ structuredContent: { ...output, status: 'error', message, panels: [] } })).toEqual({
+      kind: 'message',
+      message: NO_PANEL_MESSAGE,
+    });
+    expect(viewOfResult({ structuredContent: { ...output, panels: [] } })).toEqual({ kind: 'message', message: NO_PANEL_MESSAGE });
   });
 
   it('reads the JSON of the text content when the host passes no structured content', () => {
@@ -42,7 +46,7 @@ describe('viewOfResult', () => {
     expect(viewOfResult(text(output))).toEqual({ kind: 'panels', output });
     expect(viewOfResult(text({ status: 'error', message: 'Nothing was displayed.' }))).toEqual({
       kind: 'message',
-      message: 'Nothing was displayed.',
+      message: NO_PANEL_MESSAGE,
     });
     // The text content of perses_render_panels has no panel definitions.
     const { panels: _panels, ...withoutPanels } = output;
@@ -50,9 +54,9 @@ describe('viewOfResult', () => {
     expect(viewOfResult({ content: [{ type: 'text', text: 'not JSON' }] })).toMatchObject({ kind: 'message' });
   });
 
-  it('shows the text of a tool error', () => {
-    const view = viewOfResult({ isError: true, content: [{ type: 'text', text: 'invalid panels' }] });
-    expect(view).toEqual({ kind: 'message', message: 'invalid panels' });
+  it('shows a message for the user on a tool error', () => {
+    const view = viewOfResult({ isError: true, content: [{ type: 'text', text: 'invalid panels (fix spec, unit or kind)' }] });
+    expect(view).toEqual({ kind: 'message', message: TOOL_ERROR_MESSAGE });
   });
 });
 
