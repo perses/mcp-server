@@ -504,9 +504,9 @@ func TestQueryData(t *testing.T) {
 			if string(got) != tt.want {
 				t.Errorf("structured content =\n%s\nwant\n%s", got, tt.want)
 			}
-			// The text content is the same JSON, for the hosts that only pass the content to the views.
-			if strings.TrimSpace(text) != tt.want {
-				t.Errorf("text content =\n%s\nwant\n%s", text, tt.want)
+			// The data is only in the structured content: the text content is a summary.
+			if !strings.HasPrefix(text, "Prometheus ") || !strings.HasSuffix(strings.TrimSpace(text), " result in the structured content.") {
+				t.Errorf("text content = %s", text)
 			}
 			path := queryRangePath
 			if tt.arguments["time"] != nil {

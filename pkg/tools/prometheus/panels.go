@@ -126,7 +126,7 @@ func (p *panels) QueryData() *tools.Tool {
 		Name: QueryDataToolName,
 		Description: "Called by the view of perses_render_panels (MCP Apps) to load the data of its panels: runs a " +
 			"Prometheus instant query (time) or range query (start, end, step) and returns the response of the " +
-			"Prometheus HTTP API in the structured content and, as JSON, in the text content.",
+			"Prometheus HTTP API in the structured content.",
 		Annotations: readOnlyAnnotations("Queries Prometheus for the panels view"),
 		InputSchema: objectSchema(map[string]*jsonschema.Schema{
 			"query": {Type: tools.SchemaTypeString, MinLength: new(1), Description: "PromQL expression."},
@@ -145,13 +145,11 @@ func (p *panels) QueryData() *tools.Tool {
 		if err != nil {
 			return nil, nil, err
 		}
-		// The text content is the JSON of the structured content, as MCP recommends: the view reads it when a host
-		// only passes the content. Only the view calls this tool: the model doesn't read it.
-		result, err := tools.JSONResult(output)
-		if err != nil {
-			return nil, nil, fmt.Errorf("error marshalling the result: %w", err)
-		}
-		return result, output, nil
+		// The data is only in the structured content, which MCP Apps defines for the views: the tool is app-only, so
+		// only MCP Apps hosts call it, and they support the structured content. Repeating it as JSON in the text
+		// content would double the size of the result.
+		data, _ := output["data"].(map[string]any)
+		return tools.TextResult(fmt.Sprintf("Prometheus %s result in the structured content.", data["resultType"])), output, nil
 	}
 	return readOnlyTool(tool, func(server *mcp.Server) { mcp.AddTool(server, tool, handler) })
 }

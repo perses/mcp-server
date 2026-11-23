@@ -334,9 +334,8 @@ The view is a single HTML file, built from [`ui/mcp-apps`](https://github.com/pe
 with the panel plugins of Perses and embedded in the server: the panels are those of the server release, which may
 not be the versions of the plugins installed in Perses. It makes no network request: the Prometheus plugin of the
 view gets its data from `perses_query_prometheus_data`, which runs an instant or range query through the Perses proxy
-like the other Prometheus tools and returns the response of Prometheus in the structured content, and as JSON in the
-text content for the hosts that only pass the content to the views (an error over 1 MiB: aggregate the query or
-shorten the time range). This tool is only for the view (`_meta.ui.visibility: ["app"]`): it is not listed to the
+like the other Prometheus tools and returns the response of Prometheus in the structured content, with a short
+summary as text content (an error over 1 MiB: aggregate the query or shorten the time range). This tool is only for the view (`_meta.ui.visibility: ["app"]`): it is not listed to the
 clients that don't declare the `io.modelcontextprotocol/ui` extension, which would show it to the model.
 
 Each query runs twice when the panels are first displayed: once by `perses_render_panels`, for the statistics of the
