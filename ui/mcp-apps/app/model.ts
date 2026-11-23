@@ -31,6 +31,8 @@ export interface RenderPanelsOutput {
   status: 'ok' | 'error';
   message?: string;
   datasource: DatasourceRef;
+  /** The scrape interval of the datasource, e.g. "30s": the minimum step of the queries. */
+  scrapeInterval?: string;
   timeRange: PanelsTimeRange;
   step: string;
   panels: PanelDefinition[];

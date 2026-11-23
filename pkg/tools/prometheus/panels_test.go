@@ -17,6 +17,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -113,8 +114,8 @@ func TestRenderPanels(t *testing.T) {
 	}, false)
 
 	output := structured(t, result)
-	if output["status"] != panelsStatusOK || output["step"] != "1m" {
-		t.Errorf("status = %v, step = %v: %s", output["status"], output["step"], text)
+	if output["status"] != panelsStatusOK || output["step"] != "1m" || output["scrapeInterval"] != "1m" {
+		t.Errorf("status = %v, step = %v, scrapeInterval = %v: %s", output["status"], output["step"], output["scrapeInterval"], text)
 	}
 	gotPanels, err := json.Marshal(output["panels"])
 	if err != nil {
@@ -199,6 +200,46 @@ func TestRenderPanelsWithProblems(t *testing.T) {
 	output = structured(t, result)
 	if message, _ := output["message"].(string); output["status"] != panelsStatusError || !strings.Contains(message, "Query `bad` of panels[2] failed: bad_data: parse error.") {
 		t.Errorf("output = %s", text)
+	}
+}
+
+func TestRenderPanelsWithTheScrapeInterval(t *testing.T) {
+	perses := newFakePerses(t, nil)
+	perses.datasources = []testDatasource{{Name: "prom", Kind: prometheusDatasourceKind, Default: true, ScrapeInterval: "15s"}}
+	perses.answer = answerQueries(map[string]answer{"up": matrix(`{"metric":{"job":"node"},"values":[[1767355200,"1"]]}`)})
+	session := connectPanels(t, perses, false)
+	result, text := callPanels(t, session, map[string]any{
+		"time_range": map[string]any{"past_duration": "5m"},
+		"panels":     []any{map[string]any{"title": "Up", "queries": []any{map[string]any{"promql": "up"}}}},
+	}, false)
+
+	// The view gets the scrape interval of the datasource, which its Prometheus plugin uses as the minimum step.
+	output := structured(t, result)
+	if output["scrapeInterval"] != "15s" || output["step"] != "15s" {
+		t.Errorf("scrapeInterval = %v, step = %v: %s", output["scrapeInterval"], output["step"], text)
+	}
+}
+
+func TestRenderPanelsWithNonFiniteSeries(t *testing.T) {
+	perses := newFakePerses(t, nil)
+	perses.answer = answerQueries(map[string]answer{"ratio": matrix(
+		`{"metric":{"instance":"a"},"values":[[1767355140,"NaN"],[1767355200,"+Inf"]]}`,
+		`{"metric":{"instance":"b"},"values":[[1767355140,"1"],[1767355200,"NaN"]]}`,
+	)})
+	session := connectPanels(t, perses, false)
+	result, text := callPanels(t, session, map[string]any{
+		"panels": []any{map[string]any{"title": "Ratio", "queries": []any{map[string]any{"promql": "ratio"}}}},
+	}, false)
+
+	// The series without statistics are counted, with a warning so that the model knows why they are missing.
+	output := structured(t, result)
+	summary := output["summaries"].([]any)[0].(map[string]any)
+	if output["status"] != panelsStatusOK || summary["seriesCount"] != float64(2) || len(summary["series"].([]any)) != 1 {
+		t.Errorf("output = %s", text)
+	}
+	want := "query `ratio` of panels[0]: 1 series have no statistics: they only have NaN or infinite samples in the time range"
+	if warnings, _ := output["warnings"].([]any); !slices.Contains(warnings, any(want)) {
+		t.Errorf("warnings = %v, want %q", output["warnings"], want)
 	}
 }
 

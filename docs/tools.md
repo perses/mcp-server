@@ -312,9 +312,11 @@ hour; the step is chosen as for `perses_query_prometheus`). The result has:
 
 - in the text content, read by the model: `{status, message, datasource, timeRange, step, displayedPanels, summaries,
   warnings}`, where each summary is a query with the statistics of its 8 highest series (`name` from the legend,
-  `min`, `max`, `avg`, `last`, `minAt`, `maxAt`);
+  `min`, `max`, `avg`, `last`, `minAt`, `maxAt`); a series that only has NaN or infinite samples has no statistics,
+  with a warning;
 - in the structured content: the same with the Perses definitions of the panels (`panels`) instead of
-  `displayedPanels`, used by the view and by chat UIs that render Perses panels.
+  `displayedPanels`, and the `scrapeInterval` of the datasource, used by the view and by chat UIs that render Perses
+  panels.
 
 When a query fails, a panel has no data (unless `allow_no_data`), or a `HeatMapChart` or `HistogramChart` gets no native
 histogram, `status` is `error`, there are no panels and `message` tells the model what to fix.
@@ -336,7 +338,8 @@ the view (`_meta.ui.visibility: ["app"]`): it is not listed to the clients that 
 `io.modelcontextprotocol/ui` extension, which would show it to the model.
 
 Each query runs twice when the panels are first displayed: once by `perses_render_panels`, for the statistics of the
-model, and once by the view, as the Prometheus plugin of Perses chooses the step of a query from the width of its panel.
+model, and once by the view, as the Prometheus plugin of Perses chooses the step of a query from the width of its panel
+(at least the scrape interval of the datasource, as in Perses).
 Changing the time range or refreshing only runs the queries of the view; the view then tells the model the new time
 range (`ui/update-model-context`), as the statistics are those of the time range of the call. The automatic refresh
 stops while the view is scrolled out of the chat.

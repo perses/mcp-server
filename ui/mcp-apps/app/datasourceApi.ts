@@ -20,9 +20,10 @@ export const DATASOURCE_PROXY_URL = '/perses-mcp/prometheus';
 
 /**
  * Returns the datasource API of the view: every Prometheus datasource selector resolves to the datasource of the
- * tool result, as the panels only reference it.
+ * tool result, as the panels only reference it. The Prometheus plugin uses its scrape interval as the minimum step of
+ * the queries and for $__interval and $__rate_interval (1m when undefined, as in Perses).
  */
-export function createDatasourceApi(datasource: DatasourceRef): DatasourceApi {
+export function createDatasourceApi(datasource: DatasourceRef, scrapeInterval?: string): DatasourceApi {
   const resource: GlobalDatasourceResource = {
     kind: 'GlobalDatasource',
     metadata: { name: datasource.name },
@@ -30,7 +31,10 @@ export function createDatasourceApi(datasource: DatasourceRef): DatasourceApi {
       default: true,
       plugin: {
         kind: 'PrometheusDatasource',
-        spec: { proxy: { kind: 'HTTPProxy', spec: { url: DATASOURCE_PROXY_URL } } },
+        spec: {
+          proxy: { kind: 'HTTPProxy', spec: { url: DATASOURCE_PROXY_URL } },
+          ...(scrapeInterval ? { scrapeInterval } : {}),
+        },
       },
     },
   };

@@ -97,14 +97,17 @@ type querySummary struct {
 // RenderPanelsOutput is the structured content of perses_render_panels, read by its view and by chat UIs (PersAI's
 // ShowPanelsOutput): keep the field names.
 type RenderPanelsOutput struct {
-	Status     string             `json:"status"`
-	Message    string             `json:"message,omitempty"`
-	Datasource DatasourceRef      `json:"datasource"`
-	TimeRange  timeRangeOutput    `json:"timeRange"`
-	Step       string             `json:"step"`
-	Panels     []*dashboard.Panel `json:"panels"`
-	Summaries  []querySummary     `json:"summaries"`
-	Warnings   []string           `json:"warnings,omitempty"`
+	Status     string        `json:"status"`
+	Message    string        `json:"message,omitempty"`
+	Datasource DatasourceRef `json:"datasource"`
+	// ScrapeInterval is the scrape interval of the datasource: the view gives it to the Prometheus plugin, which uses
+	// it as the minimum step of the queries and for $__interval and $__rate_interval, as in the Perses UI.
+	ScrapeInterval string             `json:"scrapeInterval"`
+	TimeRange      timeRangeOutput    `json:"timeRange"`
+	Step           string             `json:"step"`
+	Panels         []*dashboard.Panel `json:"panels"`
+	Summaries      []querySummary     `json:"summaries"`
+	Warnings       []string           `json:"warnings,omitempty"`
 }
 
 // renderPanelsText is the text content of perses_render_panels, read by the model: the structured content without
@@ -176,13 +179,14 @@ func (p *panels) render(ctx context.Context, input RenderPanelsInput) (*RenderPa
 	summaries, queryWarnings := p.runPanelQueries(ctx, promAPI, datasource.ref, input.Panels, promv1.Range{Start: start, End: end, Step: step}, location)
 
 	output := &RenderPanelsOutput{
-		Status:     panelsStatusOK,
-		Datasource: datasource.ref,
-		TimeRange:  timeRange,
-		Step:       model.Duration(step).String(),
-		Panels:     panelDefinitions,
-		Summaries:  summaries,
-		Warnings:   dedupe(append(append(warnings, datasource.warnings()...), queryWarnings...)),
+		Status:         panelsStatusOK,
+		Datasource:     datasource.ref,
+		ScrapeInterval: model.Duration(datasource.scrapeInterval).String(),
+		TimeRange:      timeRange,
+		Step:           model.Duration(step).String(),
+		Panels:         panelDefinitions,
+		Summaries:      summaries,
+		Warnings:       dedupe(append(append(warnings, datasource.warnings()...), queryWarnings...)),
 	}
 	if problems := describeProblems(input, summaries); len(problems) > 0 {
 		output.Status = panelsStatusError
@@ -286,7 +290,8 @@ func (p *panels) runPanelQueries(ctx context.Context, promAPI promv1.API, ref Da
 	return summaries, slices.Concat(warnings...)
 }
 
-// summarizeQuery runs a panel query and fills its summary. It returns the warnings of Prometheus.
+// summarizeQuery runs a panel query and fills its summary. It returns the warnings of Prometheus, and one when series
+// have no statistics because they only have NaN or infinite samples.
 func summarizeQuery(ctx context.Context, promAPI promv1.API, ref DatasourceRef, query PanelQueryInput, queryRange promv1.Range, location *time.Location, summary *querySummary) []string {
 	value, warnings, _, err := promAPI.QueryRange(ctx, query.PromQL, queryRange)
 	if err != nil {
@@ -308,6 +313,7 @@ func summarizeQuery(ctx context.Context, promAPI promv1.API, ref DatasourceRef, 
 		max     float64
 	}
 	var all []ranked
+	withoutFiniteSample := 0
 	for _, stream := range matrix {
 		if len(stream.Histograms) > 0 {
 			summary.HistogramSeries++
@@ -315,6 +321,7 @@ func summarizeQuery(ctx context.Context, promAPI promv1.API, ref DatasourceRef, 
 		}
 		streamStats, maxValue, ok := seriesStats(stream.Values, location)
 		if !ok {
+			withoutFiniteSample++
 			continue
 		}
 		all = append(all, ranked{summary: seriesSummary{Name: seriesName(stream.Metric, query.Legend), stats: streamStats}, max: maxValue})
@@ -322,6 +329,10 @@ func summarizeQuery(ctx context.Context, promAPI promv1.API, ref DatasourceRef, 
 	slices.SortStableFunc(all, func(a, b ranked) int { return cmp.Compare(b.max, a.max) })
 	for _, r := range all[:min(len(all), maxSummarySeries)] {
 		summary.Series = append(summary.Series, r.summary)
+	}
+	if withoutFiniteSample > 0 {
+		warnings = append(warnings, fmt.Sprintf("query `%s` of panels[%d]: %d series have no statistics: they only have "+
+			"NaN or infinite samples in the time range", query.PromQL, summary.PanelIndex, withoutFiniteSample))
 	}
 	return warnings
 }

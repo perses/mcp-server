@@ -114,7 +114,10 @@ function PanelsDashboard({ app, output, hostContext, paused }: PanelsDashboardPr
     () => createPrometheusFetch((params, options) => app.callServerTool(params, options), output.datasource),
     [app, output.datasource],
   );
-  const datasourceApi = useMemo(() => createDatasourceApi(output.datasource), [output.datasource]);
+  const datasourceApi = useMemo(
+    () => createDatasourceApi(output.datasource, output.scrapeInterval),
+    [output.datasource, output.scrapeInterval],
+  );
 
   // The automatic refresh stops while the view is scrolled out of the chat.
   const container = useRef<HTMLDivElement>(null);
