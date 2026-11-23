@@ -202,6 +202,36 @@ func TestNew(t *testing.T) {
 	}
 }
 
+// TestMissingPanelsViewWarning checks that the missing view is reported, by Execute, only when the panels tools would
+// have been registered.
+func TestMissingPanelsViewWarning(t *testing.T) {
+	tests := []struct {
+		name      string
+		view      string
+		resources []string
+		want      bool
+	}{
+		{name: "without the view", want: true},
+		{name: "without the view and the prometheus resource", resources: []string{"dashboard"}},
+		{name: "with the view", view: testPanelsView},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			withPanelsView(t, test.view)
+			task, err := New(Config{
+				AllowedResources: test.resources,
+				PersesServer:     config.RestConfigClient{URL: common.MustParseURL("http://127.0.0.1:1")},
+			})
+			if err != nil {
+				t.Fatalf("New() error = %v", err)
+			}
+			if got := task.(*server).tools.withoutPanelsView; got != test.want {
+				t.Errorf("withoutPanelsView = %v, want %v", got, test.want)
+			}
+		})
+	}
+}
+
 // TestNewWithoutThePanelsView checks a server built without the MCP Apps views: the tools of the view are not
 // registered, and the instructions don't mention them.
 func TestNewWithoutThePanelsView(t *testing.T) {
