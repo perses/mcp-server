@@ -23,6 +23,7 @@ import (
 	"regexp"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -176,7 +177,7 @@ func (p *panels) render(ctx context.Context, input RenderPanelsInput) (*RenderPa
 	if err != nil {
 		return nil, err
 	}
-	summaries, queryWarnings := p.runPanelQueries(ctx, promAPI, datasource.ref, input.Panels, promv1.Range{Start: start, End: end, Step: step}, location)
+	summaries, queryWarnings := p.runPanelQueries(ctx, promAPI, datasource.ref, input.Panels, promv1.Range{Start: start, End: end, Step: step}, datasource.scrapeInterval, location)
 
 	output := &RenderPanelsOutput{
 		Status:         panelsStatusOK,
@@ -265,7 +266,7 @@ func invalidPanelsError(message string, count int) error {
 
 // runPanelQueries runs the queries of the panels as range queries and returns their summaries, in the order of the
 // input, and the warnings of Prometheus.
-func (p *panels) runPanelQueries(ctx context.Context, promAPI promv1.API, ref DatasourceRef, panels []PanelInput, queryRange promv1.Range, location *time.Location) ([]querySummary, []string) {
+func (p *panels) runPanelQueries(ctx context.Context, promAPI promv1.API, ref DatasourceRef, panels []PanelInput, queryRange promv1.Range, minStep time.Duration, location *time.Location) ([]querySummary, []string) {
 	var summaries []querySummary
 	for i, panel := range panels {
 		for _, query := range panel.Queries {
@@ -281,7 +282,7 @@ func (p *panels) runPanelQueries(ctx context.Context, promAPI promv1.API, ref Da
 			i := queryIndex
 			queryIndex++
 			group.Go(func() error {
-				warnings[i] = summarizeQuery(ctx, promAPI, ref, query, queryRange, location, &summaries[i])
+				warnings[i] = summarizeQuery(ctx, promAPI, ref, query, queryRange, minStep, location, &summaries[i])
 				return nil
 			})
 		}
@@ -290,10 +291,28 @@ func (p *panels) runPanelQueries(ctx context.Context, promAPI promv1.API, ref Da
 	return summaries, slices.Concat(warnings...)
 }
 
+// replaceBuiltinVariables replaces the built-in variables that the Prometheus plugin of Perses replaces in the queries
+// of the panels, with the step of the statistics: $__interval, $__interval_ms and $__rate_interval, which is
+// max($__interval + min step, 4 * min step). The min step is the scrape interval of the datasource, as in the view.
+func replaceBuiltinVariables(promql string, step, minStep time.Duration) string {
+	if !strings.Contains(promql, "$") {
+		return promql
+	}
+	interval := model.Duration(step).String()
+	intervalMs := strconv.FormatInt(step.Milliseconds(), 10)
+	rateInterval := model.Duration(max(step+minStep, 4*minStep)).String()
+	// The arguments are compared in order: $__interval_ms before $__interval.
+	return strings.NewReplacer(
+		"${__interval_ms}", intervalMs, "$__interval_ms", intervalMs,
+		"${__interval}", interval, "$__interval", interval,
+		"${__rate_interval}", rateInterval, "$__rate_interval", rateInterval,
+	).Replace(promql)
+}
+
 // summarizeQuery runs a panel query and fills its summary. It returns the warnings of Prometheus, and one when series
 // have no statistics because they only have NaN or infinite samples.
-func summarizeQuery(ctx context.Context, promAPI promv1.API, ref DatasourceRef, query PanelQueryInput, queryRange promv1.Range, location *time.Location, summary *querySummary) []string {
-	value, warnings, _, err := promAPI.QueryRange(ctx, query.PromQL, queryRange)
+func summarizeQuery(ctx context.Context, promAPI promv1.API, ref DatasourceRef, query PanelQueryInput, queryRange promv1.Range, minStep time.Duration, location *time.Location, summary *querySummary) []string {
+	value, warnings, _, err := promAPI.QueryRange(ctx, replaceBuiltinVariables(query.PromQL, queryRange.Step, minStep), queryRange)
 	if err != nil {
 		message := apiError(ref, err).Error()
 		if len(message) > maxErrorLength {

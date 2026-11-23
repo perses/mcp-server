@@ -308,7 +308,9 @@ Like the Perses UI, the tools apply two settings of the Prometheus datasource, w
 
 The panels are validated by Perses (`/api/validate/dashboards`) against the schemas of the plugins: an invalid spec is a
 tool error with the message of Perses. Each query is then run once as a range query over `time_range` (default the past
-hour; the step is chosen as for `perses_query_prometheus`). The result has:
+hour; the step is chosen as for `perses_query_prometheus`). As in the Prometheus plugin of Perses, `$__interval`,
+`$__interval_ms` and `$__rate_interval` (max(`$__interval` + scrape interval, 4 * scrape interval)) are replaced with this
+step in these queries; the panels keep them for the view. The result has:
 
 - in the text content, read by the model: `{status, message, datasource, timeRange, step, displayedPanels, summaries,
   warnings}`, where each summary is a query with the statistics of its 8 highest series (`name` from the legend,

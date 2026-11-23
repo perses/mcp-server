@@ -220,6 +220,53 @@ func TestRenderPanelsWithTheScrapeInterval(t *testing.T) {
 	}
 }
 
+func TestRenderPanelsWithBuiltinVariables(t *testing.T) {
+	perses := newFakePerses(t, nil)
+	perses.datasources = []testDatasource{{Name: "prom", Kind: prometheusDatasourceKind, Default: true, ScrapeInterval: "15s"}}
+	const promql = "rate(c[$__rate_interval]) + c offset ${__interval} + $__interval_ms"
+	// Step 15s and min step 15s: $__rate_interval is max(15s + 15s, 4 * 15s).
+	perses.answer = answerQueries(map[string]answer{
+		"rate(c[1m]) + c offset 15s + 15000": matrix(`{"metric":{"job":"node"},"values":[[1767355200,"1"]]}`),
+	})
+	session := connectPanels(t, perses, false)
+	result, text := callPanels(t, session, map[string]any{
+		"time_range": map[string]any{"past_duration": "5m"},
+		"panels":     []any{map[string]any{"title": "C", "queries": []any{map[string]any{"promql": promql}}}},
+	}, false)
+
+	// The statistics use the replaced query; the panel keeps the variables, which the view replaces.
+	output := structured(t, result)
+	summary := output["summaries"].([]any)[0].(map[string]any)
+	if output["status"] != panelsStatusOK || summary["promql"] != promql || summary["seriesCount"] != float64(1) {
+		t.Errorf("output = %s", text)
+	}
+	panels, err := json.Marshal(output["panels"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(panels), `"query":"rate(c[$__rate_interval]) + c offset ${__interval} + $__interval_ms"`) {
+		t.Errorf("panels = %s", panels)
+	}
+}
+
+func TestReplaceBuiltinVariables(t *testing.T) {
+	for _, test := range []struct{ promql, want string }{
+		{"up", "up"},
+		{"rate(c[$__rate_interval])", "rate(c[4m])"},
+		{"rate(c[${__rate_interval}])", "rate(c[4m])"},
+		{"avg_over_time(g[$__interval]) * $__interval_ms", "avg_over_time(g[2m]) * 120000"},
+		{"up{job=\"$job\"}", "up{job=\"$job\"}"},
+	} {
+		if got := replaceBuiltinVariables(test.promql, 2*time.Minute, time.Minute); got != test.want {
+			t.Errorf("replaceBuiltinVariables(%q) = %q, want %q", test.promql, got, test.want)
+		}
+	}
+	// $__rate_interval is $__interval + min step when the step is over 3 times the min step.
+	if got := replaceBuiltinVariables("$__rate_interval", 5*time.Minute, time.Minute); got != "6m" {
+		t.Errorf("$__rate_interval = %q, want 6m", got)
+	}
+}
+
 func TestRenderPanelsWithNonFiniteSeries(t *testing.T) {
 	perses := newFakePerses(t, nil)
 	perses.answer = answerQueries(map[string]answer{"ratio": matrix(
