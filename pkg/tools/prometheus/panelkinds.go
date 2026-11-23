@@ -76,6 +76,9 @@ var panelKinds = map[string]panelKind{
 			return map[string]any{
 				"calculation": "last-number", "radius": 50, "sort": "desc", "mode": "value",
 				"legend": map[string]any{"position": "right", "mode": "list"},
+				// Without a palette, the plugin picks a color from each series name, and two slices can get the same
+				// color. This is the categorical palette of the Perses charts theme.
+				"colorPalette": []any{"#56B4E9", "#009E73", "#0072B2", "#CC79A7", "#F0E442", "#E69F00", "#D55E00"},
 			}
 		},
 		unitPath: []string{"format", "unit"},

@@ -503,6 +503,18 @@ func TestMergeSpec(t *testing.T) {
 	}
 }
 
+func TestPieChartPalette(t *testing.T) {
+	datasource := DatasourceRef{Name: "prom"}
+	panel := buildPanel(PanelInput{Title: "Memory"}, "PieChart", datasource)
+	if palette, _ := panel.Spec.Plugin.Spec.(map[string]any)["colorPalette"].([]any); len(palette) != 7 {
+		t.Errorf("default palette = %v", palette)
+	}
+	panel = buildPanel(PanelInput{Title: "Memory", Spec: map[string]any{"colorPalette": []any{"#ff0000", "#00ff00"}}}, "PieChart", datasource)
+	if palette, _ := panel.Spec.Plugin.Spec.(map[string]any)["colorPalette"].([]any); !slices.Equal(palette, []any{"#ff0000", "#00ff00"}) {
+		t.Errorf("palette of the model = %v", palette)
+	}
+}
+
 func TestSeriesName(t *testing.T) {
 	metric := model.Metric{"__name__": "up", "job": "node", "instance": "a:9100"}
 	tests := []struct {
