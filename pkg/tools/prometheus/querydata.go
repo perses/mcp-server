@@ -27,8 +27,9 @@ import (
 )
 
 // maxQueryDataBytes caps the response of perses_query_prometheus_data: the hosts pass it to the view in one message, and
-// some of them limit the size of the tool results.
-var maxQueryDataBytes = 2 << 20
+// some of them limit the size of the tool results. It is the cap of the Prometheus responses (maxBodyBytes), above
+// which the client stops reading: the check of the encoded response only catches what encoding adds.
+var maxQueryDataBytes = maxBodyBytes
 
 // QueryDataInput is a query of the Prometheus HTTP API, as sent by the Prometheus plugin of the view: an instant
 // query at Time, or a range query when Start is set. Times are Unix timestamps in seconds or RFC 3339, steps
@@ -91,6 +92,10 @@ func (p *panels) queryData(ctx context.Context, input QueryDataInput) (map[strin
 		value, warnings, infos, err = promAPI.QueryRange(ctx, input.Query, queryRange)
 	} else {
 		value, warnings, infos, err = promAPI.Query(ctx, input.Query, at)
+	}
+	if errors.Is(err, errTooMuchData) {
+		return nil, fmt.Errorf("the result is too large to display (over %d MiB): aggregate the query (e.g. sum by, "+
+			"topk) or shorten the time range", maxBodyBytes>>20)
 	}
 	if err != nil {
 		return nil, apiError(datasource.ref, err)

@@ -450,9 +450,17 @@ func TestQueryData(t *testing.T) {
 		t.Errorf("error = %s", text)
 	}
 
+	instantQuery := map[string]any{"query": "up", "time": "1767355200"}
+	perses.answers[globalProxy+"/api/v1/query"] = answer{status: http.StatusOK,
+		body: `{"status":"success","data":{"resultType":"vector","result":[` + strings.Repeat(" ", maxBodyBytes) + `]}}`}
+	result, text := tooltest.CallTool(t, session, QueryDataToolName, instantQuery)
+	if !result.IsError || !strings.Contains(text, "too large to display (over 1 MiB)") {
+		t.Errorf("a Prometheus response over the limit must be an error: %s", text)
+	}
+
 	maxQueryDataBytes = 50
-	t.Cleanup(func() { maxQueryDataBytes = 2 << 20 })
-	result, text := tooltest.CallTool(t, session, QueryDataToolName, map[string]any{"query": "up", "start": "1767351600", "end": "1767355200", "step": "15"})
+	t.Cleanup(func() { maxQueryDataBytes = maxBodyBytes })
+	result, text = tooltest.CallTool(t, session, QueryDataToolName, map[string]any{"query": "up", "start": "1767351600", "end": "1767355200", "step": "15"})
 	if !result.IsError || !strings.Contains(text, "too large to display (1 series") {
 		t.Errorf("a response over the limit must be an error: %s", text)
 	}
