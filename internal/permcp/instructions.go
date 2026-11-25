@@ -74,6 +74,11 @@ func buildInstructions(registered []*tools.Tool) string {
 			prometheus.ListLabelValuesToolName, prometheus.GetMetricMetadataToolName),
 		queryStep,
 	}
+	if names.Contains(prometheus.RenderPanelsToolName) {
+		steps = append(steps, fmt.Sprintf("When a chart or a table helps the user, show the data with `%s`: it "+
+			"returns statistics of the series, and clients that support MCP Apps display the panels.",
+			prometheus.RenderPanelsToolName))
+	}
 	b.WriteString("\nTo answer questions about monitored systems (metrics):\n")
 	for i, step := range steps {
 		fmt.Fprintf(&b, "%d. %s\n", i+1, step)

@@ -30,6 +30,9 @@ jobs:
       - uses: ./.github/perses-ci/actions/setup_environment
         with:
           enable_go: true
+          # The MCP Apps views (ui/mcp-apps) are built into the binaries.
+          enable_npm: true
+          nvmrc_path: 'ui/mcp-apps/.nvmrc'
       - # Add support for more platforms with QEMU (optional)
         # https://github.com/docker/setup-qemu-action
         name: Set up QEMU

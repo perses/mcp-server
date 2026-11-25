@@ -78,7 +78,7 @@ When an LLM host connects, the MCP server sends it [instructions](https://modelc
 that most hosts add to the context of the LLM: what Perses is, and how to answer questions about the monitored
 systems with the [Prometheus tools](./tools.md#prometheus) (use the same datasource for all the calls, check the
 metric and label names before writing PromQL, query with `perses_query_prometheus` rather than the raw datasource
-proxy tools). The instructions only give the order and the choice of the tools; the tool descriptions document each
+proxy tools, show charts with `perses_render_panels`). The instructions only give the order and the choice of the tools; the tool descriptions document each
 tool. They are built from the registered tools: with `read_only` or `resources`, they never mention a tool that is not
 available.
 

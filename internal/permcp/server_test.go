@@ -19,6 +19,7 @@ import (
 	"net"
 	"os"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -26,7 +27,9 @@ import (
 	"github.com/perses/perses/pkg/client/config"
 	"github.com/perses/spec/go/common"
 
+	"github.com/perses/mcp-server/pkg/mcpapp"
 	"github.com/perses/mcp-server/pkg/tools"
+	"github.com/perses/mcp-server/pkg/tools/prometheus"
 )
 
 // newServerWithBusyAddress returns an MCP server whose HTTP transport fails to start, because its address is already in use.
@@ -140,6 +143,7 @@ func TestSelectTools(t *testing.T) {
 
 // TestNew checks that New registers the selected tools and sends the instructions on initialize.
 func TestNew(t *testing.T) {
+	withPanelsView(t, testPanelsView)
 	task, err := New(Config{
 		ReadOnly:         true,
 		AllowedResources: []string{"dashboard", "prometheus"},
@@ -172,7 +176,8 @@ func TestNew(t *testing.T) {
 	for _, tool := range toolList.Tools {
 		registered = append(registered, tool.Name)
 	}
-	// The read-only tools of the dashboards and of Prometheus only.
+	// The read-only tools of the dashboards and of Prometheus only. The client doesn't declare MCP Apps: the app-only
+	// perses_query_prometheus_data is not listed.
 	want := []string{
 		"perses_get_dashboard_by_name",
 		"perses_get_prometheus_metric_metadata",
@@ -181,6 +186,7 @@ func TestNew(t *testing.T) {
 		"perses_list_prometheus_label_values",
 		"perses_list_prometheus_metric_names",
 		"perses_query_prometheus",
+		"perses_render_panels",
 	}
 	slices.Sort(registered)
 	if !slices.Equal(registered, want) {
@@ -193,5 +199,83 @@ func TestNew(t *testing.T) {
 	}
 	if got := session.InitializeResult().Instructions; got != string(wantInstructions) {
 		t.Errorf("instructions =\n%s\nwant\n%s", got, wantInstructions)
+	}
+}
+
+// TestMissingPanelsViewWarning checks that the missing view is reported, by Execute, only when the panels tools would
+// have been registered.
+func TestMissingPanelsViewWarning(t *testing.T) {
+	tests := []struct {
+		name      string
+		view      string
+		resources []string
+		want      bool
+	}{
+		{name: "without the view", want: true},
+		{name: "without the view and the prometheus resource", resources: []string{"dashboard"}},
+		{name: "with the view", view: testPanelsView},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			withPanelsView(t, test.view)
+			task, err := New(Config{
+				AllowedResources: test.resources,
+				PersesServer:     config.RestConfigClient{URL: common.MustParseURL("http://127.0.0.1:1")},
+			})
+			if err != nil {
+				t.Fatalf("New() error = %v", err)
+			}
+			if got := task.(*server).tools.withoutPanelsView; got != test.want {
+				t.Errorf("withoutPanelsView = %v, want %v", got, test.want)
+			}
+		})
+	}
+}
+
+// TestNewWithoutThePanelsView checks a server built without the MCP Apps views: the tools of the view are not
+// registered, and the instructions don't mention them.
+func TestNewWithoutThePanelsView(t *testing.T) {
+	withPanelsView(t, "")
+	task, err := New(Config{PersesServer: config.RestConfigClient{URL: common.MustParseURL("http://127.0.0.1:1")}})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	s := task.(*server)
+	serverTransport, clientTransport := mcp.NewInMemoryTransports()
+	serverSession, err := s.mcpServer.Connect(t.Context(), serverTransport, nil)
+	if err != nil {
+		t.Fatalf("connecting the server: %v", err)
+	}
+	t.Cleanup(func() { _ = serverSession.Close() })
+	// The client declares MCP Apps: it would list the app-only tool.
+	options := &mcp.ClientOptions{Capabilities: &mcp.ClientCapabilities{}}
+	options.Capabilities.AddExtension(mcpapp.ExtensionID, map[string]any{"mimeTypes": []any{mcpapp.ResourceMIMEType}})
+	session, err := mcp.NewClient(&mcp.Implementation{Name: "test-client"}, options).Connect(t.Context(), clientTransport, nil)
+	if err != nil {
+		t.Fatalf("connecting the client: %v", err)
+	}
+	t.Cleanup(func() { _ = session.Close() })
+
+	toolList, err := session.ListTools(t.Context(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var queryTool bool
+	for _, tool := range toolList.Tools {
+		switch tool.Name {
+		case prometheus.RenderPanelsToolName, prometheus.QueryDataToolName:
+			t.Errorf("%s is registered without its view", tool.Name)
+		case prometheus.QueryToolName:
+			queryTool = true
+		}
+	}
+	if !queryTool {
+		t.Errorf("%s is not registered", prometheus.QueryToolName)
+	}
+	if instructions := session.InitializeResult().Instructions; strings.Contains(instructions, prometheus.RenderPanelsToolName) {
+		t.Errorf("the instructions mention %s:\n%s", prometheus.RenderPanelsToolName, instructions)
+	}
+	if _, err := session.ReadResource(t.Context(), &mcp.ReadResourceParams{URI: prometheus.PanelsViewURI}); err == nil {
+		t.Errorf("the resource %s is registered without its view", prometheus.PanelsViewURI)
 	}
 }

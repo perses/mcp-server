@@ -33,10 +33,21 @@ var updateGolden = flag.Bool("update", false, "update the golden files of the in
 // toolNameRegexp matches the tool names of the instructions: buildInstructions always formats them as code.
 var toolNameRegexp = regexp.MustCompile("`(perses_[a-z_]+)`")
 
+// testPanelsView stands for the view of perses_render_panels, which is not built for the tests.
+const testPanelsView = "<html></html>"
+
+// withPanelsView makes New build the server with the given view of perses_render_panels (none when empty).
+func withPanelsView(t *testing.T, view string) {
+	t.Helper()
+	previous := loadPanelsView
+	loadPanelsView = func() (string, bool) { return view, view != "" }
+	t.Cleanup(func() { loadPanelsView = previous })
+}
+
 func allTestTools(t *testing.T) []*tools.Tool {
 	t.Helper()
 	client := apiclient.NewWithClient(&perseshttp.RESTClient{BaseURL: common.MustParseURL("http://127.0.0.1:1")})
-	return buildTools(client)
+	return buildTools(client, testPanelsView)
 }
 
 func toolNames(selected []*tools.Tool) []string {
