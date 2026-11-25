@@ -21,6 +21,8 @@ MCP_APPS_SOURCES := $(shell find $(MCP_APPS_DIR)/app -type f) $(MCP_APPS_DIR)/pa
 build:
 	@if command -v npm >/dev/null 2>&1; then \
 		$(MAKE) --no-print-directory $(MCP_APPS_VIEW); \
+	elif [ -f $(MCP_APPS_VIEW) ]; then \
+		echo ">> npm not found: embedding the MCP Apps views of a previous build, which may be outdated"; \
 	else \
 		echo ">> npm not found: building without the MCP Apps views (perses_render_panels will not be available)"; \
 	fi
@@ -60,20 +62,25 @@ test:
 	@echo ">> running all tests"
 	$(GO) test -count=1 -v ./...	
 
+# Installs the dependencies of the views once, again only when package-lock.json changed: npm ci writes
+# node_modules/.package-lock.json.
+$(MCP_APPS_DIR)/node_modules/.package-lock.json: $(MCP_APPS_DIR)/package-lock.json
+	cd $(MCP_APPS_DIR) && npm ci
+
 ## Build the MCP Apps views embedded in the server (ui/mcp-apps/dist, not committed).
 .PHONY: build-mcp-apps
-build-mcp-apps:
+build-mcp-apps: $(MCP_APPS_DIR)/node_modules/.package-lock.json
 	@echo ">> building the MCP Apps views"
-	cd $(MCP_APPS_DIR) && npm ci && npm run build
+	cd $(MCP_APPS_DIR) && npm run build
 
 # Rebuilds the views only when their sources changed.
 $(MCP_APPS_VIEW): $(MCP_APPS_SOURCES)
 	@$(MAKE) --no-print-directory build-mcp-apps
 
 .PHONY: test-mcp-apps
-test-mcp-apps:
+test-mcp-apps: $(MCP_APPS_DIR)/node_modules/.package-lock.json
 	@echo ">> checking the MCP Apps views"
-	cd $(MCP_APPS_DIR) && npm ci && npm run typecheck && npm test
+	cd $(MCP_APPS_DIR) && npm run typecheck && npm test
 
 ## Build the MCP Apps views and fail when the server doesn't embed them: the releases must have them.
 .PHONY: checkmcpapps
