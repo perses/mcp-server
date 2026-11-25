@@ -223,11 +223,15 @@ function PanelItem({ definition }: { definition: PanelDefinition }): ReactElemen
     [plugin, pluginSpec],
   );
   const options = useMemo(() => ({ suggestedStepMs, ...pluginQueryOptions }), [suggestedStepMs, pluginQueryOptions]);
+  // The width is undefined until the resize observer measures the panel: querying before would run the queries twice,
+  // with a step of 0 and then with the step of the width.
+  const measured = width !== undefined;
+  const queryOptions = useMemo(() => ({ enabled: measured }), [measured]);
   const height = COMPACT_KINDS.has(definition.spec.plugin.kind) ? 200 : 320;
 
   return (
     <Box ref={ref} sx={{ height, minWidth: 0 }}>
-      <DataQueriesProvider definitions={definition.spec.queries ?? []} options={options}>
+      <DataQueriesProvider definitions={definition.spec.queries ?? []} options={options} queryOptions={queryOptions}>
         <Panel definition={definition} />
       </DataQueriesProvider>
     </Box>
